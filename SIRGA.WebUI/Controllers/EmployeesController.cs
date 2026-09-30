@@ -22,6 +22,7 @@ public class EmployeesController : ControllerBase
   /// (4,76 MB de JSON) en un endpoint anónimo. Para los de una empresa usar
   /// <c>/api/employees/by-company/{companyId}</c>.
   /// </summary>
+  [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
   [HttpGet]
   public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 200)
   {
@@ -31,18 +32,21 @@ public class EmployeesController : ControllerBase
     return Ok(await _employeeService.GetPagedAsync(page, pageSize));
   }
 
+  [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
   [HttpGet("by-company/{companyId}")]
   public async Task<IActionResult> GetByCompany(int companyId)
   {
     return Ok(await _employeeService.GetEmployeesByCompanyAsync(companyId));
   }
 
+  [Authorize(Roles = "EstudioContable,Auditor,Admin")]
   [HttpGet("by-assignment/{companyId}/{unionId}")]
   public async Task<IActionResult> GetByAssignment(int companyId, int unionId)
   {
     return Ok(await _employeeService.GetEmployeesByAssignmentAsync(companyId, unionId));
   }
 
+  [Authorize(Roles = "EstudioContable,Auditor,Admin")]
   [HttpPost]
   public async Task<IActionResult> Create(Employee employee)
   {
@@ -57,6 +61,7 @@ public class EmployeesController : ControllerBase
     }
   }
 
+  [Authorize(Roles = "EstudioContable,Auditor,Admin")]
   [HttpPatch("transfer/{employeeId}")]
   public async Task<IActionResult> Transfer(int employeeId, [FromQuery] int fromCompanyId, [FromQuery] int toCompanyId)
   {

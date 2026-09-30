@@ -10,6 +10,7 @@
 @inject UnionService UnionService
 @inject DeclarationService DeclarationService
 @inject IPaymentService PaymentService
+@inject EmployeeService EmployeeService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
@@ -315,9 +316,8 @@ else
     {
       if (_selectedCompanyId == 0 || _selectedUnionId == 0) return;
 
-      var employees = await
-Http.GetFromJsonAsync<List<EmployeeDto>>($"api/employees/by-assignment/{_selectedCompanyId}/{_selectedUnionId}") ??
-new();
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      var employees = (await EmployeeService.GetEmployeesByAssignmentAsync(_selectedCompanyId, _selectedUnionId)).ToList();
       _details = employees.Select(e => new DeclarationDetailViewModel
       {
         EmployeeId = e.Id,

@@ -1,6 +1,8 @@
 @page "/empresa/{CompanyId:int}/empleados"
 @using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "EstudioContable,Admin,Auditor")]
 @inject EmployeeService EmpService
 @inject CompanyService CompanyService
 @inject HttpClient Http
