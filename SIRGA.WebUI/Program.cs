@@ -81,6 +81,7 @@ builder.Services.AddScoped<EmployeeService>();
 builder.Services.AddScoped<CompanyService>();
 builder.Services.AddScoped<UnionService>();
 builder.Services.AddScoped<SalaryScaleService>();
+builder.Services.AddScoped<InterestRateService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<InspectionService>();
 builder.Services.AddScoped<IEmailService, EmailService>();

@@ -1,35 +1,38 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SIRGA.Application.Interfaces;
+using SIRGA.Application.Services;
 using SIRGA.Domain.Entities;
 
 namespace SIRGA.WebUI.Controllers;
 
+/// <summary>
+/// Tasas de interés de ARCA. Estaban anónimas: cualquiera podía leerlas, crear tasas falsas o
+/// borrar las existentes, y con eso alterar el cálculo de intereses por mora. La pantalla
+/// (/admin/interest-rates, sólo Admin) las usa a través de InterestRateService, así que se puede
+/// exigir rol sin romperla.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
-public class InterestRateController(IUnitOfWork unitOfWork) : ControllerBase
+[Authorize(Roles = "Admin")]
+public class InterestRateController(InterestRateService interestRateService) : ControllerBase
 {
   [HttpGet]
   public async Task<ActionResult<IEnumerable<InterestRate>>> GetAll()
   {
-    return Ok(await unitOfWork.InterestRates.GetAllAsync());
+    return Ok(await interestRateService.GetAllAsync());
   }
 
   [HttpPost]
   public async Task<ActionResult<InterestRate>> Create(InterestRate rate)
   {
-    await unitOfWork.InterestRates.AddAsync(rate);
-    await unitOfWork.CompleteAsync();
-    return CreatedAtAction(nameof(GetAll), new { id = rate.Id }, rate);
+    var creada = await interestRateService.CreateAsync(rate);
+    return CreatedAtAction(nameof(GetAll), new { id = creada.Id }, creada);
   }
 
   [HttpDelete("{id}")]
   public async Task<IActionResult> Delete(int id)
   {
-    var rate = await unitOfWork.InterestRates.GetByIdAsync(id);
-    if (rate == null) return NotFound();
-
-    await unitOfWork.InterestRates.RemoveAsync(rate);
-    await unitOfWork.CompleteAsync();
+    if (!await interestRateService.DeleteAsync(id)) return NotFound();
     return NoContent();
   }
 }
