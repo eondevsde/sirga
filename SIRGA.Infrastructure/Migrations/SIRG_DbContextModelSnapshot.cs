@@ -328,6 +328,8 @@ namespace SIRGA.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Timestamp");
+
                     b.ToTable("AuditLogs");
                 });
 
@@ -356,6 +358,8 @@ namespace SIRGA.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
 
                     b.ToTable("BalanceHistories");
                 });
@@ -627,9 +631,13 @@ namespace SIRGA.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CompanyId");
+                    b.HasIndex("Period");
 
-                    b.HasIndex("UnionId");
+                    b.HasIndex("CompanyId", "Period");
+
+                    b.HasIndex("Status", "SubmissionDate");
+
+                    b.HasIndex("UnionId", "SubmissionDate");
 
                     b.ToTable("Declarations");
                 });

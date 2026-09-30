@@ -91,6 +91,28 @@ public class SIRG_DbContext : IdentityDbContext
             .IsUnique()
             .HasFilter("[ParentCompanyId] IS NULL");
 
+        // Índices para las consultas más calientes. Se verificó contra la base real que
+        // faltaban: Declarations tiene 248.151 filas y solo estaba indexada por sus claves
+        // foráneas, así que filtrar por período/estado o listar por sindicato ordenando por
+        // fecha terminaba en un escaneo completo.
+        modelBuilder.Entity<DeclarationRegistry>()
+            .HasIndex(d => d.Period);
+
+        modelBuilder.Entity<DeclarationRegistry>()
+            .HasIndex(d => new { d.Status, d.SubmissionDate });
+
+        modelBuilder.Entity<DeclarationRegistry>()
+            .HasIndex(d => new { d.CompanyId, d.Period });
+
+        modelBuilder.Entity<DeclarationRegistry>()
+            .HasIndex(d => new { d.UnionId, d.SubmissionDate });
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(l => l.Timestamp);
+
+        modelBuilder.Entity<BalanceHistory>()
+            .HasIndex(h => h.CompanyId);
+
         // Configuración de decimales para precisión monetaria
         foreach (var property in modelBuilder.Model.GetEntityTypes()
             .SelectMany(t => t.GetProperties())
