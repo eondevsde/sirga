@@ -1,0 +1,111 @@
+@page "/admin/interest-rates"
+@using SIRGA.Domain.Entities
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<PageTitle>SIRGA - Tasas de Interés (ARCA)</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">Gestión de Tasas de Interés (ARCA)</MudText>
+
+<MudGrid>
+  <MudItem xs="12" md="4">
+    <MudPaper Class="pa-4">
+      <MudText Typo="Typo.h6">Nueva Tasa Mensual</MudText>
+      <MudNumericField T="decimal" @bind-Value="_newRate.MonthlyRate" Label="Tasa Mensual (%)" Format="P2" Step="0.001m"
+                       Class="mt-4" />
+      <MudDatePicker Label="Fecha de Vigencia" @bind-Date="_newRateDate" Class="mt-4" />
+      <MudTextField @bind-Value="_newRate.Description" Label="Descripción / Motivo" Class="mt-4" />
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-6" FullWidth="true" OnClick="SaveRate">Guardar
+        Tasa</MudButton>
+      </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="8">
+      <MudTable Items="@_rates" Dense="true" Hover="true" Loading="@_loading">
+        <HeaderContent>
+          <MudTh>Vigencia</MudTh>
+          <MudTh>Tasa Mensual</MudTh>
+          <MudTh>Descripción</MudTh>
+          <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd>@context.EffectiveDate.ToString("MM/yyyy")</MudTd>
+          <MudTd><b>@((context.MonthlyRate * 100).ToString("N2"))%</b></MudTd>
+          <MudTd>@context.Description</MudTd>
+          <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                           OnClick="@(() => DeleteRate(context.Id))" />
+          </MudTd>
+        </RowTemplate>
+      </MudTable>
+    </MudItem>
+  </MudGrid>
+
+@code {
+  private List<InterestRate> _rates = new();
+  private InterestRate _newRate = new();
+  private DateTime? _newRateDate = DateTime.Today;
+  private bool _loading = true;
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadRates();
+  }
+
+  private async Task LoadRates()
+  {
+    _loading = true;
+    try
+    {
+      _rates = (await Http.GetFromJsonAsync<List<InterestRate>>("api/interestrate") ?? new()).OrderByDescending(x =>
+x.EffectiveDate).ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar tasas: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private async Task SaveRate()
+  {
+    if (_newRate.MonthlyRate <= 0)
+    {
+      Snackbar.Add("La tasa debe ser mayor a 0", Severity.Warning);
+      return;
+    }
+
+    try
+    {
+      _newRate.EffectiveDate = _newRateDate ?? DateTime.Today;
+      var response = await Http.PostAsJsonAsync("api/interestrate", _newRate);
+      if (response.IsSuccessStatusCode)
+      {
+        Snackbar.Add("Tasa guardada correctamente", Severity.Success);
+        _newRate = new();
+        await LoadRates();
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al guardar: " + ex.Message, Severity.Error);
+    }
+  }
+
+  private async Task DeleteRate(int id)
+  {
+    try
+    {
+      await Http.DeleteAsync($"api/interestrate/{id}");
+      await LoadRates();
+      Snackbar.Add("Tasa eliminada", Severity.Info);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al eliminar: " + ex.Message, Severity.Error);
+    }
+  }
+}

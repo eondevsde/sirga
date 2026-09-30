@@ -1,0 +1,122 @@
+@page "/admin/subscriptions"
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using Microsoft.AspNetCore.Authorization
+@inject UnionSubscriptionService SubscriptionService
+@inject ISnackbar Snackbar
+@attribute [Authorize(Roles = "Admin")]
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
+  <MudText Typo="Typo.h3" GutterBottom="true">Gestión de Abonos de Sindicatos</MudText>
+  <MudText Typo="Typo.body1" Class="mb-4">Panel de control del sistema SaaS para facturación y estado de servicios.
+  </MudText>
+
+  @if (_subscriptions == null)
+  {
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+  }
+  else
+  {
+    <MudTable Items="@_subscriptions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+              LoadingProgressColor="Color.Info">
+      <HeaderContent>
+        <MudTh>Sindicato</MudTh>
+        <MudTh>Abono Mensual</MudTh>
+        <MudTh>Próximo Vencimiento</MudTh>
+        <MudTh>Estado</MudTh>
+        <MudTh>Acciones</MudTh>
+      </HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Sindicato">@context.UnionName</MudTd>
+        <MudTd DataLabel="Abono Mensual">@context.MonthlyFee.ToString("C")</MudTd>
+        <MudTd DataLabel="Próximo Vencimiento">@context.NextBillingDate.ToShortDateString()</MudTd>
+        <MudTd DataLabel="Estado">
+          @if (context.IsServiceActive)
+          {
+            <MudChip T="string" Color="Color.Success" Size="Size.Small">Activo</MudChip>
+          }
+          else
+          {
+            <MudChip T="string" Color="Color.Error" Size="Size.Small">Bloqueado</MudChip>
+          }
+        </MudTd>
+        <MudTd DataLabel="Acciones">
+          <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                     OnClick="@(() => OpenPaymentDialog(context))">Registrar Pago</MudButton>
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+  }
+</MudContainer>
+
+<MudDialog @bind-Visible="_paymentDialogVisible" Options="_dialogOptions">
+  <TitleContent>
+    <MudText Typo="Typo.h6">Registrar Pago de Abono</MudText>
+  </TitleContent>
+  <DialogContent>
+    <MudText Class="mb-4">Registrando pago para: <b>@_selectedSubscription?.UnionName</b></MudText>
+    <MudNumericField @bind-Value="_paymentAmount" Label="Monto" Variant="Variant.Outlined" Adornment="Adornment.Start"
+                     AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+    <MudTextField @bind-Value="_paymentMethod" Label="Método de Pago" Variant="Variant.Outlined" Class="mt-4" />
+    <MudTextField @bind-Value="_receiptNumber" Label="Nro de Recibo / Transacción" Variant="Variant.Outlined"
+                  Class="mt-4" />
+  </DialogContent>
+  <DialogActions>
+    <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="CloseDialog">Cancelar</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitPayment">Confirmar Pago</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  private IEnumerable<UnionSubscriptionDto>? _subscriptions;
+  private bool _loading = true;
+  private bool _paymentDialogVisible;
+  private UnionSubscriptionDto? _selectedSubscription;
+  private decimal _paymentAmount;
+  private string _paymentMethod = "Transferencia Bancaria";
+  private string _receiptNumber = "";
+  private readonly DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true };
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadData();
+  }
+
+  private async Task LoadData()
+  {
+    _loading = true;
+    _subscriptions = await SubscriptionService.GetAllSubscriptionsAsync();
+    _loading = false;
+  }
+
+  private void OpenPaymentDialog(UnionSubscriptionDto sub)
+  {
+    _selectedSubscription = sub;
+    _paymentAmount = sub.MonthlyFee;
+    _paymentDialogVisible = true;
+  }
+
+  private void CloseDialog()
+  {
+    _paymentDialogVisible = false;
+  }
+
+  private async Task SubmitPayment()
+  {
+    if (_selectedSubscription == null) return;
+
+    var payment = new UnionSubscriptionPaymentDto
+    {
+      UnionSubscriptionId = _selectedSubscription.Id,
+      Amount = _paymentAmount,
+      PaymentDate = DateTime.Now,
+      PaymentMethod = _paymentMethod,
+      ReceiptNumber = _receiptNumber
+    };
+
+    await SubscriptionService.RecordPaymentAsync(payment);
+    Snackbar.Add("Pago registrado con éxito. Se ha extendido el servicio 1 mes.", Severity.Success);
+    _paymentDialogVisible = false;
+    await LoadData();
+  }
+}

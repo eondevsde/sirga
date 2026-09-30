@@ -1,0 +1,101 @@
+@page "/subscribe"
+@layout LoginLayout
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@inject UnionSubscriptionService SubscriptionService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-10 mb-10">
+  <MudPaper Elevation="4" Class="pa-8">
+    <div class="d-flex flex-column align-center mb-6">
+      <MudIcon Icon="@Icons.Material.Filled.AppRegistration" Color="Color.Primary" Size="Size.Large" />
+      <MudText Typo="Typo.h4" Class="mt-2">Solicitud SIRGA</MudText>
+      <MudText Typo="Typo.subtitle1" Align="Align.Center">Únete a la plataforma líder en gestión sindical</MudText>
+    </div>
+
+    <EditForm Model="@_request" OnValidSubmit="HandleSubmit">
+      <DataAnnotationsValidator />
+
+      <MudText Typo="Typo.h6" Class="mb-2">Datos de la Institución</MudText>
+      <MudTextField Label="Nombre del Sindicato / Seccional" @bind-Value="_request.UnionName"
+                    For="@(() => _request.UnionName)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4" />
+
+      <MudTextField Label="CUIT" @bind-Value="_request.Cuit" For="@(() => _request.Cuit)" Variant="Variant.Outlined"
+                    Margin="Margin.Dense" Class="mb-4" />
+
+      <MudText Typo="Typo.h6" Class="mb-2 mt-4">Ubicación y Cobertura</MudText>
+      <MudGrid Spacing="2" Class="mb-2">
+        <MudItem xs="8">
+          <MudTextField Label="Calle" @bind-Value="_request.Street" For="@(() => _request.Street)"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="4">
+          <MudTextField Label="Nº" @bind-Value="_request.StreetNumber" For="@(() => _request.StreetNumber)"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="4">
+          <MudTextField Label="Piso/Depto" @bind-Value="_request.Floor" For="@(() => _request.Floor)"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="8">
+          <MudTextField Label="Localidad" @bind-Value="_request.Locality" For="@(() => _request.Locality)"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="12">
+          <MudTextField Label="Provincia" @bind-Value="_request.Province" For="@(() => _request.Province)"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+      </MudGrid>
+
+      <MudTextField Label="Zona de Cobertura (ej: Norte, Toda la provincia)" @bind-Value="_request.CoverageArea"
+                    For="@(() => _request.CoverageArea)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4" />
+
+      <MudText Typo="Typo.h6" Class="mb-2 mt-4">Contacto Responsable</MudText>
+      <MudTextField Label="Nombre y Apellido del Referente" @bind-Value="_request.ReferencePersonFullName"
+                    For="@(() => _request.ReferencePersonFullName)" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4" />
+
+      <MudTextField Label="Email de Contacto" @bind-Value="_request.ContactEmail" For="@(() => _request.ContactEmail)"
+                    Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4" />
+
+      <MudGrid Spacing="2" Class="mb-6">
+        <MudItem xs="6">
+          <MudTextField Label="Teléfono Fijo" @bind-Value="_request.ContactPhone" For="@(() => _request.ContactPhone)"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="6">
+          <MudTextField Label="WhatsApp" @bind-Value="_request.WhatsApp" For="@(() => _request.WhatsApp)"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+      </MudGrid>
+
+      <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                 Size="Size.Large">
+        Enviar Solicitud de Alta
+      </MudButton>
+    </EditForm>
+
+    <MudText Typo="Typo.body2" Align="Align.Center" Class="mt-4">
+      ¿Ya tienes cuenta? <MudLink Href="/login">Iniciar Sesión</MudLink>
+    </MudText>
+  </MudPaper>
+</MudContainer>
+
+@code {
+  private SubscriptionRequestDto _request = new();
+
+  private async Task HandleSubmit()
+  {
+    try
+    {
+      await SubscriptionService.CreateRequestAsync(_request);
+      Snackbar.Add("¡Solicitud enviada con éxito! Nos contactaremos pronto.", Severity.Success);
+      Navigation.NavigateTo("/login");
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al enviar la solicitud. Intente nuevamente.", Severity.Error);
+    }
+  }
+}

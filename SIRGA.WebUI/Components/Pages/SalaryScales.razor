@@ -1,0 +1,167 @@
+@page "/admin/salary-scales"
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using MudBlazor
+@inject SalaryScaleService ScaleService
+@inject UnionService UnionService
+@inject EmployeeCategoryService CategoryService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>SIRGA - Gestión de Escalas Salariales</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">Escalas y Categorías por Sindicato</MudText>
+
+<MudPaper Elevation="1" Class="pa-4 mb-6">
+  <MudGrid>
+    <MudItem xs="12" sm="6">
+      <MudSelect T="int" Label="Seleccione Sindicato" @bind-Value="_selectedUnionId" Variant="Variant.Outlined"
+                 AnchorOrigin="Origin.BottomCenter" SelectedValuesChanged="OnUnionChanged">
+        <MudSelectItem Value="0">-- Elija un Sindicato --</MudSelectItem>
+        @foreach (var union in _unions)
+        {
+          <MudSelectItem Value="@union.Id">@union.Name (@union.JurisdictionCity)</MudSelectItem>
+        }
+      </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" Class="d-flex justify-end align-center">
+      @if (_selectedUnionId > 0)
+      {
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="OpenCategoriesDialog" Class="mr-2"
+                   StartIcon="@Icons.Material.Filled.Category">Gestión Categorías</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenAddDialog"
+                   StartIcon="@Icons.Material.Filled.Add">Nueva Escala</MudButton>
+      }
+    </MudItem>
+  </MudGrid>
+</MudPaper>
+
+@if (_loading)
+{
+  <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+}
+else if (_selectedUnionId == 0)
+{
+  <MudAlert Severity="Severity.Info">Seleccione un sindicato para gestionar sus escalas salariales.</MudAlert>
+}
+else
+{
+  <MudTable Items="@_scales" Hover="true" Dense="true" Elevation="1" Filter="new Func<SalaryScaleDto,bool>(FilterFunc)">
+    <ToolBarContent>
+      <MudText Typo="Typo.h6">Escalas: @_unions.FirstOrDefault(u => u.Id == _selectedUnionId)?.Name</MudText>
+      <MudSpacer />
+      <MudTextField @bind-Value="_searchString" Placeholder="Buscar por Categoría" Adornment="Adornment.Start"
+                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+    </ToolBarContent>
+    <HeaderContent>
+      <MudTh>Periodo</MudTh>
+      <MudTh>Categoría</MudTh>
+      <MudTh>Sueldo Básico</MudTh>
+      <MudTh>Antigüedad (%)</MudTh>
+      <MudTh>No Rem. 1</MudTh>
+      <MudTh>No Rem. 2</MudTh>
+      <MudTh>Estado</MudTh>
+      <MudTh Style="text-align:right">Acciones</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+      <MudTd DataLabel="Periodo">@context.Period.ToString("MM/yyyy")</MudTd>
+      <MudTd DataLabel="Categoría">@context.CategoryCode</MudTd>
+      <MudTd DataLabel="Básico">@context.BasicAmount.ToString("C")</MudTd>
+      <MudTd DataLabel="Antig">@context.AntiguedadPercentage%</MudTd>
+      <MudTd DataLabel="NR1">@context.AgreementNR1.ToString("C")</MudTd>
+      <MudTd DataLabel="NR2">@context.AgreementNR2.ToString("C")</MudTd>
+      <MudTd DataLabel="Estado">
+        <MudChip T="string" Color="@(context.IsActive? Color.Success: Color.Default)" Size="Size.Small">
+          @(context.IsActive ? "Activa" : "Inactiva")
+        </MudChip>
+      </MudTd>
+      <MudTd DataLabel="Acciones" Style="text-align:right">
+        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                       OnClick="@(() => OpenEditDialog(context))" />
+        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                       OnClick="@(() => DeleteScale(context.Id))" />
+      </MudTd>
+    </RowTemplate>
+    <PagerContent>
+      <MudTablePager InfoFormat="Escalas {first_item}-{last_item} de {all_items}" RowsPerPageString="Filas:" />
+    </PagerContent>
+  </MudTable>
+}
+
+@code {
+  private bool _loading = false;
+  private string _searchString = "";
+  private int _selectedUnionId = 0;
+  private List<SalaryScaleDto> _scales = new();
+  private List<UnionDto> _unions = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    var allUnions = await UnionService.GetAllAsync();
+    _unions = allUnions.ToList();
+  }
+
+  private async Task OnUnionChanged()
+  {
+    if (_selectedUnionId > 0)
+      await LoadData();
+    else
+      _scales.Clear();
+  }
+
+  private async Task LoadData()
+  {
+    _loading = true;
+    try
+    {
+      _scales = await ScaleService.GetByUnionAsync(_selectedUnionId);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar escalas: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private bool FilterFunc(SalaryScaleDto element)
+  {
+    if (string.IsNullOrWhiteSpace(_searchString)) return true;
+    return element.CategoryCode.Contains(_searchString, StringComparison.OrdinalIgnoreCase);
+  }
+
+  private async Task OpenCategoriesDialog()
+  {
+    // Diálogo para gestionar categorías que crearemos a continuación
+    var parameters = new DialogParameters { ["UnionId"] = _selectedUnionId };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+    var dialog = await DialogService.ShowAsync<ManageCategoriesDialog>("Gestionar Categorías", parameters, options);
+    await dialog.Result;
+  }
+
+  private async Task OpenAddDialog()
+  {
+    var parameters = new DialogParameters { ["UnionId"] = _selectedUnionId };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+    var dialog = await DialogService.ShowAsync<AddScaleDialog>("Nueva Escala", parameters, options);
+    var result = await dialog.Result;
+    if (!result.Canceled) await LoadData();
+  }
+
+  private async Task OpenEditDialog(SalaryScaleDto scale)
+  {
+    var parameters = new DialogParameters { ["Scale"] = scale, ["UnionId"] = _selectedUnionId };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+    var dialog = await DialogService.ShowAsync<AddScaleDialog>("Editar Escala", parameters, options);
+    var result = await dialog.Result;
+    if (!result.Canceled) await LoadData();
+  }
+
+  private async Task DeleteScale(int id)
+  {
+    await Task.Yield();
+    await LoadData();
+  }
+}

@@ -1,0 +1,314 @@
+﻿@page "/companies"
+@using SIRGA.Domain.Entities
+@using SIRGA.Domain.Enums
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<PageTitle>SIRGA - Gestión de Empresas</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Gestión de Empresas</MudText>
+
+<MudTable Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+          Filter="new Func<Company,bool>(FilterFunc1)" @bind-SelectedItem="_selectedCompany" Elevation="2">
+  <ToolBarContent>
+    <MudText Typo="Typo.h6">Clientes / Empresas</MudText>
+    <MudSpacer />
+    <MudTextField @bind-Value="_searchString" Placeholder="Buscar por CUIT o Razón Social" Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Immediate="true"></MudTextField>
+        
+    <MudSelect T="string" Label="Provincia" @bind-Value="_provinceFilter" Class="ml-4" Style="min-width: 200px;"
+               Clearable="true">
+      <MudSelectItem Value="@("Buenos Aires")">Buenos Aires</MudSelectItem>
+      <MudSelectItem Value="@("Córdoba")">Córdoba</MudSelectItem>
+      <MudSelectItem Value="@("Santa Fe")">Santa Fe</MudSelectItem>
+      <MudSelectItem Value="@("Mendoza")">Mendoza</MudSelectItem>
+    </MudSelect>
+
+    <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged" Class="ml-4" Style="min-width: 140px;">
+      <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
+      <MudSelectItem Value="@("activas")">Activas</MudSelectItem>
+      <MudSelectItem Value="@("inactivas")">Inactivas</MudSelectItem>
+    </MudSelect>
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="ml-4"
+               OnClick="OpenCreateDialog">Nueva Empresa</MudButton>
+  </ToolBarContent>
+  <HeaderContent>
+    <MudTh>CUIT</MudTh>
+    <MudTh>Empresa / Casa Central</MudTh>
+    <MudTh>Estado</MudTh>
+    <MudTh>Acciones</MudTh>
+  </HeaderContent>
+  <RowTemplate>
+    <MudTd DataLabel="CUIT">@context.Cuit</MudTd>
+    <MudTd DataLabel="Razón Social">
+      <div class="d-flex align-center">
+        @if (_companies.Any(c => c.ParentCompanyId == context.Id))
+        {
+          <MudIconButton
+          Icon="@(_expandedRows.Contains(context.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+          OnClick="@(() => ToggleBranches(context.Id))" Size="Size.Small" Color="Color.Primary" Class="mr-2" />
+        }
+        else
+        {
+          <div style="width: 40px;"></div>
+        }
+        <MudText Typo="Typo.body1"><b>@context.BusinessName</b></MudText>
+      </div>
+    </MudTd>
+    <MudTd DataLabel="Estado">
+      <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+        @(context.IsActive ? "Activa" : "Inactiva")
+      </MudChip>
+      @if (context.Status != CompanyStatus.Active)
+      {
+        <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small" Variant="Variant.Outlined" Class="ml-1">
+          @GetStatusDisplay(context.Status)
+        </MudChip>
+      }
+    </MudTd>
+    <MudTd DataLabel="Acciones">
+      <MudTooltip Text="Añadir Sucursal">
+        <MudIconButton Icon="@Icons.Material.Filled.AddHomeWork" Color="Color.Info" Size="Size.Small"
+                       OnClick="@(() => ShowBranches(context))" />
+      </MudTooltip>
+      <MudTooltip Text="Ver Empleados">
+        <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Small"
+                       Href="@($"/empresa/{context.Id}/empleados")" Disabled="@(context.Status != CompanyStatus.Active)" />
+      </MudTooltip>
+      <MudTooltip Text="Historial de DDJJ">
+        <MudIconButton Icon="@Icons.Material.Filled.History" Color="Color.Info" Size="Size.Small"
+                       Href="@($"/empresa/{context.Id}/historial")" Disabled="@(context.Status != CompanyStatus.Active)" />
+      </MudTooltip>
+      <AuthorizeView Roles="EstudioContable,Auditor,Admin" Context="nuevaDdjjContext">
+        <Authorized>
+          <MudTooltip Text="Nueva DDJJ">
+            <MudIconButton Icon="@Icons.Material.Filled.PostAdd" Color="Color.Secondary" Size="Size.Small"
+                           Href="/declarations/new" Disabled="@(context.Status != CompanyStatus.Active)" />
+          </MudTooltip>
+        </Authorized>
+      </AuthorizeView>
+      <MudTooltip Text="Estado de Cuenta">
+        <MudIconButton Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Success" Size="Size.Small"
+                       Href="@($"/company/{context.Id}/balance")" Disabled="@(context.Status != CompanyStatus.Active)" />
+      </MudTooltip>
+      <MudTooltip Text="Editar Empresa">
+        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small"
+                       OnClick="@(() => OpenEditDialog(context))" />
+      </MudTooltip>
+      @if (!string.IsNullOrEmpty(context.Address))
+      {
+        <MudTooltip Text="Ver ubicación">
+          <MudIconButton Icon="@Icons.Material.Filled.LocationOn" Color="Color.Error" Size="Size.Small"
+                         Href="@($"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(context.Address)}")"
+                         Target="_blank" />
+        </MudTooltip>
+      }
+    </MudTd>
+  </RowTemplate>
+  <ChildRowContent>
+    @if (_expandedRows.Contains(context.Id))
+    {
+      @foreach (var branch in _companies.Where(c => c.ParentCompanyId == context.Id))
+      {
+        <MudTr>
+          <MudTd></MudTd>
+          <MudTd Style="padding-left: 60px;">
+            <div class="d-flex align-center">
+              <MudIcon Icon="@Icons.Material.Filled.SubdirectoryArrowRight" Size="Size.Small" Class="mr-2"
+                       Color="Color.Secondary" />
+              <MudText Typo="Typo.body2">@branch.BranchName</MudText>
+              <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Class="ml-2">@branch.Address</MudChip>
+            </div>
+          </MudTd>
+          <MudTd>
+            <MudChip T="string" Color="@(branch.IsActive ? Color.Success : Color.Error)" Size="Size.Small">
+              @(branch.IsActive ? "Activa" : "Inactiva")
+            </MudChip>
+            @if (branch.Status != CompanyStatus.Active)
+            {
+              <MudChip T="string" Color="@GetStatusColor(branch.Status)" Size="Size.Small" Variant="Variant.Outlined" Class="ml-1">
+                @GetStatusDisplay(branch.Status)
+              </MudChip>
+            }
+          </MudTd>
+          <MudTd>
+            <MudTooltip Text="Ver Empleados (Sucursal)">
+              <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Small"
+                             Href="@($"/empresa/{branch.Id}/empleados")" />
+            </MudTooltip>
+            <MudTooltip Text="Estado de Cuenta">
+              <MudIconButton Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Success" Size="Size.Small"
+                             Href="@($"/company/{branch.Id}/balance")" />
+            </MudTooltip>
+            <MudTooltip Text="Editar Sucursal">
+              <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small"
+                             OnClick="@(() => OpenEditDialog(branch))" />
+            </MudTooltip>
+            @if (!string.IsNullOrEmpty(branch.Address))
+            {
+              <MudTooltip Text="Ver ubicación">
+                <MudIconButton Icon="@Icons.Material.Filled.LocationOn" Color="Color.Error" Size="Size.Small"
+                               Href="@($"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(branch.Address)}")"
+                               Target="_blank" />
+              </MudTooltip>
+            }
+          </MudTd>
+        </MudTr>
+      }
+    }
+  </ChildRowContent>
+  <PagerContent>
+    <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas por página:" />
+  </PagerContent>
+</MudTable>
+
+@code {
+  private bool _loading = true;
+  private string _searchString = "";
+  private string _provinceFilter = "";
+  private string _activeFilter = "todas";
+  private Company? _selectedCompany;
+  private List<Company> _companies = new();
+  private HashSet<int> _expandedRows = new();
+  private string? _username;
+
+  protected override async Task OnInitializedAsync()
+  {
+    var query = Nav.ToAbsoluteUri(Nav.Uri).Query;
+    if (query.Contains("estado=activas")) _activeFilter = "activas";
+    else if (query.Contains("estado=inactivas")) _activeFilter = "inactivas";
+    await LoadCompanies();
+  }
+
+  private void OnActiveFilterChanged()
+  {
+    var value = _activeFilter;
+    var url = value == "todas" ? "/companies" : $"/companies?estado={value}";
+    _ = JS.InvokeVoidAsync("history.replaceState", null, "", url);
+  }
+
+  private async Task LoadCompanies()
+  {
+    _loading = true;
+    try
+    {
+      var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+      var user = authState.User;
+      _username = user.Identity?.Name;
+      string url = "api/companies";
+
+      if (user.IsInRole("EstudioContable"))
+      {
+        url += $"?username={user.Identity?.Name}";
+      }
+
+      _companies = await Http.GetFromJsonAsync<List<Company>>(url) ?? new();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar empresas: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private void ToggleBranches(int id)
+  {
+    if (_expandedRows.Contains(id))
+      _expandedRows.Remove(id);
+    else
+      _expandedRows.Add(id);
+  }
+
+  private Color GetStatusColor(CompanyStatus status) => status switch
+  {
+    CompanyStatus.Active => Color.Success,
+    CompanyStatus.PendingAuthorization => Color.Warning,
+    CompanyStatus.Suspended => Color.Error,
+    CompanyStatus.Rejected => Color.Dark,
+    _ => Color.Default
+  };
+
+  private string GetStatusDisplay(CompanyStatus status) => status switch
+  {
+    CompanyStatus.Active => "Activa",
+    CompanyStatus.PendingAuthorization => "Pendiente",
+    CompanyStatus.Suspended => "Suspendida",
+    CompanyStatus.Rejected => "Rechazada",
+    _ => status.ToString()
+  };
+
+  private async Task ShowBranches(Company company)
+  {
+    var parameters = new DialogParameters { ["MainCompany"] = company };
+    var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+    
+    await DialogService.ShowAsync<CompanyBranchesDialog>("Sucursales de " + company.BusinessName, parameters, options);
+    await LoadCompanies(); // Recargar por si se agregaron sucursales
+  }
+
+  private bool FilterFunc1(Company element)
+  {
+    // Solo mostramos las casas centrales en el listado principal (las que no tienen ParentCompanyId)
+    if (element.ParentCompanyId != null)
+      return false;
+
+    if (!string.IsNullOrWhiteSpace(_provinceFilter) && element.Address != _provinceFilter)
+      return false;
+
+    if (_activeFilter == "activas" && !element.IsActive)
+      return false;
+
+    if (_activeFilter == "inactivas" && element.IsActive)
+      return false;
+
+    if (string.IsNullOrWhiteSpace(_searchString))
+      return true;
+        
+    if (element.Cuit.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+      return true;
+        
+    if (element.BusinessName.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+      return true;
+        
+    return false;
+  }
+
+  private async Task OpenCreateDialog()
+  {
+    var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small };
+    var dialog = await DialogService.ShowAsync<AddCompanyDialog>("Nueva Empresa", options);
+    var result = await dialog.Result;
+
+    if (result != null && !result.Canceled)
+    {
+      await LoadCompanies();
+    }
+  }
+
+  private async Task OpenEditDialog(Company company)
+  {
+    var parameters = new DialogParameters<AddCompanyDialog>
+    {
+      { x => x.CompanyToEdit, company },
+      { x => x.CurrentUsername, _username }
+    };
+    var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small };
+    var dialog = await DialogService.ShowAsync<AddCompanyDialog>("Editar Empresa", parameters, options);
+    var result = await dialog.Result;
+
+    if (result != null && !result.Canceled)
+    {
+      await LoadCompanies();
+    }
+  }
+}
+
+

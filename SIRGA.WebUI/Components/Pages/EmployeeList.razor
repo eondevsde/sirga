@@ -1,0 +1,223 @@
+@page "/empresa/{CompanyId:int}/empleados"
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@inject EmployeeService EmpService
+@inject CompanyService CompanyService
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudText Typo="Typo.h4" Class="mb-4">Gestión de Empleados - @_companyName</MudText>
+
+<MudPaper Class="pa-4">
+  <div class="d-flex mb-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               Disabled="@(_companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active)" OnClick="OpenAddDialog" Class="mr-2">
+      Agregar Empleado</MudButton>
+      <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download"
+                 OnClick="ExportExcel">Exportar Padrón (Excel)</MudButton>
+      <MudSpacer />
+      <MudSelect T="string" Label="Estado" @bind-Value="_statusFilter" Class="ml-4" Style="min-width: 140px;">
+        <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
+        <MudSelectItem Value="@("activos")">Activos</MudSelectItem>
+        <MudSelectItem Value="@("inactivos")">Inactivos</MudSelectItem>
+      </MudSelect>
+      <MudTextField @bind-Value="_searchString" Placeholder="Buscar por DNI o Nombre" Adornment="Adornment.Start"
+                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Immediate="true"></MudTextField>
+    </div>
+
+    @if (_companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active && !_loading)
+    {
+      <MudAlert Severity="Severity.Warning" Class="mb-4">
+        Esta empresa aún no ha sido aprobada por el sindicato. No se pueden realizar cambios en el padrón de empleados.
+      </MudAlert>
+    }
+
+    <MudTable Items="@_employees" Hover="true" Loading="@_loading" Filter="new Func<EmployeeDto,bool>(FilterFunc)">
+      <HeaderContent>
+        <MudTh>DNI</MudTh>
+        <MudTh>Nombre Completo</MudTh>
+        <MudTh>Fecha Alta</MudTh>
+        <MudTh>Estado</MudTh>
+        <MudTh>Socio ?</MudTh>
+        <MudTh>Acciones</MudTh>
+      </HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="DNI">@context.Dni</MudTd>
+        <MudTd DataLabel="Nombre Completo">@context.FullName</MudTd>
+        <MudTd DataLabel="Fecha Alta">@context.JoinedDate.ToShortDateString()</MudTd>
+        <MudTd DataLabel="Estado">
+          @if (context.IsActive)
+          {
+            <MudChip T="string" Color="Color.Success" Size="Size.Small">Activo</MudChip>
+          }
+          else
+          {
+            <MudChip T="string" Color="Color.Error" Size="Size.Small">Baja</MudChip>
+          }
+        </MudTd>
+        <MudTd DataLabel="Socio">
+          <MudCheckBox T="bool" Value="@context.IsVoluntaryMember" ReadOnly="true" Color="Color.Primary" />
+          @if (context.MembershipResignationRequested)
+          {
+            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined">Renuncia solicitada</MudChip>
+          }
+        </MudTd>
+        <MudTd DataLabel="Acciones">
+          <MudTooltip Text="Transferir a otra Sucursal">
+            <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz" Color="Color.Warning" Size="Size.Small"
+                           OnClick="@(() => OpenTransferDialog(context))"
+                           Disabled="@(_companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active)" />
+          </MudTooltip>
+          <AuthorizeView Roles="EstudioContable,Admin" Context="accionesView">
+            @if (context.IsVoluntaryMember)
+            {
+              <MudTooltip Text="@(context.MembershipResignationRequested ? "Renuncia pendiente de aprobación" : "Solicitar renuncia como socio")">
+                <MudIconButton Icon="@Icons.Material.Filled.PersonOff" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => OpenResignDialog(context))"
+                               Disabled="@(context.MembershipResignationRequested || _companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active)" />
+              </MudTooltip>
+            }
+          </AuthorizeView>
+          <MudTooltip Text="Editar Empleado">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" />
+          </MudTooltip>
+        </MudTd>
+      </RowTemplate>
+      <PagerContent>
+        <MudTablePager />
+      </PagerContent>
+    </MudTable>
+  </MudPaper>
+
+@code {
+  [Parameter] public int CompanyId { get; set; }
+  private bool _loading = true;
+  private string _searchString = "";
+  private string _statusFilter = "todas";
+  private string _companyName = "";
+  private SIRGA.Domain.Enums.CompanyStatus _companyStatus;
+  private List<EmployeeDto> _employees = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadCompanyInfo();
+    await LoadEmployees();
+  }
+
+  private async Task LoadCompanyInfo()
+  {
+    var company = await CompanyService.GetByIdAsync(CompanyId);
+    if (company != null)
+    {
+      _companyName = company.BusinessName;
+      _companyStatus = company.Status;
+    }
+  }
+
+  private async Task LoadEmployees()
+  {
+    _loading = true;
+    try
+    {
+      _employees = (await EmpService.GetEmployeesByCompanyAsync(CompanyId)).ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private bool FilterFunc(EmployeeDto element)
+  {
+    if (_statusFilter == "activos" && !element.IsActive) return false;
+    if (_statusFilter == "inactivos" && element.IsActive) return false;
+
+    if (string.IsNullOrWhiteSpace(_searchString)) return true;
+    if (element.FullName.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+    if (element.Dni.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
+    return false;
+  }
+
+  private async Task OpenAddDialog()
+  {
+    var parameters = new DialogParameters { ["CompanyId"] = CompanyId };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+    var dialog = await DialogService.ShowAsync<AddEmployeeDialog>("Nuevo Empleado", parameters, options);
+    var result = await dialog.Result;
+
+    if (!result.Canceled)
+    {
+      await LoadEmployees();
+    }
+  }
+
+  private async Task OpenTransferDialog(EmployeeDto employee)
+  {
+    var parameters = new DialogParameters
+    {
+      ["EmployeeId"] = employee.Id,
+      ["EmployeeName"] = employee.FullName,
+      ["CurrentCompanyId"] = CompanyId
+    };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+    var dialog = await DialogService.ShowAsync<TransferEmployeeDialog>("Transferir Empleado", parameters, options);
+    var result = await dialog.Result;
+
+    if (!result.Canceled)
+    {
+      await LoadEmployees();
+    }
+  }
+
+  private async Task OpenResignDialog(EmployeeDto employee)
+  {
+    if (employee.AssignmentId == 0) return;
+
+    var parameters = new DialogParameters
+    {
+      ["AssignmentId"] = employee.AssignmentId,
+      ["EmployeeName"] = employee.FullName
+    };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+    var dialog = await DialogService.ShowAsync<ResignMembershipDialog>("Solicitar Renuncia como Socio", parameters, options);
+    var result = await dialog.Result;
+
+    if (!result.Canceled)
+    {
+      await LoadEmployees();
+    }
+  }
+
+  private async Task ExportExcel()
+  {
+    try
+    {
+      var fileName = $"Padron_Empresa_{CompanyId}_{DateTime.Now:yyyyMMdd}.xlsx";
+      var response = await Http.GetAsync($"api/reports/employees-excel?companyId={CompanyId}");
+      if (response.IsSuccessStatusCode)
+      {
+        var fileStream = await response.Content.ReadAsStreamAsync();
+        using var streamRef = new DotNetStreamReference(stream: fileStream);
+        await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+        Snackbar.Add("Excel generado con éxito", Severity.Success);
+      }
+      else
+      {
+        Snackbar.Add("Error al generar Excel", Severity.Error);
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error de conexión: " + ex.Message, Severity.Error);
+    }
+  }
+}

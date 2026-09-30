@@ -1,0 +1,246 @@
+@page "/audit/dashboard"
+@using SIRGA.Application.DTOs
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Sindicato,Admin,Auditor")]
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>SIRGA - Dashboard de Fiscalización</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">
+  Módulo de Fiscalización
+  <div class="float-end d-flex gap-2">
+    <MudMenu StartIcon="@Icons.Material.Filled.Download" Label="Exportar Reportes" Variant="Variant.Outlined"
+             Color="Color.Primary">
+      <MudMenuItem OnClick="DownloadDebtorsExcel">Reporte de Deudores (Excel)</MudMenuItem>
+      <MudMenuItem OnClick="DownloadCollectionsExcel">Resumen de Recaudación (Excel)</MudMenuItem>
+    </MudMenu>
+    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Email"
+               OnClick="NotifyDebtors" Disabled="@_isNotifying">
+      @(_isNotifying ? "Enviando..." : "Notificar Deudores")
+    </MudButton>
+  </div>
+</MudText>
+
+@if (_data == null)
+{
+  <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+}
+else
+{
+  <MudGrid>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4" Style="height:100px; border-left: 6px solid var(--mud-palette-primary)">
+        <MudText Typo="Typo.subtitle2" Color="Color.Primary">Recaudación Total</MudText>
+        <MudText Typo="Typo.h5">@_data.TotalCollected.ToString("C0")</MudText>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4" Style="height:100px; border-left: 6px solid var(--mud-palette-secondary)">
+        <MudText Typo="Typo.subtitle2" Color="Color.Secondary">DDJJ Presentadas</MudText>
+        <MudText Typo="Typo.h5">@_data.TotalDeclarations</MudText>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4" Style="height:100px; border-left: 6px solid var(--mud-palette-info)">
+        <MudText Typo="Typo.subtitle2" Color="Color.Info">Empresas Activas</MudText>
+        <MudText Typo="Typo.h5">@_data.CompaniesCount</MudText>
+      </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+      <MudPaper Class="pa-4" Style="height:100px; border-left: 6px solid var(--mud-palette-success)">
+        <MudText Typo="Typo.subtitle2" Color="Color.Success">Afiliados Totales</MudText>
+        <MudText Typo="Typo.h5">@_data.ActiveEmployees</MudText>
+      </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="7">
+      <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h6" Class="mb-4">Evolución de Recaudación</MudText>
+        <MudChart ChartType="ChartType.Bar" ChartSeries="@_series" XAxisLabels="@_xAxisLabels" Width="100%"
+                  Height="300px" />
+      </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="5">
+      <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h6" Color="Color.Error" Class="mb-4">Empresas en Mora (Periodo Actual)</MudText>
+        <MudTable Items="@_data.Debtors" Dense="true" Hover="true" FixedHeader="true" Height="300px">
+          <HeaderContent>
+            <MudTh>Empresa</MudTh>
+            <MudTh>Emp.</MudTh>
+            <MudTh>Última DDJJ</MudTh>
+            <MudTh>Deuda Est.</MudTh>
+            <MudTh>Intereses (ARCA)</MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd>@context.BusinessName</MudTd>
+            <MudTd>@context.EmployeeCount</MudTd>
+            <MudTd>
+              <MudChip T="string" Size="Size.Small" Color="Color.Default">@context.LastPeriodPresented</MudChip>
+            </MudTd>
+            <MudTd>@context.EstimatedDebt.ToString("C0")</MudTd>
+            <MudTd Color="Color.Error"><b>@context.Interests.ToString("C0")</b></MudTd>
+          </RowTemplate>
+        </MudTable>
+      </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12">
+      <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h6" Class="mb-4">Logs de Auditoría y Trazabilidad</MudText>
+        <MudTable Items="@_data.RecentLogs" Dense="true" Hover="true" MaxHeight="400px" FixedHeader="true">
+          <HeaderContent>
+            <MudTh>Fecha</MudTh>
+            <MudTh>Acción</MudTh>
+            <MudTh>Entidad</MudTh>
+            <MudTh>ID</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Detalles</MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd>@context.Timestamp.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+            <MudTd>
+              <MudChip T="string" Size="Size.Small" Color="@GetActionColor(context.Action)">@context.Action</MudChip>
+            </MudTd>
+            <MudTd>@context.EntityName</MudTd>
+            <MudTd>@context.EntityId</MudTd>
+            <MudTd>@context.UserEmail</MudTd>
+            <MudTd>
+              @if (!string.IsNullOrEmpty(context.NewValues))
+              {
+                <MudIconButton Icon="@Icons.Material.Filled.Info" Size="Size.Small"
+                               OnClick="@(() => ShowAuditDetail(context))" />
+              }
+            </MudTd>
+          </RowTemplate>
+          <PagerContent>
+            <MudTablePager InfoFormat="Registros {first_item}-{last_item} de {all_items}" RowsPerPageString="Filas:" />
+          </PagerContent>
+        </MudTable>
+      </MudPaper>
+    </MudItem>
+  </MudGrid>
+}
+
+@code {
+  [Inject] IDialogService DialogService { get; set; } = default!;
+
+  private AuditDashboardDto? _data;
+  private List<ChartSeries<double>> _series = new();
+  private string[] _xAxisLabels = Array.Empty<string>();
+  private bool _isNotifying = false;
+
+  private Color GetActionColor(string action) => action switch
+  {
+    "Rectificativa" => Color.Warning,
+    "Presentación" => Color.Success,
+    "Eliminación" => Color.Error,
+    _ => Color.Default
+  };
+
+  private async Task ShowAuditDetail(AuditLogDto log)
+  {
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+    var parameters = new DialogParameters { ["Log"] = log };
+    await DialogService.ShowAsync<AuditDetailDialog>("Detalle de Auditoría", parameters, options);
+  }
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      _data = await Http.GetFromJsonAsync<AuditDashboardDto>("api/audit/dashboard");
+      if (_data != null)
+      {
+        PrepareChart();
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar dashboard: " + ex.Message, Severity.Error);
+    }
+  }
+
+  private async Task NotifyDebtors()
+  {
+    _isNotifying = true;
+    try
+    {
+      var response = await Http.PostAsync("api/audit/notify-debtors", null);
+      if (response.IsSuccessStatusCode)
+      {
+        var count = await response.Content.ReadAsStringAsync();
+        Snackbar.Add($"Se enviaron {count} notificaciones a empresas deudoras.", Severity.Success);
+      }
+      else
+      {
+        Snackbar.Add("Error al enviar notificaciones.", Severity.Error);
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+    }
+    finally
+    {
+      _isNotifying = false;
+    }
+  }
+
+  private async Task DownloadDebtorsExcel()
+  {
+    try
+    {
+      var response = await Http.GetAsync("api/report/debtors-excel");
+      if (response.IsSuccessStatusCode)
+      {
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        var fileName = $"Reporte_Deudores_{DateTime.Now:yyyyMMdd}.xlsx";
+        await DownloadFile(fileName, bytes);
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add($"Error al descargar reporte: {ex.Message}", Severity.Error);
+    }
+  }
+
+  private async Task DownloadCollectionsExcel()
+  {
+    try
+    {
+      var response = await Http.GetAsync("api/report/collections-excel");
+      if (response.IsSuccessStatusCode)
+      {
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        var fileName = $"Resumen_Recaudacion_{DateTime.Now:yyyyMMdd}.xlsx";
+        await DownloadFile(fileName, bytes);
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add($"Error al descargar reporte: {ex.Message}", Severity.Error);
+    }
+  }
+
+  private async Task DownloadFile(string fileName, byte[] bytes)
+  {
+    var base64 = Convert.ToBase64String(bytes);
+    await JS.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
+  }
+
+  private void PrepareChart()
+  {
+    if (_data == null || !_data.MonthlyCollections.Any()) return;
+
+    var reversed = _data.MonthlyCollections.OrderBy(x => x.Period).ToList();
+    _xAxisLabels = reversed.Select(x => x.Period).ToArray();
+
+    var series = new ChartSeries<double>();
+    series.Name = "Recaudación ($)";
+    series.Data = reversed.Select(x => (double)x.Amount).ToArray();
+    _series.Add(series);
+  }
+}

@@ -1,0 +1,155 @@
+@page "/unions"
+@using MudBlazor
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@inject UnionService UnionService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
+@inject HttpClient Http
+@attribute [Authorize(Roles = "Admin,Auditor")]
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+  <div class="d-flex justify-space-between align-center mb-6">
+    <MudText Typo="Typo.h4">Sindicatos / Uniones</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OnAddUnion">
+      Nuevo Sindicato
+    </MudButton>
+  </div>
+
+  <MudTable Items="@_unions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+            Filter="new Func<UnionDto,bool>(FilterFunc1)" @bind-SelectedItem="_selectedItem">
+    <ToolBarContent>
+      <MudSpacer />
+      <MudTextField @bind-Value="_searchString" Placeholder="Buscar" Adornment="Adornment.Start"
+                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+    </ToolBarContent>
+    <HeaderContent>
+      <MudTh>ID</MudTh>
+      <MudTh>Nombre</MudTh>
+      <MudTh>CCT</MudTh>
+      <MudTh>Provincia</MudTh>
+      <MudTh>Ciudad</MudTh>
+      <MudTh>Estado</MudTh>
+      <MudTh>Acciones</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+      <MudTd DataLabel="ID">@context.Id</MudTd>
+      <MudTd DataLabel="Nombre">@context.Name</MudTd>
+      <MudTd DataLabel="CCT">@context.CctCode</MudTd>
+      <MudTd DataLabel="Provincia">@context.JurisdictionProvince</MudTd>
+      <MudTd DataLabel="Ciudad">@context.JurisdictionCity</MudTd>
+      <MudTd DataLabel="Estado">
+        <MudChip T="string" Color="@(context.IsActive? Color.Success: Color.Error)" Size="Size.Small">
+          @(context.IsActive ? "Activo" : "Inactivo")
+        </MudChip>
+      </MudTd>
+      <MudTd DataLabel="Acciones">
+        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="@(() => OnEditUnion(context))" />
+        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                       OnClick="@(() => OnDeleteUnion(context))" />
+      </MudTd>
+    </RowTemplate>
+    <PagerContent>
+      <MudTablePager />
+    </PagerContent>
+  </MudTable>
+</MudContainer>
+
+@code {
+  private IEnumerable<UnionDto> _unions = new List<UnionDto>();
+  private bool _loading = true;
+  private string _searchString = "";
+  private UnionDto? _selectedItem;
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadUnions();
+  }
+
+  private async Task LoadUnions()
+  {
+    _loading = true;
+    _unions = await UnionService.GetAllAsync();
+    _loading = false;
+  }
+
+  private bool FilterFunc1(UnionDto element) => FilterFunc(element, _searchString);
+
+  private bool FilterFunc(UnionDto element, string searchString)
+  {
+    if (string.IsNullOrWhiteSpace(searchString)) return true;
+    if (element.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+    if (element.CctCode.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+    if (element.JurisdictionProvince.Contains(searchString, StringComparison.OrdinalIgnoreCase)) return true;
+    return false;
+  }
+
+  private async Task OnAddUnion()
+  {
+    var parameters = new DialogParameters { ["_model"] = new UnionDto() };
+    var dialog = await DialogService.ShowAsync<AddUnionDialog>("Agregar Sindicato", parameters);
+    var result = await dialog.Result;
+
+    if (!result.Canceled)
+    {
+      var newUnion = (UnionDto)result.Data;
+      await UnionService.CreateAsync(newUnion);
+      
+      // Intentar crear el usuario automáticamente
+      try
+      {
+        var response = await Http.PostAsJsonAsync("api/unions/create-user", newUnion);
+        if (response.IsSuccessStatusCode)
+        {
+          Snackbar.Add("Sindicato y usuario (pass: 12345) creados con éxito", Severity.Success);
+        }
+        else
+        {
+          Snackbar.Add("Sindicato creado, pero hubo un error al crear el usuario.", Severity.Warning);
+        }
+      }
+      catch (Exception ex)
+      {
+        Snackbar.Add("Error al conectar para crear el usuario.", Severity.Error);
+      }
+
+      await LoadUnions();
+    }
+  }
+
+  private async Task OnEditUnion(UnionDto union)
+  {
+    var parameters = new DialogParameters
+    {
+      ["_model"] = new UnionDto
+      {
+        Id = union.Id,
+        Name = union.Name,
+        CctCode = union.CctCode,
+        JurisdictionProvince = union.JurisdictionProvince,
+        JurisdictionCity = union.JurisdictionCity,
+        AdminEmail = union.AdminEmail,
+        IsActive = union.IsActive
+      }
+    };
+        
+    var dialog = await DialogService.ShowAsync<AddUnionDialog>("Editar Sindicato", parameters);
+    var result = await dialog.Result;
+
+    if (!result.Canceled)
+    {
+      await UnionService.UpdateAsync((UnionDto)result.Data);
+      Snackbar.Add("Sindicato actualizado con éxito", Severity.Success);
+      await LoadUnions();
+    }
+  }
+
+  private async Task OnDeleteUnion(UnionDto union)
+  {
+    await UnionService.DeleteAsync(union.Id);
+    Snackbar.Add("Sindicato eliminado", Severity.Info);
+    await LoadUnions();
+  }
+}

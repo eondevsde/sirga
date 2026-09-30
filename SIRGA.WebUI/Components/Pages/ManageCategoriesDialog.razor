@@ -1,0 +1,94 @@
+@using SIRGA.Domain.Entities
+@using SIRGA.Application.Services
+@using MudBlazor
+@inject EmployeeCategoryService CategoryService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+  <TitleContent>
+    <MudText Typo="Typo.h6">Gestión de Categorías</MudText>
+  </TitleContent>
+  <DialogContent>
+    <MudGrid>
+      <MudItem xs="12" sm="5">
+        <MudTextField @bind-Value="_newCategory.Code" Label="Código" Variant="Variant.Outlined" Required="true" />
+      </MudItem>
+      <MudItem xs="12" sm="5">
+        <MudTextField @bind-Value="_newCategory.Name" Label="Descripción" Variant="Variant.Outlined" Required="true" />
+      </MudItem>
+      <MudItem xs="12" sm="2" Class="d-flex align-center">
+        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="AddCategory" />
+      </MudItem>
+    </MudGrid>
+
+    <MudDivider Class="my-4" />
+
+    <MudTable Items="_categories" Hover="true" Dense="true" Elevation="0">
+      <HeaderContent>
+        <MudTh>Código</MudTh>
+        <MudTh>Descripción</MudTh>
+        <MudTh Style="width: 50px"></MudTh>
+      </HeaderContent>
+      <RowTemplate>
+        <MudTd>@context.Code</MudTd>
+        <MudTd>@context.Name</MudTd>
+        <MudTd>
+          <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                         OnClick="@(() => DeleteCategory(context.Id))" />
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cerrar</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+  [Parameter] public int UnionId { get; set; }
+
+  private List<EmployeeCategory> _categories = new();
+  private EmployeeCategory _newCategory = new EmployeeCategory();
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadCategories();
+  }
+
+  private async Task LoadCategories()
+  {
+    _categories = await CategoryService.GetByUnionAsync(UnionId);
+  }
+
+  private async Task AddCategory()
+  {
+    if (string.IsNullOrWhiteSpace(_newCategory.Code) || string.IsNullOrWhiteSpace(_newCategory.Name))
+    {
+      Snackbar.Add("Complete código y descripción", Severity.Warning);
+      return;
+    }
+
+    _newCategory.UnionId = UnionId;
+    await CategoryService.CreateAsync(_newCategory);
+    _newCategory = new EmployeeCategory();
+    await LoadCategories();
+    Snackbar.Add("Categoría agregada", Severity.Success);
+  }
+
+  private async Task DeleteCategory(int id)
+  {
+    try
+    {
+      await CategoryService.DeleteAsync(id);
+      await LoadCategories();
+      Snackbar.Add("Categoría eliminada", Severity.Success);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add(ex.Message, Severity.Error);
+    }
+  }
+
+  private void Cancel() => MudDialog.Cancel();
+}

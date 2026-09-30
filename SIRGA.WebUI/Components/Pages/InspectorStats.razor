@@ -1,0 +1,100 @@
+@page "/inspection-stats"
+@using SIRGA.Application.Interfaces
+@inject IInspectionService InspectionService
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+  <MudText Typo="Typo.h4" GutterBottom="true">Productividad de Inspectores</MudText>
+  <MudText Class="mb-4">Métricas de desempeño y cobertura de visitas de campo.</MudText>
+
+  <MudGrid>
+    <MudItem xs="12" md="4">
+      <MudPaper Class="pa-4">
+        <MudNumericField @bind-Value="_year" Label="Año" Variant="Variant.Outlined" Min="2024" Max="2030" />
+        <MudSelect @bind-Value="_month" Label="Mes" Variant="Variant.Outlined" Class="mt-2">
+          <MudSelectItem Value="1">Enero</MudSelectItem>
+          <MudSelectItem Value="2">Febrero</MudSelectItem>
+          <MudSelectItem Value="3">Marzo</MudSelectItem>
+          <MudSelectItem Value="4">Abril</MudSelectItem>
+          <MudSelectItem Value="5">Mayo</MudSelectItem>
+          <MudSelectItem Value="6">Junio</MudSelectItem>
+          <MudSelectItem Value="7">Julio</MudSelectItem>
+          <MudSelectItem Value="8">Agosto</MudSelectItem>
+          <MudSelectItem Value="9">Septiembre</MudSelectItem>
+          <MudSelectItem Value="10">Octubre</MudSelectItem>
+          <MudSelectItem Value="11">Noviembre</MudSelectItem>
+          <MudSelectItem Value="12">Diciembre</MudSelectItem>
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-4" OnClick="LoadStats">
+          Actualizar Reporte
+        </MudButton>
+      </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="8">
+      @if (_loading)
+      {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+      }
+      else
+      {
+        <MudTable Items="@_stats" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="2">
+          <HeaderContent>
+            <MudTh>Inspector</MudTh>
+            <MudTh>Total Visitas</MudTh>
+            <MudTh>Efectivas</MudTh>
+            <MudTh>Rechazadas</MudTh>
+            <MudTh>Cobertura</MudTh>
+          </HeaderContent>
+          <RowTemplate>
+            <MudTd DataLabel="Inspector">@context.Name</MudTd>
+            <MudTd DataLabel="Total">@context.TotalVisits</MudTd>
+            <MudTd DataLabel="Efectivas">@context.SuccessfulVisits</MudTd>
+            <MudTd DataLabel="Rechazadas">@context.RefusedVisits</MudTd>
+            <MudTd DataLabel="Cobertura">
+              <MudProgressLinear Color="@GetColor(context.CoverageRate)" Value="@((double)context.CoverageRate)"
+                                 Class="my-1" />
+              <MudText Typo="Typo.caption">@context.CoverageRate.ToString("N1")%</MudText>
+            </MudTd>
+          </RowTemplate>
+        </MudTable>
+      }
+    </MudItem>
+  </MudGrid>
+</MudContainer>
+
+@code {
+  private int _year = DateTime.Now.Year;
+  private int _month = DateTime.Now.Month;
+  private bool _loading = false;
+  private IEnumerable<InspectorStatsDto> _stats = new List<InspectorStatsDto>();
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadStats();
+  }
+
+  private async Task LoadStats()
+  {
+    _loading = true;
+    try
+    {
+      _stats = await InspectionService.GetInspectorStatsAsync(_year, _month);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add($"Error al cargar estadísticas: {ex.Message}", Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private Color GetColor(decimal rate) => rate switch
+  {
+    > 80 => Color.Success,
+    > 50 => Color.Warning,
+    _ => Color.Error
+  };
+}

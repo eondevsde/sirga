@@ -1,0 +1,53 @@
+@using SIRGA.Application.Interfaces
+@inject IInspectionService InspectionService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+  <DialogContent>
+    <MudForm @ref="_form">
+      <MudTextField T="string" Label="Nombre Completo" @bind-Value="Inspector.Name" Required="true"
+                    RequiredError="El nombre es obligatorio" />
+      <MudTextField T="string" Label="DNI" @bind-Value="Inspector.Dni" Required="true"
+                    RequiredError="El DNI es obligatorio" />
+      <MudTextField T="string" Label="Teléfono" @bind-Value="Inspector.Phone" />
+      @if (Inspector.Id != 0)
+      {
+        <MudSwitch T="bool" @bind-Value="Inspector.IsActive" Label="Activo" Color="Color.Primary" />
+      }
+    </MudForm>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" OnClick="Submit">Guardar</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+  [Parameter] public InspectorDto Inspector { get; set; } = new();
+
+  private MudForm _form = null!;
+
+  private void Cancel() => MudDialog.Cancel();
+
+  private async Task Submit()
+  {
+    await _form.Validate();
+    if (_form.IsValid)
+    {
+      try
+      {
+        if (Inspector.Id == 0)
+          await InspectionService.CreateInspectorAsync(Inspector);
+        else
+          await InspectionService.UpdateInspectorAsync(Inspector);
+
+        MudDialog.Close(DialogResult.Ok(true));
+      }
+      catch (Exception ex)
+      {
+        Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+      }
+    }
+  }
+}

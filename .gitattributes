@@ -1,0 +1,36 @@
+# Normaliza los finales de línea en el repositorio (LF) y en el disco (CRLF en Windows).
+* text=auto eol=crlf
+
+# Código y configuración
+*.cs        text diff=csharp
+*.razor     text
+*.csproj    text
+*.slnx      text
+*.json      text
+*.sql       text
+*.ps1       text
+*.md        text
+*.yml       text
+*.yaml      text
+
+# Binarios (nunca normalizar)
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.svg       text
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.eot       binary
+*.pdf       binary
+*.xlsx      binary
+*.docx      binary
+*.dll       binary
+*.exe       binary
+*.pdb       binary
+*.bak       binary
+
+# Archivos generados: no aparecen en diffs ni en estadísticas de lenguaje
+SIRGA.WebUI/wwwroot/**  linguist-generated=true

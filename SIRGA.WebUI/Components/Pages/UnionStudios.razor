@@ -1,0 +1,141 @@
+@page "/union/studios"
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@inject HttpClient Http
+@inject AccountingStudioService StudioService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>SIRGA - Estudios Contables y Empresas</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">Estudios Contables Registrados</MudText>
+
+<MudGrid>
+  <MudItem xs="12" md="5">
+    <MudTable Items="@_studios" Hover="true" Dense="true" SelectedItem="@_selectedStudio"
+              OnRowClick="@((TableRowClickEventArgs<AccountingStudioDto> args) => OnStudioSelected(args.Item))"
+              Loading="@_loadingStudios" T="AccountingStudioDto" Class="mb-4">
+      <ToolBarContent>
+        <MudText Typo="Typo.h6">Estudios</MudText>
+        <MudSpacer />
+      </ToolBarContent>
+      <HeaderContent>
+        <MudTh>Nombre / Estudio</MudTh>
+        <MudTh>Responsable</MudTh>
+      </HeaderContent>
+      <RowTemplate Context="studioContext">
+        <MudTd DataLabel="Nombre">@studioContext.Name</MudTd>
+        <MudTd DataLabel="Responsable">@studioContext.ResponsibleUsername</MudTd>
+      </RowTemplate>
+      <PagerContent>
+        <MudTablePager InfoText="Mostrando {from}-{to} de {all}" RowsPerPageString="Filas:" />
+      </PagerContent>
+    </MudTable>
+  </MudItem>
+
+  <MudItem xs="12" md="7">
+    @if (_selectedStudio == null)
+    {
+      <MudAlert Severity="Severity.Info">Seleccione un estudio contable para ver sus empresas a cargo.</MudAlert>
+    }
+    else
+    {
+      <MudTable Items="@_companies" Hover="true" Dense="true" Loading="@_loadingCompanies" T="CompanyDashboardDto">
+        <ToolBarContent>
+          <MudText Typo="Typo.h6">Empresas de: @_selectedStudio.Name</MudText>
+          <MudSpacer />
+        </ToolBarContent>
+        <HeaderContent>
+          <MudTh>Razón Social</MudTh>
+          <MudTh>CUIT</MudTh>
+          <MudTh>Estado</MudTh>
+          <MudTh>Últ. DDJJ</MudTh>
+        </HeaderContent>
+        <RowTemplate Context="companyContext">
+          <MudTd DataLabel="Razón Social">@companyContext.BusinessName</MudTd>
+          <MudTd DataLabel="CUIT">@companyContext.Cuit</MudTd>
+          <MudTd DataLabel="Estado">
+            <MudChip T="string" Color="@GetStatusColor(companyContext.Status)" Size="Size.Small">
+              @GetStatusDisplay(companyContext.Status)
+            </MudChip>
+          </MudTd>
+          <MudTd DataLabel="Últ. DDJJ">@companyContext.LastPeriodDeclared</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+          <MudText>Este estudio no tiene empresas aprobadas a su cargo.</MudText>
+        </NoRecordsContent>
+      </MudTable>
+    }
+  </MudItem>
+</MudGrid>
+
+@code {
+  private List<AccountingStudioDto> _studios = new();
+  private AccountingStudioDto? _selectedStudio;
+  private List<CompanyDashboardDto> _companies = new();
+  private bool _loadingStudios = true;
+  private bool _loadingCompanies = false;
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadStudios();
+  }
+
+  private async Task LoadStudios()
+  {
+    try
+    {
+      _loadingStudios = true;
+      _studios = (await StudioService.GetAllAsync()).ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar estudios: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loadingStudios = false;
+    }
+  }
+
+  private async Task OnStudioSelected(AccountingStudioDto studio)
+  {
+    _selectedStudio = studio;
+    await LoadCompanies(studio.Id);
+  }
+
+  private async Task LoadCompanies(int studioId)
+  {
+    try
+    {
+      _loadingCompanies = true;
+      _companies = (await StudioService.GetCompaniesForStudioAsync(studioId)).ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar empresas: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loadingCompanies = false;
+    }
+  }
+
+  private Color GetStatusColor(string status) => status switch
+  {
+    "Active" => Color.Success,
+    "PendingAuthorization" => Color.Warning,
+    "Inactive" => Color.Error,
+    _ => Color.Default
+  };
+
+  private string GetStatusDisplay(string status) => status switch
+  {
+    "Active" => "Activa",
+    "PendingAuthorization" => "Pendiente",
+    "Inactive" => "Inactiva",
+    "Rejected" => "Rechazada",
+    _ => status
+  };
+}

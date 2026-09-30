@@ -1,0 +1,59 @@
+@using SIRGA.Application.DTOs
+@using System.Text.Json
+
+<MudDialog>
+  <TitleContent>
+    <MudText Typo="Typo.h6">@Log.Action - @Log.EntityName (ID: @Log.EntityId)</MudText>
+  </TitleContent>
+  <DialogContent>
+    <MudGrid>
+      <MudItem xs="12">
+        <MudText Typo="Typo.subtitle2">Información de Sesión</MudText>
+        <MudText Typo="Typo.body2"><b>Usuario:</b> @Log.UserEmail (@Log.UserId)</MudText>
+        <MudText Typo="Typo.body2"><b>Fecha:</b> @Log.Timestamp.ToLocalTime().ToString("g")</MudText>
+        <MudText Typo="Typo.body2"><b>IP:</b> @Log.IPAddress</MudText>
+      </MudItem>
+            
+      @if (!string.IsNullOrEmpty(Log.PreviousValues))
+      {
+        <MudItem xs="12">
+          <MudText Typo="Typo.subtitle2" Color="Color.Error">Valores Anteriores</MudText>
+          <MudPaper Outlined="true" Class="pa-2 grey lighten-4">
+            <pre style="white-space: pre-wrap; font-size: 0.8rem;">@FormatJson(Log.PreviousValues)</pre>
+          </MudPaper>
+        </MudItem>
+      }
+
+      <MudItem xs="12">
+        <MudText Typo="Typo.subtitle2" Color="Color.Success">Nuevos Valores / Snapshot</MudText>
+        <MudPaper Outlined="true" Class="pa-2 grey lighten-4">
+          <pre style="white-space: pre-wrap; font-size: 0.8rem;">@FormatJson(Log.NewValues)</pre>
+        </MudPaper>
+      </MudItem>
+    </MudGrid>
+  </DialogContent>
+  <DialogActions>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Cerrar</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+  [Parameter] public AuditLogDto Log { get; set; } = new();
+
+  private void Close() => MudDialog.Close();
+
+  private string FormatJson(string? json)
+  {
+    if (string.IsNullOrEmpty(json)) return string.Empty;
+    try
+    {
+      using var doc = JsonDocument.Parse(json);
+      return JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true });
+    }
+    catch
+    {
+      return json;
+    }
+  }
+}

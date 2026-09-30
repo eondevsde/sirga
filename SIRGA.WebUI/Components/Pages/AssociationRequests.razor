@@ -1,0 +1,146 @@
+@page "/association-requests"
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Enums
+@using SIRGA.Domain.Entities
+@inject AssociationService AssociationService
+@inject UnionService UnionService
+@inject ISnackbar Snackbar
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Sindicato,Admin")]
+
+<MudText Typo="Typo.h4" Class="mb-4">Solicitudes de Asociación de Empresas</MudText>
+
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+  <MudGrid>
+    <MudItem xs="12" sm="6">
+      <MudSelect T="int" Label="Sindicato / Filial" Variant="Variant.Outlined" Value="_selectedUnionId"
+                 ValueChanged="OnUnionChanged" AnchorOrigin="Origin.BottomCenter">
+        <MudSelectItem Value="0">Seleccione un Sindicato</MudSelectItem>
+        @foreach (var union in _unions)
+        {
+          <MudSelectItem Value="@union.Id">@union.Name (@union.JurisdictionCity)</MudSelectItem>
+        }
+      </MudSelect>
+    </MudItem>
+    <MudItem xs="12" sm="6" Class="d-flex align-end">
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadRequests"
+                 Disabled="@(_selectedUnionId == 0)" StartIcon="@Icons.Material.Filled.Refresh">
+        Actualizar Solicitudes
+      </MudButton>
+    </MudItem>
+  </MudGrid>
+</MudPaper>
+
+@if (_requests == null)
+{
+  @if (_selectedUnionId != 0)
+  {
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+  }
+}
+else if (!_requests.Any())
+{
+  <MudAlert Severity="Severity.Info">No hay solicitudes pendientes para este sindicato.</MudAlert>
+}
+else
+{
+  <MudTable Items="@_requests" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true" Striped="true">
+    <HeaderContent>
+      <MudTh>Fecha</MudTh>
+      <MudTh>Estudio Contable</MudTh>
+      <MudTh>Empresa</MudTh>
+      <MudTh>CUIT</MudTh>
+      <MudTh>Estado</MudTh>
+      <MudTh>Acciones</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+      <MudTd DataLabel="Fecha">@context.CreatedAt.ToString("dd/MM/yyyy HH:mm")</MudTd>
+      <MudTd DataLabel="Estudio Contable">@context.AccountingStudioName</MudTd>
+      <MudTd DataLabel="Empresa">@context.CompanyBusinessName</MudTd>
+      <MudTd DataLabel="CUIT">@context.CompanyCuit</MudTd>
+      <MudTd DataLabel="Estado">
+        <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">
+          @GetStatusDisplay(context.Status)
+        </MudChip>
+      </MudTd>
+      <MudTd>
+        @if (context.Status == RequestStatus.Pending)
+        {
+          <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                         OnClick="@(() => ProcessRequest(context.Id, true))" Tooltip="Aprobar" />
+          <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
+                         OnClick="@(() => ProcessRequest(context.Id, false))" Tooltip="Rechazar" />
+        }
+        else
+        {
+          <MudText Typo="Typo.caption">Procesado el @context.ProcessedAt?.ToString("dd/MM/yyyy")</MudText>
+        }
+      </MudTd>
+    </RowTemplate>
+  </MudTable>
+}
+
+@code {
+  private int _selectedUnionId;
+  private IEnumerable<UnionDto> _unions = new List<UnionDto>();
+  private IEnumerable<CompanyAssociationRequestDto>? _requests;
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (firstRender)
+    {
+      _unions = await UnionService.GetAllAsync();
+      StateHasChanged();
+    }
+  }
+
+  private async Task OnUnionChanged(int unionId)
+  {
+    _selectedUnionId = unionId;
+    await LoadRequests();
+  }
+
+  private async Task LoadRequests()
+  {
+    if (_selectedUnionId == 0) return;
+    _requests = await AssociationService.GetRequestsForUnionAsync(_selectedUnionId);
+    StateHasChanged();
+  }
+
+  private async Task ProcessRequest(int requestId, bool approve)
+  {
+    string action = approve ? "Aprobar" : "Rechazar";
+    // En una implementación real, usaríamos un diálogo para el comentario
+    string comment = approve ? "Autorizado por el Sindicato." : "Rechazado. Contactar al sindicato para más información.";
+        
+    if (approve)
+    {
+      var (ok, msg) = await AssociationService.ApproveRequestAsync(requestId, comment);
+      Snackbar.Add(ok ? "Solicitud aprobada con éxito" : (msg ?? "No se pudo aprobar la solicitud"),
+          ok ? Severity.Success : Severity.Error);
+    }
+    else
+    {
+      await AssociationService.RejectRequestAsync(requestId, comment);
+      Snackbar.Add("Solicitud rechazada con éxito", Severity.Success);
+    }
+
+    await LoadRequests();
+  }
+
+  private Color GetStatusColor(RequestStatus status) => status switch
+  {
+    RequestStatus.Pending => Color.Info,
+    RequestStatus.Approved => Color.Success,
+    RequestStatus.Rejected => Color.Error,
+    _ => Color.Default
+  };
+
+  private string GetStatusDisplay(RequestStatus status) => status switch
+  {
+    RequestStatus.Pending => "Pendiente",
+    RequestStatus.Approved => "Aprobada",
+    RequestStatus.Rejected => "Rechazada",
+    _ => status.ToString()
+  };
+}

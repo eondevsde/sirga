@@ -1,0 +1,116 @@
+@page "/inspectors"
+@using SIRGA.Application.Interfaces
+@inject IInspectionService InspectionService
+@inject ISnackbar Snackbar
+@inject MudBlazor.IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+  <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Inspectores</MudText>
+  <MudText Class="mb-4">Administre el personal autorizado para realizar visitas de campo.</MudText>
+
+  <MudTable Items="@_inspectors" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Dense="true">
+    <ToolBarContent>
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenAddDialog"
+                 StartIcon="@Icons.Material.Filled.Add">
+        Nuevo Inspector
+      </MudButton>
+      <MudSpacer />
+      <MudTextField @bind-Value="_searchString" Placeholder="Buscar por nombre o DNI" Adornment="Adornment.Start"
+                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+    </ToolBarContent>
+    <HeaderContent>
+      <MudTh>Nombre</MudTh>
+      <MudTh>DNI</MudTh>
+      <MudTh>Teléfono</MudTh>
+      <MudTh>Estado</MudTh>
+      <MudTh>Acciones</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+      <MudTd DataLabel="Nombre">@context.Name</MudTd>
+      <MudTd DataLabel="DNI">@context.Dni</MudTd>
+      <MudTd DataLabel="Teléfono">@context.Phone</MudTd>
+      <MudTd DataLabel="Estado">
+        <MudChip T="string" Color="@(context.IsActive? Color.Success: Color.Error)" Size="Size.Small">
+          @(context.IsActive ? "Activo" : "Inactivo")
+        </MudChip>
+      </MudTd>
+      <MudTd DataLabel="Acciones">
+        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" OnClick="@(() => OpenEditDialog(context))"
+                       Size="Size.Small" />
+        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                       OnClick="@(() => DeleteInspector(context.Id))" Size="Size.Small" />
+      </MudTd>
+    </RowTemplate>
+    <PagerContent>
+      <MudTablePager InfoText="Mostrando {from}-{to} de {all}" RowsPerPageString="Filas por página:" />
+    </PagerContent>
+  </MudTable>
+</MudContainer>
+
+@code {
+  private IEnumerable<InspectorDto> _inspectors = new List<InspectorDto>();
+  private bool _loading = true;
+  private string _searchString = "";
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadInspectors();
+  }
+
+  private async Task LoadInspectors()
+  {
+    _loading = true;
+    try
+    {
+      _inspectors = await InspectionService.GetInspectorsAsync();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add($"Error al cargar inspectores: {ex.Message}", Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private async Task OpenAddDialog()
+  {
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+    var dialog = await DialogService.ShowAsync<InspectorDialog>("Registrar Nuevo Inspector", options);
+    var result = await dialog.Result;
+
+    if (result != null && !result.Canceled)
+    {
+      await LoadInspectors();
+      Snackbar.Add("Inspector registrado con éxito", Severity.Success);
+    }
+  }
+
+  private async Task OpenEditDialog(InspectorDto inspector)
+  {
+    var parameters = new DialogParameters { ["Inspector"] = inspector };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+    var dialog = await DialogService.ShowAsync<InspectorDialog>("Editar Inspector", parameters, options);
+    var result = await dialog.Result;
+
+    if (result != null && !result.Canceled)
+    {
+      await LoadInspectors();
+      Snackbar.Add("Datos actualizados", Severity.Success);
+    }
+  }
+
+  private async Task DeleteInspector(int id)
+  {
+    bool? confirm = await DialogService.ShowAsync<MudBlazor.MudMessageBox>("Confirmar", new DialogParameters { { "Title",
+"Confirmar" }, { "Message", "¿Desea dar de baja a este inspector?" }, { "YesText", "Sí" }, { "CancelText", "No" } }) is
+not null;
+    if (confirm == true)
+    {
+      await InspectionService.DeleteInspectorAsync(id);
+      await LoadInspectors();
+      Snackbar.Add("Inspector dado de baja", Severity.Warning);
+    }
+  }
+}

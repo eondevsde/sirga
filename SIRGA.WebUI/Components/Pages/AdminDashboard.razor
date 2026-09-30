@@ -1,0 +1,113 @@
+@page "/admin/dashboard"
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using Microsoft.AspNetCore.Authorization
+@inject UnionSubscriptionService SubscriptionService
+@attribute [Authorize(Roles = "Admin")]
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
+  <MudText Typo="Typo.h3" GutterBottom="true">Panel de Control SIRGA</MudText>
+  <MudText Typo="Typo.body1" Class="mb-8">Consola de administración global del ecosistema SaaS.</MudText>
+
+  @if (_stats == null)
+  {
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+  }
+  else
+  {
+    <MudGrid>
+      @* Fila 1: KPIs Principales *@
+      <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 d-flex flex-column align-center justify-center mud-width-full"
+                  Style="height:150px; border-left: 8px solid var(--mud-palette-success);">
+          <MudText Typo="Typo.h6">Sindicatos al Día</MudText>
+          <MudText Typo="Typo.h3">@_stats.ActiveUnionsCount</MudText>
+          <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+        </MudPaper>
+      </MudItem>
+      <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 d-flex flex-column align-center justify-center mud-width-full"
+                  Style="height:150px; border-left: 8px solid var(--mud-palette-error);">
+          <MudText Typo="Typo.h6">Sindicatos Morosos</MudText>
+          <MudText Typo="Typo.h3">@_stats.DelinquentUnionsCount</MudText>
+          <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" Size="Size.Large" />
+        </MudPaper>
+      </MudItem>
+      <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 d-flex flex-column align-center justify-center mud-width-full"
+                  Style="height:150px; border-left: 8px solid var(--mud-palette-info);">
+          <MudText Typo="Typo.h6">Solicitudes Pendientes</MudText>
+          <MudText Typo="Typo.h3">@_stats.PendingRequestsCount</MudText>
+          <MudIcon Icon="@Icons.Material.Filled.Drafts" Color="Color.Info" Size="Size.Large" />
+        </MudPaper>
+      </MudItem>
+      <MudItem xs="12" sm="6" md="3">
+        <MudPaper Class="pa-4 d-flex flex-column align-center justify-center mud-width-full"
+                  Style="height:150px; border-left: 8px solid var(--mud-palette-primary);">
+          <MudText Typo="Typo.h6">Recaudación Mensual</MudText>
+          <MudText Typo="Typo.h3">@_stats.MonthlyRevenue.ToString("C0")</MudText>
+          <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Color="Color.Primary" Size="Size.Large" />
+        </MudPaper>
+      </MudItem>
+
+      @* Fila 2: Estadísticas de Volumen *@
+      <MudItem xs="12" sm="6">
+        <MudCard>
+          <MudCardHeader>
+            <CardHeaderContent>
+              <MudText Typo="Typo.h6">Ecosistema Global</MudText>
+            </CardHeaderContent>
+          </MudCardHeader>
+          <MudCardContent>
+            <MudList T="string">
+              <MudListItem Icon="@Icons.Material.Filled.AccountBalance">
+                Sindicatos Suscriptos: <b>@_stats.TotalUnionsCount</b>
+              </MudListItem>
+              <MudListItem Icon="@Icons.Material.Filled.BusinessCenter">
+                Estudios Contables: <b>@_stats.TotalAccountingStudiosCount</b>
+              </MudListItem>
+              <MudListItem Icon="@Icons.Material.Filled.PeopleAlt">
+                Empleados Totales: <b>@_stats.TotalEmployeesCount</b>
+              </MudListItem>
+            </MudList>
+          </MudCardContent>
+        </MudCard>
+      </MudItem>
+
+      <MudItem xs="12" sm="6">
+        <MudCard>
+          <MudCardHeader>
+            <CardHeaderContent>
+              <MudText Typo="Typo.h6">Informe Mensual de Solicitudes</MudText>
+            </CardHeaderContent>
+          </MudCardHeader>
+          <MudCardContent>
+            <MudGrid>
+              <MudItem xs="4" Class="d-flex flex-column align-center">
+                <MudText Typo="Typo.subtitle1">Recibidas</MudText>
+                <MudText Typo="Typo.h4" Color="Color.Info">@_stats.RequestsCurrentMonth</MudText>
+              </MudItem>
+              <MudItem xs="4" Class="d-flex flex-column align-center">
+                <MudText Typo="Typo.subtitle1">Aprobadas</MudText>
+                <MudText Typo="Typo.h4" Color="Color.Success">@_stats.ApprovedCurrentMonth</MudText>
+              </MudItem>
+              <MudItem xs="4" Class="d-flex flex-column align-center">
+                <MudText Typo="Typo.subtitle1">Rechazadas</MudText>
+                <MudText Typo="Typo.h4" Color="Color.Error">@_stats.RejectedCurrentMonth</MudText>
+              </MudItem>
+            </MudGrid>
+          </MudCardContent>
+        </MudCard>
+      </MudItem>
+    </MudGrid>
+  }
+</MudContainer>
+
+@code {
+  private AdminDashboardDto? _stats;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _stats = await SubscriptionService.GetAdminDashboardStatsAsync();
+  }
+}

@@ -1,0 +1,125 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using SIRGA.Application.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject AccountingStudioService StudioService
+
+<MudNavMenu>
+  <AuthorizeView Roles="EstudioContable" Context="studioContext">
+    <Authorized>
+      @if (_isApproved)
+      {
+        <MudNavLink Href="/estudio/dashboard" Icon="@Icons.Material.Filled.Assignment">Portal Estudio</MudNavLink>
+          
+        <MudNavGroup Title="Gestión" Icon="@Icons.Material.Filled.Settings" Expanded="true">
+          <MudNavLink Href="/companies" Icon="@Icons.Material.Filled.Business">Empresas</MudNavLink>
+          <MudNavLink Href="/employees" Icon="@Icons.Material.Filled.People">Empleados</MudNavLink>
+        </MudNavGroup>
+
+        <MudNavGroup Title="Declaraciones" Icon="@Icons.Material.Filled.Assignment" Expanded="true">
+          <MudNavLink Href="/declarations/new" Icon="@Icons.Material.Filled.AddBox">Nueva DDJJ</MudNavLink>
+          <MudNavLink Href="/declarations/history" Icon="@Icons.Material.Filled.History">Historial de DDJJ</MudNavLink>
+        </MudNavGroup>
+      }
+      else
+      {
+        <MudNavLink Href="/studio-pending" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Pending">Solicitud
+          Pendiente</MudNavLink>
+        }
+      </Authorized>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Sindicato,Auditor" Context="sindicatoAuditorContext">
+      <Authorized>
+        <AuthorizeView Roles="Sindicato" Context="sindicatoContext">
+          <MudNavLink Href="/sindicato/dashboard" Icon="@Icons.Material.Filled.Dashboard">Panel Sindicato</MudNavLink>
+        </AuthorizeView>
+        
+        <MudNavLink Href="/audit/dashboard" Icon="@Icons.Material.Filled.Security">Panel Fiscalización</MudNavLink>
+        <MudNavLink Href="/audit/review" Icon="@Icons.Material.Filled.RateReview">Revisión de DDJJ</MudNavLink>
+        <MudNavLink Href="/admin/studios-approval" Icon="@Icons.Material.Filled.HowToReg">Aprobación Estudios</MudNavLink>
+        <MudNavLink Href="/union/studios" Icon="@Icons.Material.Filled.BusinessCenter">Estudios y Empresas</MudNavLink>
+        <MudNavLink Href="/association-requests" Icon="@Icons.Material.Filled.Link">Solicitudes Vinculación</MudNavLink>
+        <MudNavLink Href="/reports/collections" Icon="@Icons.Material.Filled.InsertChart">Reportes Recaudación
+        </MudNavLink>
+
+        <MudNavGroup Title="Administración Sindicato" Icon="@Icons.Material.Filled.Settings" Expanded="true">
+          <MudNavLink Href="/companies" Icon="@Icons.Material.Filled.Business">Empresas</MudNavLink>
+          <MudNavLink Href="/employees" Icon="@Icons.Material.Filled.People">Empleados</MudNavLink>
+        </MudNavGroup>
+
+        <MudNavGroup Title="Recaudación" Icon="@Icons.Material.Filled.MonetizationOn" Expanded="true">
+          <AuthorizeView Roles="Auditor" Context="auditorRecaudacionContext">
+            <Authorized>
+              <MudNavLink Href="/declarations/new" Icon="@Icons.Material.Filled.AddBox">Nueva DDJJ</MudNavLink>
+            </Authorized>
+          </AuthorizeView>
+          <MudNavLink Href="/declarations/history" Icon="@Icons.Material.Filled.History">Historial de DDJJ</MudNavLink>
+          <MudNavLink Href="/admin/payments" Icon="@Icons.Material.Filled.Payment">Gestión de Pagos</MudNavLink>
+        </MudNavGroup>
+      </Authorized>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="Admin" Context="centralAdminContext">
+      <Authorized>
+        <MudNavLink Href="/admin/dashboard" Icon="@Icons.Material.Filled.Dns">Dashboard Global</MudNavLink>
+        <MudNavLink Href="/admin/subscription-requests" Icon="@Icons.Material.Filled.NotificationAdd">Solicitudes SaaS
+        </MudNavLink>
+        <MudNavLink Href="/admin/subscriptions" Icon="@Icons.Material.Filled.ReceiptLong">Gestión de Abonos</MudNavLink>
+        
+        <MudNavGroup Title="Configuración Global" Icon="@Icons.Material.Filled.Public" Expanded="true">
+          <MudNavLink Href="/unions" Icon="@Icons.Material.Filled.AccountBalance">Sindicatos Suscriptos</MudNavLink>
+          <MudNavLink Href="/admin/salary-scales" Icon="@Icons.Material.Filled.FormatListNumbered">Escalas Paritarias
+          </MudNavLink>
+          <MudNavLink Href="/admin/interest-rates" Icon="@Icons.Material.Filled.Percent">Tasas ARCA</MudNavLink>
+          <MudNavLink Href="/admin/payments" Icon="@Icons.Material.Filled.Payments">Conciliación Pagos SaaS</MudNavLink>
+        </MudNavGroup>
+      </Authorized>
+    </AuthorizeView>
+
+    <MudDivider Class="my-2" />
+  
+    <AuthorizeView>
+      <Authorized>
+        <MudNavLink Href="/logout" Icon="@Icons.Material.Filled.Logout">Cerrar Sesión (@context.User.Identity?.Name)
+        </MudNavLink>
+      </Authorized>
+      <NotAuthorized>
+        <MudNavLink Href="/login" Icon="@Icons.Material.Filled.Login">Iniciar Sesión</MudNavLink>
+      </NotAuthorized>
+    </AuthorizeView>
+  </MudNavMenu>
+
+@code {
+  private bool _isApproved = false;
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (firstRender)
+    {
+      await CheckApprovalStatus();
+    }
+  }
+
+  private async Task CheckApprovalStatus()
+  {
+    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+    var user = authState.User;
+
+    if (user.Identity?.IsAuthenticated == true && user.IsInRole("EstudioContable"))
+    {
+      try
+      {
+        var studio = await StudioService.GetByUsernameAsync(user.Identity.Name!);
+        if (_isApproved != (studio?.IsApproved ?? false))
+        {
+          _isApproved = studio?.IsApproved ?? false;
+          StateHasChanged();
+        }
+      }
+      catch (Exception)
+      {
+        _isApproved = false;
+      }
+    }
+  }
+}

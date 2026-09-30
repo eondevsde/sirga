@@ -1,0 +1,118 @@
+@using SIRGA.Domain.Entities
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<MudDialog>
+  <TitleContent>
+    <MudText Typo="Typo.h6">Sucursales de @MainCompany?.BusinessName</MudText>
+  </TitleContent>
+  <DialogContent>
+    <MudTable Items="@_branches" Hover="true" Dense="true" Elevation="0" Loading="@_loading">
+      <HeaderContent>
+        <MudTh>Nombre Sucursal</MudTh>
+        <MudTh>Dirección</MudTh>
+        <MudTh>Persona Ref.</MudTh>
+        <MudTh>Teléfono</MudTh>
+      </HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Nombre">@context.BranchName</MudTd>
+        <MudTd DataLabel="Dirección">@context.Address</MudTd>
+        <MudTd DataLabel="Persona Ref.">@context.ReferencePerson</MudTd>
+        <MudTd DataLabel="Teléfono">@context.ReferencePhone</MudTd>
+      </RowTemplate>
+    </MudTable>
+
+    <MudDivider Class="my-4" />
+        
+    <MudText Typo="Typo.subtitle2" Class="mb-2">Añadir Nueva Sucursal</MudText>
+    <MudGrid>
+      <MudItem xs="6">
+        <MudTextField @bind-Value="_newBranch.BranchName" Label="Nombre (Ej: Sucursal Centro)"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" />
+      </MudItem>
+      <MudItem xs="6">
+        <MudTextField @bind-Value="_newBranch.Address" Label="Dirección / Domicilio" Variant="Variant.Outlined"
+                      Margin="Margin.Dense" />
+      </MudItem>
+      <MudItem xs="12" Class="d-flex justify-end">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="AddBranch" Disabled="@_processing">Agregar Sucursal</MudButton>
+      </MudItem>
+    </MudGrid>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Close" Color="Color.Default">Cerrar</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+  [Parameter] public Company? MainCompany { get; set; }
+
+  private List<Company> _branches = new();
+  private bool _loading = true;
+  private bool _processing = false;
+  private Company _newBranch = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadBranches();
+  }
+
+  private async Task LoadBranches()
+  {
+    if (MainCompany == null) return;
+    _loading = true;
+    try
+    {
+      var all = await Http.GetFromJsonAsync<List<Company>>("api/companies") ?? new();
+      _branches = all.Where(c => c.ParentCompanyId == MainCompany.Id).ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar sucursales: " + ex.Message, Severity.Error);
+    }
+    finally { _loading = false; }
+  }
+
+  private async Task AddBranch()
+  {
+    if (string.IsNullOrWhiteSpace(_newBranch.BranchName) || string.IsNullOrWhiteSpace(_newBranch.Address))
+    {
+      Snackbar.Add("Nombre y Dirección son requeridos", Severity.Warning);
+      return;
+    }
+
+    _processing = true;
+    try
+    {
+      _newBranch.Cuit = MainCompany!.Cuit;
+      _newBranch.BusinessName = MainCompany.BusinessName;
+      _newBranch.ParentCompanyId = MainCompany.Id;
+      _newBranch.Status = MainCompany.Status; // Hereda el estado de activación
+      
+      // Si la casa central tiene un estudio, la sucursal también
+      _newBranch.AccountingStudioId = MainCompany.AccountingStudioId;
+
+      var response = await Http.PostAsJsonAsync("api/companies", _newBranch);
+      if (response.IsSuccessStatusCode)
+      {
+        Snackbar.Add("Sucursal agregada con éxito", Severity.Success);
+        _newBranch = new Company(); // Resetear el objeto correctamente
+        await LoadBranches();
+      }
+      else
+      {
+        var error = await response.Content.ReadAsStringAsync();
+        Snackbar.Add($"Error al guardar: {error}", Severity.Error);
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error crítico: " + ex.Message, Severity.Error);
+    }
+    finally { _processing = false; }
+  }
+
+  private void Close() => MudDialog.Close();
+}

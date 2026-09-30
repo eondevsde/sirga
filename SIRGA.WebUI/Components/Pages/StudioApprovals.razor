@@ -1,0 +1,153 @@
+@page "/admin/studios-approval"
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@using MudBlazor
+@inject AccountingStudioService StudioService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Sindicato,Admin")]
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+  <MudText Typo="Typo.h4" GutterBottom="true">Aprobación de Estudios Contables</MudText>
+  <MudText Class="mb-4">Revise y apruebe las solicitudes de registro de nuevos estudios contables para que puedan operar
+    en el sistema.</MudText>
+
+    <MudTable Items="@_pendingStudios" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Dense="true"
+              Striped="true">
+      <HeaderContent>
+        <MudTh>Fecha Registro</MudTh>
+        <MudTh>Datos del Estudio</MudTh>
+        <MudTh>Localidad</MudTh>
+        <MudTh>Referencia (Persona/Cel)</MudTh>
+        <MudTh>Acciones</MudTh>
+      </HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Fecha Registro">@context.CreatedAt.ToString("dd/MM/yyyy HH:mm")</MudTd>
+        <MudTd DataLabel="Datos del Estudio">
+          <MudText Typo="Typo.body1"><b>@context.Name</b></MudText>
+          <MudText Typo="Typo.body2" Class="mud-text-secondary">@context.Email</MudText>
+          <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.ContactCellPhone</MudText>
+        </MudTd>
+        <MudTd DataLabel="Localidad">
+          @if (context.City != null)
+          {
+            <MudText Typo="Typo.body2">@context.City.Name, @context.City.Province?.Name</MudText>
+            <MudText Typo="Typo.caption">@context.Address</MudText>
+          }
+          else
+          {
+            <MudText Typo="Typo.body2">@(context.Address ?? "Sin dirección")</MudText>
+          }
+        </MudTd>
+        <MudTd DataLabel="Referencia">
+          <MudText Typo="Typo.body2">@context.ReferencePerson</MudText>
+          <MudText Typo="Typo.caption">@context.ReferencePhone</MudText>
+        </MudTd>
+        <MudTd>
+          <MudStack Row="true" Spacing="1">
+            <MudTooltip Text="Aprobar para operar">
+              <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small"
+                             OnClick="@(() => ApproveStudio(context))" />
+            </MudTooltip>
+            <MudTooltip Text="Rechazar solicitud">
+              <MudIconButton Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small"
+                             OnClick="@(() => OpenRejectDialog(context))" />
+            </MudTooltip>
+            <MudTooltip Text="Ver Ubicación en Mapa">
+              <MudIconButton Icon="@Icons.Material.Filled.Map" Color="Color.Secondary" Size="Size.Small"
+                             OnClick="@(() => ShowMap(context))" Target="_blank" />
+            </MudTooltip>
+            <MudTooltip Text="Contactar por Email">
+              <MudIconButton Icon="@Icons.Material.Filled.Email" Color="Color.Info" Size="Size.Small"
+                             Href="@($"mailto:{context.Email}")" />
+            </MudTooltip>
+          </MudStack>
+        </MudTd>
+      </RowTemplate>
+      <NoRecordsContent>
+        <MudText>No hay estudios contables pendientes de aprobación.</MudText>
+      </NoRecordsContent>
+      <LoadingContent>
+        <MudText>Cargando solicitudes...</MudText>
+      </LoadingContent>
+    </MudTable>
+  </MudContainer>
+
+@code {
+  private bool _loading = true;
+  private IEnumerable<AccountingStudio> _pendingStudios = new List<AccountingStudio>();
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadPendingStudios();
+  }
+
+  private async Task LoadPendingStudios()
+  {
+    _loading = true;
+    try
+    {
+      _pendingStudios = await StudioService.GetPendingApprovalsAsync();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar estudios: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private async Task ApproveStudio(AccountingStudio studio)
+  {
+    try
+    {
+      await StudioService.ApproveStudioAsync(studio.Id);
+      Snackbar.Add($"Estudio '{studio.Name}' aprobado con éxito.");
+      await LoadPendingStudios();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al aprobar el estudio: " + ex.Message);
+    }
+  }
+
+  private async Task OpenRejectDialog(AccountingStudio studio)
+  {
+    var options = new DialogOptions { CloseOnEscapeKey = true };
+    var parameters = new DialogParameters<MudMessageBox>
+    {
+        { x => x.Title, "Rechazar Solicitud" },
+        { x => x.MarkupMessage, (MarkupString)"¿Está seguro que desea rechazar este estudio contable?" },
+        { x => x.YesText, "Rechazar" },
+        { x => x.CancelText, "Cancelar" }
+    };
+
+    var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirmación", parameters);
+    var result = await dialog.Result;
+
+    if (!result.Canceled)
+    {
+      await StudioService.RejectStudioAsync(studio.Id, "Datos insuficientes o incorrectos.");
+      Snackbar.Add($"Estudio '{studio.Name}' rechazado.");
+      await LoadPendingStudios();
+    }
+  }
+
+  private async Task ShowMap(AccountingStudio studio)
+  {
+    if (string.IsNullOrEmpty(studio.Address))
+    {
+      Snackbar.Add("El estudio no tiene dirección cargada.", Severity.Info);
+      return;
+    }
+
+    var address = $"{studio.Address}, {studio.City?.Name}, {studio.City?.Province?.Name}, Argentina";
+    var encodedAddress = System.Net.WebUtility.UrlEncode(address);
+    var url = $"https://www.google.com/maps/search/?api=1&query={encodedAddress}";
+      
+    await JSRuntime.InvokeVoidAsync("open", url, "_blank");
+  }
+}

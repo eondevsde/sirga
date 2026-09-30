@@ -1,0 +1,120 @@
+@page "/legal-notices"
+@using SIRGA.Application.Interfaces
+@using SIRGA.Application.DTOs
+@inject IInspectionService InspectionService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+  <MudText Typo="Typo.h4" GutterBottom="true">Gestión de Avisos Prejudiciales y Judiciales</MudText>
+  <MudText Class="mb-4">Seguimiento de causas en instancia legal y carga de documentación judicial.</MudText>
+
+  <MudTable Items="@_notices" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Elevation="2">
+    <HeaderContent>
+      <MudTh>Nro. Aviso</MudTh>
+      <MudTh>Empresa</MudTh>
+      <MudTh>Fecha Emisión</MudTh>
+      <MudTh>Vencimiento</MudTh>
+      <MudTh>Instancia</MudTh>
+      <MudTh>Adjuntos</MudTh>
+      <MudTh>Acciones</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+      <MudTd DataLabel="Nro. Aviso">@context.NoticeNumber</MudTd>
+      <MudTd DataLabel="Empresa">
+        <MudText Typo="Typo.body2">@context.CompanyName</MudText>
+        <MudText Typo="Typo.caption">@context.CompanyCuit</MudText>
+      </MudTd>
+      <MudTd DataLabel="Emisión">@context.IssueDate.ToShortDateString()</MudTd>
+      <MudTd DataLabel="Vencimiento">@context.ExpirationDate.ToShortDateString()</MudTd>
+      <MudTd DataLabel="Instancia">
+        <MudChip T="string" Color="@(context.IsJudicial? Color.Error: Color.Warning)" Size="Size.Small">
+          @(context.IsJudicial ? "JUDICIAL" : "PRE-JUDICIAL")
+        </MudChip>
+      </MudTd>
+      <MudTd DataLabel="Adjuntos">
+        <MudBadge Content="@context.Attachments.Count" Color="Color.Info" Overlap="true" Bordered="true">
+          <MudIcon Icon="@Icons.Material.Filled.AttachFile" Color="Color.Default" />
+        </MudBadge>
+      </MudTd>
+      <MudTd DataLabel="Acciones">
+        <MudIconButton Icon="@Icons.Material.Filled.CloudUpload" Color="Color.Primary"
+                       OnClick="@(() => OpenUploadDialog(context))" Title="Subir Documento" />
+        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info"
+                       OnClick="@(() => ViewAttachments(context))" Title="Ver Documentos" />
+        @if (!context.IsJudicial)
+        {
+          <MudIconButton Icon="@Icons.Material.Filled.Gavel" Color="Color.Secondary"
+                         OnClick="@(() => PromoteToJudicial(context))" Title="Pasar a Judicial" />
+        }
+      </MudTd>
+    </RowTemplate>
+  </MudTable>
+</MudContainer>
+
+@code {
+  private IEnumerable<PrejudicialNoticeDto> _notices = new List<PrejudicialNoticeDto>();
+  private bool _loading = true;
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadNotices();
+  }
+
+  private async Task LoadNotices()
+  {
+    _loading = true;
+    try
+    {
+      _notices = await InspectionService.GetPrejudicialNoticesAsync();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private async Task OpenUploadDialog(PrejudicialNoticeDto notice)
+  {
+    var parameters = new DialogParameters { ["NoticeId"] = notice.Id };
+    var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+    var dialog = await DialogService.ShowAsync<UploadLegalDocDialog>("Cargar Documento Legal", parameters, options);
+    var result = await dialog.Result;
+
+    if (result != null && !result.Canceled)
+    {
+      await LoadNotices();
+    }
+  }
+
+  private void ViewAttachments(PrejudicialNoticeDto notice)
+  {
+    // Implementar diálogo de visualización
+    Snackbar.Add($"Mostrando {notice.Attachments.Count} archivos", Severity.Info);
+  }
+
+  private async Task PromoteToJudicial(PrejudicialNoticeDto notice)
+  {
+    bool? confirm = await DialogService.ShowAsync<MudBlazor.MudMessageBox>("Confirmar", new DialogParameters { { "Title",
+"Confirmar" }, { "Message", "¿Desea marcar esta causa como Judicial? Se notificará al departamento de auditoría." }, {
+"YesText", "Sí" }, { "CancelText", "No" } }) is not null;
+        
+    if (confirm == true)
+    {
+      try
+      {
+        await InspectionService.PromoteToJudicialAsync(notice.Id);
+        Snackbar.Add("Promovido a instancia Judicial", Severity.Error);
+        await LoadNotices();
+      }
+      catch (Exception ex)
+      {
+        Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+      }
+    }
+  }
+}

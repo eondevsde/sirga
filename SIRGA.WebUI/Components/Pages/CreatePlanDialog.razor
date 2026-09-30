@@ -1,0 +1,37 @@
+<MudDialog>
+  <DialogContent>
+    <MudText Typo="Typo.body2" Class="mb-4">Configure las condiciones de refinanciación para el Acta <b>@ActNumber</b>
+    </MudText>
+        
+    <MudNumericField @bind-Value="Installments" Label="Cantidad de Cuotas" Min="1" Max="24" Variant="Variant.Outlined"
+                     Class="mb-4" />
+        
+    <MudNumericField @bind-Value="DownPayment" Label="% de Anticipo" Min="0" Max="50" Variant="Variant.Outlined"
+                     Adornment="Adornment.End" AdornmentText="%" Class="mb-4" />
+        
+    <MudNumericField @bind-Value="InterestRate" Label="Tasa de Interés Mensual" Min="0" Max="10" Step="0.1m"
+                     Variant="Variant.Outlined" Adornment="Adornment.End" AdornmentText="%" />
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" OnClick="Submit">Generar Plan</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    
+  [Parameter] public string ActNumber { get; set; } = "";
+    
+  private int Installments = 6;
+  private decimal DownPayment = 10;
+  private decimal InterestRate = 3.5m;
+
+  private void Cancel() => MudDialog.Cancel();
+    
+  private void Submit()
+  {
+    var result = new { Installments, DownPayment, InterestRate };
+    MudDialog.Close(DialogResult.Ok(result));
+  }
+}

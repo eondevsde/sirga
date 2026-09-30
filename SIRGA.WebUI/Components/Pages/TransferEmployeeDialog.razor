@@ -1,0 +1,110 @@
+@using SIRGA.Domain.Entities
+@using SIRGA.Application.DTOs
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<MudDialog>
+  <TitleContent>
+    <MudText Typo="Typo.h6">Transferir Empleado</MudText>
+  </TitleContent>
+  <DialogContent>
+    <MudText Class="mb-4">Vas a transferir a <b>@EmployeeName</b> de sucursal.</MudText>
+    <MudForm @ref="_form" @bind-IsValid="@_success">
+      <MudGrid>
+        <MudItem xs="12">
+          <MudSelect T="int" Label="Sucursal de Destino" @bind-Value="_targetCompanyId" Required="true"
+                     Variant="Variant.Outlined">
+            @foreach (var company in _availableCompanies)
+            {
+              <MudSelectItem Value="@company.Id">
+                @company.BusinessName @(string.IsNullOrEmpty(company.BranchName) ? "" : $" - {company.BranchName}")
+              </MudSelectItem>
+            }
+          </MudSelect>
+        </MudItem>
+        <MudItem xs="12">
+          <MudAlert Severity="Severity.Info">
+            Nota: Si la sucursal de destino está en otra localidad, el sindicato asignado podría cambiar automáticamente
+            según la jurisdicción.
+          </MudAlert>
+        </MudItem>
+      </MudGrid>
+    </MudForm>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(_processing || !_success)">
+      @if (_processing)
+      {
+        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+        <MudText Class="ms-2">Procesando...</MudText>
+      }
+      else
+      {
+        <MudText>Confirmar Transferencia</MudText>
+      }
+    </MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+  [Parameter] public int EmployeeId { get; set; }
+  [Parameter] public string EmployeeName { get; set; } = "";
+  [Parameter] public int CurrentCompanyId { get; set; }
+
+  private MudForm _form = null!;
+  private bool _success;
+  private bool _processing;
+  private int _targetCompanyId;
+  private List<Company> _availableCompanies = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      var allCompanies = await Http.GetFromJsonAsync<List<Company>>("api/companies") ?? new();
+      // Mostrar todas las empresas activas excepto la actual
+      _availableCompanies = allCompanies
+          .Where(c => c.Id != CurrentCompanyId && c.Status == SIRGA.Domain.Enums.CompanyStatus.Active)
+          .ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar sucursales: " + ex.Message, Severity.Error);
+    }
+  }
+
+  private async Task Submit()
+  {
+    _processing = true;
+    try
+    {
+      var response = await
+Http.PatchAsync($"api/employees/transfer/{EmployeeId}?fromCompanyId={CurrentCompanyId}&toCompanyId={_targetCompanyId}",
+null);
+            
+      if (response.IsSuccessStatusCode)
+      {
+        Snackbar.Add("Empleado transferido exitosamente", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+      }
+      else
+      {
+        var error = await response.Content.ReadAsStringAsync();
+        Snackbar.Add("Error: " + error, Severity.Error);
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error de conexión: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _processing = false;
+    }
+  }
+
+  private void Cancel() => MudDialog.Cancel();
+}

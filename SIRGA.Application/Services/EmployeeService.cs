@@ -1,0 +1,288 @@
+﻿using SIRGA.Application.Interfaces;
+using SIRGA.Domain.Entities;
+using SIRGA.Domain.Enums;
+using SIRGA.Application.DTOs;
+
+namespace SIRGA.Application.Services;
+
+public class EmployeeService(IUnitOfWork unitOfWork)
+{
+    public async Task<IEnumerable<EmployeeDto>> GetEmployeesByAssignmentAsync(int companyId, int unionId)
+    {
+        var assignments = await unitOfWork.Assignments.FindAsync(a =>
+            a.CompanyId == companyId && a.UnionId == unionId && a.IsActive);
+
+        var result = new List<EmployeeDto>();
+        foreach (var assign in assignments)
+        {
+            var employee = await unitOfWork.Employees.GetByIdAsync(assign.EmployeeId);
+            if (employee != null)
+            {
+                result.Add(new EmployeeDto
+                {
+                    Id = employee.Id,
+                    Dni = employee.Dni,
+                    FullName = employee.FullName,
+                    JoinedDate = employee.HireDate,
+                    LeftDate = assign.TerminationDate,
+                    IsActive = assign.IsActive,
+                    IsVoluntaryMember = assign.IsVoluntaryMember,
+                    AssignmentId = assign.Id, // Agregamos el Id del Assignment para la DDJJ
+                    MembershipResignationRequested = assign.MembershipResignationRequested == true
+                });
+            }
+        }
+        return result;
+    }
+
+    public async Task<IEnumerable<EmployeeDto>> GetEmployeesByCompanyAsync(int companyId)
+    {
+        var assignments = await unitOfWork.Assignments.FindAsync(a => a.CompanyId == companyId);
+
+        var result = new List<EmployeeDto>();
+        foreach (var assign in assignments)
+        {
+            var employee = await unitOfWork.Employees.GetByIdAsync(assign.EmployeeId);
+            if (employee != null)
+            {
+                result.Add(new EmployeeDto
+                {
+                    Id = employee.Id,
+                    Dni = employee.Dni,
+                    FullName = employee.FullName,
+                    JoinedDate = employee.HireDate,
+                    LeftDate = assign.TerminationDate,
+                    IsActive = assign.IsActive,
+                    IsVoluntaryMember = assign.IsVoluntaryMember,
+                    MembershipResignationRequested = assign.MembershipResignationRequested == true
+                });
+            }
+        }
+        return result;
+    }
+
+    public async Task<IEnumerable<Employee>> GetAllEmployeesRawAsync()
+    {
+        return await unitOfWork.Employees.GetAllAsync();
+    }
+
+    public async Task<IEnumerable<EmployeeDto>> GetPadronAsync()
+    {
+        var employees = await unitOfWork.Employees.GetAllAsync();
+        var assignments = await unitOfWork.Assignments.GetAllAsync();
+        var activeByEmployee = assignments.Where(a => a.IsActive).Select(a => a.EmployeeId).ToHashSet();
+
+        return employees.Select(e => new EmployeeDto
+        {
+            Id = e.Id,
+            Dni = e.Dni,
+            FullName = e.FullName,
+            JoinedDate = e.HireDate,
+            IsActive = activeByEmployee.Contains(e.Id)
+        }).ToList();
+    }
+
+    public async Task<Company?> GetCompanyByIdAsync(int id)
+    {
+        return await unitOfWork.Companies.GetByIdAsync(id);
+    }
+
+    public async Task CreateEmployeeWithAssignmentAsync(CreateEmployeeDto dto)
+    {
+        var branch = await unitOfWork.Companies.GetByIdAsync(dto.CompanyId)
+            ?? throw new Exception("La sucursal especificada no existe.");
+
+        // LÓGICA DE NEGOCIO PARA SUCURSALES:
+        // 1. Intentamos buscar un Sindicato que tenga jurisdicción específica en la CIUDAD de la SUCURSAL.
+        var cityId = branch.CityId;
+        if (cityId == null) throw new Exception("La empresa no tiene una localidad asignada.");
+
+        var cityObj = await unitOfWork.Cities.GetByIdAsync(cityId.Value);
+        var provinceObj = cityObj != null ? await unitOfWork.Provinces.GetByIdAsync(cityObj.ProvinceId) : null;
+
+        var provinceName = provinceObj?.Name?.Trim() ?? "";
+        var cityName = cityObj?.Name?.Trim() ?? "";
+
+        var union = (await unitOfWork.Unions.FindAsync(u =>
+            u.JurisdictionProvince.ToLower() == provinceName.ToLower() &&
+            u.JurisdictionCity.ToLower() == cityName.ToLower())).FirstOrDefault();
+
+        // 2. Si no existe un sindicato local/filial para esa ciudad, 
+        // buscamos el Sindicato Provincial General (donde JurisdictionCity es null o vacío).
+        if (union == null)
+        {
+            union = (await unitOfWork.Unions.FindAsync(u =>
+                u.JurisdictionProvince.ToLower() == provinceName.ToLower() &&
+                (string.IsNullOrEmpty(u.JurisdictionCity)))).FirstOrDefault();
+        }
+
+        // 3. Si aún no encontramos nada, hay un error de configuración de jurisdicciones.
+        if (union == null)
+        {
+            throw new Exception($"No existe un Sindicato configurado para la provincia {provinceName} que cubra la ciudad de {cityName}.");
+        }
+        var existing = (await unitOfWork.Employees.FindAsync(e => e.Dni == dto.Dni)).FirstOrDefault();
+        int employeeId;
+
+        if (existing == null)
+        {
+            var newEmployee = new Employee
+            {
+                Dni = dto.Dni,
+                FullName = dto.FullName,
+                HireDate = DateTime.Now,
+                Status = EmployeeStatus.Active
+            };
+            await unitOfWork.Employees.AddAsync(newEmployee);
+            await unitOfWork.CompleteAsync();
+            employeeId = newEmployee.Id;
+        }
+        else
+        {
+            employeeId = existing.Id;
+        }
+
+        // El empleado queda vinculado a la SUCURSAL especÃ­fica (CompanyId) 
+        // pero bajo el SINDICATO que tiene jurisdicciÃ³n en esa zona.
+        var assignment = new SindicataryAssignment
+        {
+            EmployeeId = employeeId,
+            CompanyId = dto.CompanyId,
+            UnionId = union.Id,
+            IsVoluntaryMember = dto.IsVoluntaryMember
+        };
+
+        await unitOfWork.Assignments.AddAsync(assignment);
+        await unitOfWork.CompleteAsync();
+    }
+
+    public async Task<IEnumerable<Employee>> GetAllAsync() => await unitOfWork.Employees.GetAllAsync();
+
+    public async Task<Employee?> GetByDniAsync(string dni)
+    {
+        var result = await unitOfWork.Employees.FindAsync(e => e.Dni == dni);
+        return result.FirstOrDefault();
+    }
+
+    public async Task<(bool Success, string? Error)> RequestMembershipResignationAsync(int assignmentId, string reason)
+    {
+        var assignment = await unitOfWork.Assignments.GetByIdAsync(assignmentId);
+        if (assignment == null) return (false, "La asignación no existe.");
+        if (!assignment.IsActive) return (false, "El empleado no tiene una vinculación activa con la empresa.");
+        if (!assignment.IsVoluntaryMember) return (false, "El empleado no es socio voluntario.");
+        if (assignment.MembershipResignationRequested == true)
+            return (false, "Ya existe una solicitud de renuncia pendiente para este empleado.");
+
+        assignment.MembershipResignationRequested = true;
+        assignment.MembershipResignationReason = string.IsNullOrWhiteSpace(reason) ? "Sin motivo informado" : reason;
+        assignment.MembershipResignationRequestedAt = DateTime.Now;
+
+        await unitOfWork.Assignments.UpdateAsync(assignment);
+        var ok = await unitOfWork.CompleteAsync() > 0;
+        return (ok, ok ? null : "No se pudo registrar la solicitud de renuncia.");
+    }
+
+    public async Task<IEnumerable<MembershipResignationDto>> GetMembershipResignationRequestsAsync(int unionId)
+    {
+        var assignments = await unitOfWork.Assignments.FindAsync(a =>
+            a.UnionId == unionId && a.MembershipResignationRequested == true && a.IsActive);
+
+        var result = new List<MembershipResignationDto>();
+        foreach (var assign in assignments)
+        {
+            var employee = await unitOfWork.Employees.GetByIdAsync(assign.EmployeeId);
+            var company = await unitOfWork.Companies.GetByIdAsync(assign.CompanyId);
+            result.Add(new MembershipResignationDto
+            {
+                AssignmentId = assign.Id,
+                EmployeeId = assign.EmployeeId,
+                EmployeeName = employee?.FullName ?? "N/A",
+                Dni = employee?.Dni ?? "N/A",
+                CompanyId = assign.CompanyId,
+                CompanyBusinessName = company?.BusinessName ?? "N/A",
+                CompanyCuit = company?.Cuit ?? "N/A",
+                UnionId = assign.UnionId,
+                Reason = assign.MembershipResignationReason ?? "",
+                RequestedAt = assign.MembershipResignationRequestedAt ?? DateTime.MinValue
+            });
+        }
+        return result.OrderByDescending(x => x.RequestedAt);
+    }
+
+    public async Task<(bool Success, string? Error)> ResolveMembershipResignationAsync(int assignmentId, bool approve, string comment)
+    {
+        var assignment = await unitOfWork.Assignments.GetByIdAsync(assignmentId);
+        if (assignment == null) return (false, "La asignación no existe.");
+        if (assignment.MembershipResignationRequested != true)
+            return (false, "No hay una solicitud de renuncia pendiente para esta asignación.");
+
+        if (approve)
+        {
+            assignment.IsVoluntaryMember = false;
+            assignment.MembershipEndDate = DateTime.Now;
+        }
+        assignment.MembershipResignationRequested = false;
+
+        await unitOfWork.Assignments.UpdateAsync(assignment);
+        var ok = await unitOfWork.CompleteAsync() > 0;
+        return (ok, ok ? null : "No se pudo procesar la solicitud.");
+    }
+
+    public async Task AddAsync(Employee employee)
+    {
+        var existing = await GetByDniAsync(employee.Dni);
+        if (existing != null) throw new Exception("El DNI ya se encuentra registrado.");
+
+        await unitOfWork.Employees.AddAsync(employee);
+        await unitOfWork.CompleteAsync();
+    }
+
+    /// <summary>
+    /// Transfiere un empleado de una sucursal a otra.
+    /// También debe verificar/actualizar el sindicato si el empleado se mueve a otra jurisdicción.
+    /// </summary>
+    public async Task TransferEmployeeAsync(int employeeId, int currentCompanyId, int targetCompanyId)
+    {
+        var assignments = await unitOfWork.Assignments.FindAsync(a =>
+            a.EmployeeId == employeeId && a.CompanyId == currentCompanyId);
+
+        var assignment = assignments.FirstOrDefault()
+            ?? throw new Exception("No se encontró el vínculo del empleado con la sucursal de origen.");
+
+        var targetBranch = await unitOfWork.Companies.GetByIdAsync(targetCompanyId)
+            ?? throw new Exception("La sucursal de destino no existe.");
+
+        // Verificar si la jurisdicción cambia
+        var cityId = targetBranch.CityId;
+        if (cityId == null) throw new Exception("La sucursal de destino no tiene una localidad asignada.");
+
+        var cityObj = await unitOfWork.Cities.GetByIdAsync(cityId.Value);
+        var provinceObj = cityObj != null ? await unitOfWork.Provinces.GetByIdAsync(cityObj.ProvinceId) : null;
+        var provinceName = provinceObj?.Name?.Trim() ?? "";
+        var cityName = cityObj?.Name?.Trim() ?? "";
+
+        // Buscar sindicato con jurisdicción en la nueva zona
+        var union = (await unitOfWork.Unions.FindAsync(u =>
+            u.JurisdictionProvince.ToLower() == provinceName.ToLower() &&
+            u.JurisdictionCity.ToLower() == cityName.ToLower())).FirstOrDefault();
+
+        if (union == null)
+        {
+            union = (await unitOfWork.Unions.FindAsync(u =>
+                u.JurisdictionProvince.ToLower() == provinceName.ToLower() &&
+                (string.IsNullOrEmpty(u.JurisdictionCity)))).FirstOrDefault();
+        }
+
+        if (union == null)
+        {
+            throw new Exception($"No existe un Sindicato configurado para la zona {provinceName}/{cityName} de la nueva sucursal.");
+        }
+
+        // Actualizar asignación
+        assignment.CompanyId = targetCompanyId;
+        assignment.UnionId = union.Id;
+
+        await unitOfWork.CompleteAsync();
+    }
+}
+

@@ -1,0 +1,31 @@
+@page "/studio-pending"
+@using Microsoft.AspNetCore.Components.Authorization
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+  <MudPaper Elevation="4" Class="pa-8 d-flex flex-column align-center rounded-xl">
+    <MudAvatar Color="Color.Warning" Variant="Variant.Filled" Size="Size.Large" Class="mb-4">
+      <MudIcon Icon="@Icons.Material.Filled.PendingActions" Size="Size.Large" />
+    </MudAvatar>
+        
+    <MudText Typo="Typo.h5" Align="Align.Center" Class="font-weight-bold mb-2">Solicitud en Proceso</MudText>
+        
+    <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Class="mb-6 rounded-lg">
+      Tu cuenta de Estudio Contable ha sido registrada correctamente y está pendiente de aprobación por parte de la
+      administración de los sindicatos.
+    </MudAlert>
+
+    <MudText Typo="Typo.body1" Align="Align.Center" Class="mud-text-secondary mb-8">
+      Una vez que tu solicitud sea revisada y aprobada, recibirás acceso completo a las funcionalidades del sistema para
+      gestionar empresas y declaraciones juradas.
+    </MudText>
+
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" Href="/account/logout"
+               Class="rounded-pill py-3">
+      Cerrar Sesión
+    </MudButton>
+  </MudPaper>
+</MudContainer>
+
+@code {
+  // Esta página no requiere lógica adicional, solo informa el estado.
+}

@@ -1,0 +1,74 @@
+@page "/admin/subscription-requests"
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+@inject UnionSubscriptionService SubscriptionService
+@inject ISnackbar Snackbar
+@attribute [Authorize(Roles = "Admin")]
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-8">
+  <MudText Typo="Typo.h3" GutterBottom="true">Solicitudes de Suscripción</MudText>
+  <MudText Typo="Typo.body1" Class="mb-4">Sindicatos interesados en contratar la plataforma.</MudText>
+
+  @if (_requests == null)
+  {
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+  }
+  else if (!_requests.Any())
+  {
+    <MudAlert Severity="Severity.Info">No hay solicitudes pendientes.</MudAlert>
+  }
+  else
+  {
+    <MudTable Items="@_requests" Hover="true">
+      <HeaderContent>
+        <MudTh>Fecha</MudTh>
+        <MudTh>Sindicato</MudTh>
+        <MudTh>CUIT</MudTh>
+        <MudTh>Email de Contacto</MudTh>
+        <MudTh>Acciones</MudTh>
+      </HeaderContent>
+      <RowTemplate>
+        <MudTd>@context.RequestDate.ToShortDateString()</MudTd>
+        <MudTd>@context.UnionName</MudTd>
+        <MudTd>@context.Cuit</MudTd>
+        <MudTd>@context.ContactEmail</MudTd>
+        <MudTd>
+          <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small"
+                     OnClick="@(() => ApproveRequest(context))">Aprobar</MudButton>
+          <MudButton Variant="Variant.Filled" Color="Color.Error" Size="Size.Small"
+                     OnClick="@(() => RejectRequest(context))" Class="ml-2">Rechazar</MudButton>
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+  }
+</MudContainer>
+
+@code {
+  private IEnumerable<SubscriptionRequestDto>? _requests;
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadData();
+  }
+
+  private async Task LoadData()
+  {
+    _requests = await SubscriptionService.GetPendingRequestsAsync();
+  }
+
+  private async Task ApproveRequest(SubscriptionRequestDto request)
+  {
+    await SubscriptionService.UpdateRequestStatusAsync(request.Id, SubscriptionRequestStatus.Approved, "Aprobado por el Administrador");
+    Snackbar.Add($"Solicitud de {request.UnionName} aprobada. Sindicato y Abono creados.", Severity.Success);
+    await LoadData();
+  }
+
+  private async Task RejectRequest(SubscriptionRequestDto request)
+  {
+    await SubscriptionService.UpdateRequestStatusAsync(request.Id, SubscriptionRequestStatus.Rejected, "Rechazado");
+    Snackbar.Add($"Solicitud de {request.UnionName} rechazada.", Severity.Warning);
+    await LoadData();
+  }
+}

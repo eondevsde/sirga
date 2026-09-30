@@ -1,0 +1,551 @@
+﻿@page "/declarations/new"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "EstudioContable,Auditor,Admin")]
+@using SIRGA.Domain.Entities
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@inject HttpClient Http
+@inject SalaryScaleService ScaleService
+@inject CompanyService CompanyService
+@inject UnionService UnionService
+@inject DeclarationService DeclarationService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject SIRGA.Application.Services.PdfReportService PdfService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>SIRGA - Nueva DDJJ</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">Nueva Declaración Jurada</MudText>
+
+@if (_loadingBaseData)
+{
+  <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+}
+else
+{
+  <MudStepper @ref="_stepper" CenterLabels="true" Class="mud-width-full">
+    <MudStep Title="Empresa y Periodo">
+      <MudCard Elevation="0">
+        <MudCardContent>
+          <MudGrid>
+            <MudItem xs="12" sm="5">
+              <MudSelect T="int" Label="Empresa (Casa Central)" Variant="Variant.Outlined"
+                         AnchorOrigin="Origin.BottomCenter" Value="_selectedParentId"
+                         ValueChanged="@(async (int val) => await OnParentCompanyChanged(val))">
+                @foreach (var comp in _parentCompanies)
+                {
+                  <MudSelectItem Value="@comp.Id">@comp.BusinessName (@comp.Cuit)</MudSelectItem>
+                }
+              </MudSelect>
+            </MudItem>
+
+            @if (_branches.Any())
+            {
+              <MudItem xs="12" sm="4">
+                <MudSelect T="int" Label="Sucursal / Sede" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter"
+                           @bind-Value="_selectedCompanyId" SelectedValuesChanged="OnBranchChanged">
+                  @foreach (var branch in _branches)
+                  {
+                    <MudSelectItem Value="@branch.Id">@branch.BranchName - @branch.Address</MudSelectItem>
+                  }
+                </MudSelect>
+              </MudItem>
+            }
+
+            <MudItem xs="12" sm="4">
+              <MudSelect T="int" Label="Sindicato" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter"
+                         @bind-Value="_selectedUnionId" SelectedValuesChanged="OnFiltersChanged">
+                @foreach (var union in _unions)
+                {
+                  <MudSelectItem Value="@union.Id">@union.Name - @union.JurisdictionProvince</MudSelectItem>
+                }
+              </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3" Class="mt-2">
+              <MudNumericField T="int" Value="_year" Label="Año" Variant="Variant.Outlined" Min="2020" Max="2030"
+                               ValueChanged="OnYearChanged" />
+            </MudItem>
+            <MudItem xs="12" sm="3" Class="mt-2">
+              <MudSelect T="int" Value="_month" Label="Mes" Variant="Variant.Outlined" ValueChanged="OnMonthChanged"
+                         AnchorOrigin="Origin.BottomCenter">
+                <MudSelectItem Value="1">Enero</MudSelectItem>
+                <MudSelectItem Value="2">Febrero</MudSelectItem>
+                <MudSelectItem Value="3">Marzo</MudSelectItem>
+                <MudSelectItem Value="4">Abril</MudSelectItem>
+                <MudSelectItem Value="5">Mayo</MudSelectItem>
+                <MudSelectItem Value="6">Junio</MudSelectItem>
+                <MudSelectItem Value="7">Julio</MudSelectItem>
+                <MudSelectItem Value="8">Agosto</MudSelectItem>
+                <MudSelectItem Value="9">Septiembre</MudSelectItem>
+                <MudSelectItem Value="10">Octubre</MudSelectItem>
+                <MudSelectItem Value="11">Noviembre</MudSelectItem>
+                <MudSelectItem Value="12">Diciembre</MudSelectItem>
+              </MudSelect>
+            </MudItem>
+          </MudGrid>
+        </MudCardContent>
+      </MudCard>
+    </MudStep>
+        
+    <MudStep Title="Detalle de Empleados">
+      @if (_loadingEmployees)
+      {
+        <MudProgressCircular Color="Color.Default" Indeterminate="true" />
+      }
+      else
+      {
+        <MudStack Row="true" Class="mb-4" AlignItems="AlignItems.Center">
+          <MudAlert Severity="Severity.Info" Class="flex-grow-1">Ingrese las remuneraciones brutas para cada empleado
+            activo.</MudAlert>
+            <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.PersonAdd"
+                       OnClick="OpenAddEmployeeDialog">
+              Agregar Empleado
+            </MudButton>
+            <div class="mud-input-control mud-button-root">
+              <label
+                class="mud-button-root mud-button mud-button-outlined mud-button-outlined-primary mud-button-outlined-size-medium mud-ripple"
+                for="salaries-upload">
+                <span class="mud-button-label">
+                  <MudIcon Icon="@Icons.Material.Filled.UploadFile" Class="mr-2" />
+                  Carga masiva (Excel)
+                </span>
+              </label>
+              <InputFile id="salaries-upload" OnChange="OnExcelFileSelected" style="display:none" accept=".xlsx" />
+            </div>
+          </MudStack>
+          <MudTable Items="@_details" Hover="true" Dense="true" Elevation="0">
+            <HeaderContent>
+              <MudTh>Empleado</MudTh>
+              <MudTh>Categoría</MudTh>
+              <MudTh>Remuneración</MudTh>
+              <MudTh>Mínimo Escala</MudTh>
+              <MudTh>Aporte Ley (2%)</MudTh>
+              <MudTh>Aporte Vol. (2%)</MudTh>
+              <MudTh>Total</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+              <MudTd DataLabel="Empleado">@context.EmployeeName</MudTd>
+              <MudTd DataLabel="Categoría">
+                <MudSelect T="string" Value="@context.CategoryCode"
+                           ValueChanged="@((v) => { context.CategoryCode = v; Recalculate(context); })" Margin="Margin.Dense">
+                  @foreach (var scale in _currentScales)
+                  {
+                    <MudSelectItem Value="@scale.CategoryCode">@scale.CategoryName</MudSelectItem>
+                  }
+                </MudSelect>
+              </MudTd>
+              <MudTd DataLabel="Remuneración">
+                <MudNumericField Value="context.GrossSalary" Format="G" Variant="Variant.Text" Margin="Margin.Dense"
+                                 T="decimal" ValueChanged="@((v) => { context.GrossSalary = v; Recalculate(context); })"
+                                 Error="@context.IsUnderScale" ErrorText="Debajo de escala" />
+              </MudTd>
+              <MudTd DataLabel="Mínimo Escala">
+                <MudText Typo="Typo.body2" Color="@(context.IsUnderScale? Color.Error: Color.Default)">
+                  @context.MinSalary.ToString("C")
+                </MudText>
+              </MudTd>
+              <MudTd DataLabel="Aporte Ley (2%)">@context.LawContribution.ToString("C")</MudTd>
+              <MudTd DataLabel="Aporte Vol. (2%)">@context.VoluntaryContribution.ToString("C")</MudTd>
+              <MudTd DataLabel="Total"><b>@((context.LawContribution + context.VoluntaryContribution).ToString("C"))</b>
+              </MudTd>
+            </RowTemplate>
+            <FooterContent>
+              <MudTFootRow>
+                <MudTd colspan="5" Style="text-align:right">Total General:</MudTd>
+                <MudTd><b>@_details.Sum(x => x.LawContribution + x.VoluntaryContribution).ToString("C")</b></MudTd>
+              </MudTFootRow>
+            </FooterContent>
+          </MudTable>
+        }
+      </MudStep>
+
+      <MudStep Title="Resumen y Presentación">
+        <MudGrid>
+          <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4" Elevation="1">
+              <MudText Typo="Typo.h6">Resumen de Liquidación</MudText>
+              <MudDivider Class="my-2" />
+              <div class="d-flex justify-space-between">
+                <MudText>Total Aportes Ley:</MudText>
+                <MudText Typo="Typo.body1">@_details.Sum(x => x.LawContribution).ToString("C")</MudText>
+              </div>
+              <div class="d-flex justify-space-between">
+                <MudText>Total Aportes Voluntarios:</MudText>
+                <MudText Typo="Typo.body1">@_details.Sum(x => x.VoluntaryContribution).ToString("C")</MudText>
+              </div>
+              <MudDivider Class="my-2" />
+              <div class="d-flex justify-space-between">
+                <MudText Typo="Typo.h6">Total a Pagar:</MudText>
+                <MudText Typo="Typo.h6" Color="Color.Primary">@_details.Sum(x => x.LawContribution +
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                        x.VoluntaryContribution).ToString("C")</MudText>
+                </div>
+              </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6">
+              <MudAlert Severity="Severity.Warning">Al confirmar, se generará la deuda correspondiente para el periodo
+                seleccionado. Esta acción puede ser rectificada posteriormente si es necesario.</MudAlert>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth="true" Class="mt-4" Size="Size.Large"
+                           OnClick="SubmitDeclaration" Disabled="@_submitting">
+                  @if (_submitting)
+                  {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">Procesando...</MudText>
+                  }
+                  else
+                  {
+                    <MudText>Presentar DDJJ</MudText>
+                  }
+                </MudButton>
+
+                @if (_showPaymentButton)
+                {
+                  <MudStack Row="true" Spacing="2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2" Size="Size.Large"
+                               Href="@_paymentUrl" Target="_blank" StartIcon="@Icons.Material.Filled.Payment">
+                      Pagar con Mercado Pago
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" Class="mt-2" Size="Size.Large"
+                               OnClick="DownloadBoleta" StartIcon="@Icons.Material.Filled.PictureAsPdf">
+                      Descargar Boleta PDF
+                    </MudButton>
+                  </MudStack>
+                }
+              </MudItem>
+            </MudGrid>
+          </MudStep>
+        </MudStepper>
+      }
+
+@code {
+  [CascadingParameter]
+  private Task<AuthenticationState> AuthStateTask { get; set; } = null!;
+
+  private MudStepper _stepper;
+  private int _year = DateTime.Now.Year;
+  private int _month = DateTime.Now.Month;
+  private int _selectedCompanyId;
+  private int _selectedUnionId;
+  private bool _loadingBaseData = true;
+  private bool _loadingEmployees = false;
+  private bool _submitting = false;
+  private bool _showPaymentButton = false;
+  private string _paymentUrl = "";
+  private DeclarationResponseDto? _lastResult;
+
+  private List<Company> _companies = new();
+  private List<Company> _parentCompanies = new();
+  private List<Company> _branches = new();
+  private int _selectedParentId;
+  private List<Union> _unions = new();
+  private List<SalaryScaleDto> _currentScales = new();
+  private List<DeclarationDetailViewModel> _details = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      var authState = await AuthStateTask;
+      var username = authState.User.Identity?.Name;
+      
+      var url = string.IsNullOrEmpty(username) ? "api/companies" : $"api/companies?username={username}";
+      var rawCompanies = await Http.GetFromJsonAsync<List<Company>>(url) ?? new();
+      _companies = rawCompanies.Where(c => c.Status == SIRGA.Domain.Enums.CompanyStatus.Active).ToList();
+      
+      _parentCompanies = _companies.Where(c => c.ParentCompanyId == null).ToList();
+      _unions = await Http.GetFromJsonAsync<List<Union>>("api/unions") ?? new();
+            
+      if (!_parentCompanies.Any())
+      {
+        Snackbar.Add("No tiene empresas activas para declarar.", Severity.Warning);
+      }
+      // Quitamos la pre-selección automática para que el usuario elija y no se confunda
+      /*
+      else
+      {
+        _selectedParentId = _parentCompanies.First().Id;
+        await OnParentCompanyChanged();
+      }
+      */
+
+      if (_unions.Any()) _selectedUnionId = _unions.First().Id;
+
+      await LoadScalesAsync();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar datos base: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loadingBaseData = false;
+    }
+  }
+
+  private async Task OnParentCompanyChanged(int val)
+  {
+    _selectedParentId = val;
+    _branches = _companies.Where(c => c.ParentCompanyId == _selectedParentId).ToList();
+    
+    if (!_branches.Any())
+    {
+      // Caso común: No tiene sucursales, usamos la empresa madre como la sede a declarar
+      _selectedCompanyId = _selectedParentId;
+    }
+    else
+    {
+      // Tiene sucursales, obligamos a elegir una (o la primera por defecto)
+      _selectedCompanyId = _branches.First().Id;
+    }
+    
+    await OnFiltersChanged();
+  }
+
+  private async Task OnBranchChanged()
+  {
+    await OnFiltersChanged();
+  }
+
+  private async Task OnFiltersChanged()
+  {
+    _loadingEmployees = true;
+    try
+    {
+      if (_selectedCompanyId == 0 || _selectedUnionId == 0) return;
+
+      var employees = await
+Http.GetFromJsonAsync<List<EmployeeDto>>($"api/employees/by-assignment/{_selectedCompanyId}/{_selectedUnionId}") ??
+new();
+      _details = employees.Select(e => new DeclarationDetailViewModel
+      {
+        EmployeeId = e.Id,
+        AssignmentId = e.AssignmentId,
+        EmployeeName = e.FullName,
+        Dni = e.Dni,
+        IsVoluntaryMember = e.IsVoluntaryMember
+      }).ToList();
+
+      foreach (var detail in _details) Recalculate(detail);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar empleados: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loadingEmployees = false;
+    }
+  }
+
+  private async Task OpenAddEmployeeDialog()
+  {
+    if (_selectedCompanyId == 0)
+    {
+      Snackbar.Add("Debe seleccionar una empresa primero.", Severity.Warning);
+      return;
+    }
+
+    var parameters = new DialogParameters { ["CompanyId"] = _selectedCompanyId };
+    var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+    var dialog = await DialogService.ShowAsync<AddEmployeeDialog>("Nuevo Empleado", parameters, options);
+    var result = await dialog.Result;
+
+    if (!result.Canceled)
+    {
+      await OnFiltersChanged(); // Recargar la lista de empleados con los filtros actuales
+    }
+  }
+
+  private async Task OnYearChanged(int year)
+  {
+    _year = year;
+    await OnPeriodChanged();
+  }
+
+  private async Task OnMonthChanged(int month)
+  {
+    _month = month;
+    await OnPeriodChanged();
+  }
+
+  private async Task OnPeriodChanged()
+  {
+    await LoadScalesAsync();
+    foreach (var detail in _details)
+    {
+      UpdateMinSalary(detail);
+    }
+  }
+
+  private async Task LoadScalesAsync()
+  {
+    try
+    {
+      _currentScales = await ScaleService.GetByUnionAsync(_selectedUnionId);
+      // Periodo exacto; si no existe, congelar la escala más reciente anterior (fallback)
+      var targetDate = new DateTime(_year, _month, 1);
+      var available = _currentScales.Where(s => s.Period <= targetDate).ToList();
+      if (available.Any())
+      {
+        var latestPeriod = available.Max(s => s.Period);
+        _currentScales = available.Where(s => s.Period == latestPeriod).ToList();
+      }
+      else
+      {
+        _currentScales = new();
+      }
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"Error al cargar escalas: {ex.Message}");
+      _currentScales = new();
+    }
+  }
+
+  private void UpdateMinSalary(DeclarationDetailViewModel detail)
+  {
+    if (_currentScales == null || !_currentScales.Any())
+    {
+      detail.MinSalary = 0;
+      return;
+    }
+    var scale = _currentScales.FirstOrDefault(s => s.CategoryCode == detail.CategoryCode);
+    detail.MinSalary = scale?.BasicAmount ?? 0;
+  }
+
+  private void Recalculate(DeclarationDetailViewModel detail)
+  {
+    UpdateMinSalary(detail);
+    detail.LawContribution = detail.GrossSalary * 0.02m; // Corregido a 2%
+    detail.VoluntaryContribution = detail.IsVoluntaryMember ? detail.GrossSalary * 0.02m : 0;
+  }
+
+  private async Task SubmitDeclaration()
+  {
+    _submitting = true;
+    try
+    {
+      var request = new DeclarationRequestDto
+      {
+        CompanyId = _selectedCompanyId,
+        UnionId = _selectedUnionId,
+        Period = $"{_year}-{_month:D2}",
+        Salaries = _details.Select(d => new EmployeeSalaryDto
+        {
+          EmployeeId = d.EmployeeId,
+          BaseSalary = d.GrossSalary
+        }).ToList()
+      };
+
+      var response = await Http.PostAsJsonAsync("api/declarations", request);
+
+      if (response.IsSuccessStatusCode)
+      {
+        _lastResult = await response.Content.ReadFromJsonAsync<DeclarationResponseDto>();
+        Snackbar.Add("¡Declaración Jurada presentada con éxito!", Severity.Success);
+
+        // Generar preferencia de pago si hay saldo positivo
+        if (_lastResult != null && _lastResult.BalanceAmount > 0)
+        {
+          var payResponse = await Http.PostAsync($"api/payments/preferences/{_lastResult.Id}", null);
+          if (payResponse.IsSuccessStatusCode)
+          {
+            var pref = await payResponse.Content.ReadFromJsonAsync<PaymentPreferenceResponseDto>();
+            _paymentUrl = pref?.SandboxInitPoint ?? "";
+            _showPaymentButton = true;
+            Snackbar.Add("Link de pago generado. Puede proceder a pagar.", Severity.Info);
+          }
+        }
+      }
+      else
+      {
+        var error = await response.Content.ReadAsStringAsync();
+        Snackbar.Add($"Error al presentar DDJJ: {error}", Severity.Error);
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error de conexión: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _submitting = false;
+    }
+  }
+
+  private async Task OnExcelFileSelected(InputFileChangeEventArgs e)
+  {
+    await UploadSalariesExcel(e.File);
+  }
+
+  private async Task UploadSalariesExcel(IBrowserFile file)
+  {
+    try
+    {
+      using var content = new MultipartFormDataContent();
+      var fileContent = new StreamContent(file.OpenReadStream());
+      content.Add(fileContent, "file", file.Name);
+
+      var response = await Http.PostAsync("api/payment/salaries-excel", content);
+      if (response.IsSuccessStatusCode)
+      {
+        var salaries = await response.Content.ReadFromJsonAsync<List<EmployeeSalaryDto>>();
+        if (salaries != null)
+        {
+          foreach (var salary in salaries)
+          {
+            var detail = _details.FirstOrDefault(d => d.EmployeeId == salary.EmployeeId);
+            if (detail != null)
+            {
+              detail.GrossSalary = salary.BaseSalary;
+              Recalculate(detail);
+            }
+          }
+          Snackbar.Add("Remuneraciones cargadas desde Excel con éxito.", Severity.Success);
+        }
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al procesar Excel: " + ex.Message, Severity.Error);
+    }
+  }
+
+  private async Task DownloadBoleta()
+  {
+    if (_lastResult == null) return;
+
+    try
+    {
+      var pdfBytes = PdfService.GeneratePaymentBoleta(_lastResult);
+      var fileName = $"Boleta_SIRGA_{_lastResult.Period}_{_lastResult.CompanyCuit}.pdf";
+      var base64 = Convert.ToBase64String(pdfBytes);
+
+      // Llamada a JS para descargar el archivo usando Base64 (compatible con App.razor)
+      await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al generar PDF: " + ex.Message, Severity.Error);
+    }
+  }
+
+  public class DeclarationDetailViewModel
+  {
+    public int EmployeeId { get; set; }
+    public int AssignmentId { get; set; }
+    public string EmployeeName { get; set; } = "";
+    public string Dni { get; set; } = "";
+    public string CategoryCode { get; set; } = "MAESTRANZA-A"; // Default para prototipo
+    public decimal GrossSalary { get; set; }
+    public decimal MinSalary { get; set; }
+    public bool IsUnderScale => GrossSalary < MinSalary && MinSalary > 0;
+    public decimal LawContribution { get; set; }
+    public decimal VoluntaryContribution { get; set; }
+    public bool IsVoluntaryMember { get; set; }
+  }
+}
+
+

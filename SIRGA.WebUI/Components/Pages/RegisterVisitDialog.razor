@@ -1,0 +1,80 @@
+@using SIRGA.Application.Interfaces
+@inject IInspectionService InspectionService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+  <DialogContent>
+    <MudText GutterBottom="true">Acta vinculada: <b>@ActNumber</b></MudText>
+    <MudAlert Severity="@(_visitCount >= 2 ? Severity.Warning : Severity.Info)" Dense="true" Class="mb-4">
+      @if (_visitCount < 3)
+      {
+        <span>Esta será la visita número <b>@(_visitCount + 1)</b> de 3.</span>
+      }
+      else
+      {
+        <span>Ya se han realizado 3 visitas. Se recomienda pasar a instancia legal.</span>
+      }
+    </MudAlert>
+
+    <MudForm @ref="_form">
+      <MudSelect T="int" Label="Inspector" @bind-Value="_model.InspectorId" Required="true"
+                 RequiredError="Debe seleccionar un inspector">
+        @foreach (var ins in _inspectors)
+        {
+          <MudSelectItem Value="@ins.Id">@ins.Name (@ins.Dni)</MudSelectItem>
+        }
+      </MudSelect>
+      <MudTextField T="string" Label="Nro. Boleta/Documento" @bind-Value="_model.DocumentNumber" Required="true"
+                    Class="mt-2" />
+      <MudSelect T="string" Label="Resultado de la Visita" @bind-Value="_model.Status" Required="true" Class="mt-2">
+        <MudSelectItem Value="@("No se encontró a nadie")">No se encontró a nadie</MudSelectItem>
+        <MudSelectItem Value="@("Se entregó notificación")">Se entregó notificación</MudSelectItem>
+        <MudSelectItem Value="@("Rechazó notificación")">Rechazó notificación</MudSelectItem>
+        <MudSelectItem Value="@("Compromiso de pago en sede")">Compromiso de pago en sede</MudSelectItem>
+      </MudSelect>
+      <MudTextField T="string" Label="Observaciones" @bind-Value="_model.Observations" Lines="3" Class="mt-2" />
+    </MudForm>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" OnClick="Submit" Disabled="@(_visitCount >= 3)">Registrar Visita</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+  [Parameter] public int ActId { get; set; }
+  [Parameter] public string ActNumber { get; set; } = "";
+
+  private VisitRegistrationDto _model = new();
+  private IEnumerable<InspectorDto> _inspectors = new List<InspectorDto>();
+  private int _visitCount = 0;
+  private MudForm _form = null!;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _model.InspectionActId = ActId;
+    _inspectors = (await InspectionService.GetInspectorsAsync()).Where(i => i.IsActive);
+    var visits = await InspectionService.GetVisitsByActIdAsync(ActId);
+    _visitCount = visits.Count();
+  }
+
+  private void Cancel() => MudDialog.Cancel();
+
+  private async Task Submit()
+  {
+    await _form.Validate();
+    if (_form.IsValid)
+    {
+      try
+      {
+        await InspectionService.RegisterVisitAsync(_model);
+        MudDialog.Close(DialogResult.Ok(true));
+      }
+      catch (Exception ex)
+      {
+        Snackbar.Add(ex.Message, Severity.Error);
+      }
+    }
+  }
+}

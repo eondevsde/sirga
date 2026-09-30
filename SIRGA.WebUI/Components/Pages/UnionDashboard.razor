@@ -1,0 +1,314 @@
+@page "/sindicato/dashboard"
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Sindicato,Admin")]
+@inject HttpClient Http
+@inject AccountingStudioService StudioService
+@inject AssociationService AssociationService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UnionService UnionService
+
+<MudText Typo="Typo.h4" Class="mb-4">Dashboard de Gestión del Sindicato</MudText>
+
+<MudGrid Class="mb-6">
+  <MudItem xs="12" sm="3">
+    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center h-100"
+              Style="cursor: pointer; background-color: var(--mud-palette-info);"
+              OnClick="@(() => Navigation.NavigateTo("/admin/studios-approval"))">
+      <MudText Typo="Typo.h6">Estudios Pendientes</MudText>
+      <MudText Typo="Typo.h3">@_pendingStudiosCount</MudText>
+      <MudText Typo="Typo.caption">Nuevos registros</MudText>
+    </MudPaper>
+  </MudItem>
+  <MudItem xs="12" sm="3">
+    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center h-100"
+              Style="cursor: pointer; background-color: var(--mud-palette-warning);"
+              OnClick="@(() => Navigation.NavigateTo("/association-requests"))">
+      <MudText Typo="Typo.h6">Vinculaciones</MudText>
+      <MudText Typo="Typo.h3">@_pendingAssociationsCount</MudText>
+      <MudText Typo="Typo.caption">Pendientes de aprobación</MudText>
+    </MudPaper>
+  </MudItem>
+  <MudItem xs="12" sm="3">
+    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center h-100"
+              Style="background-color: var(--mud-palette-success); color: white;">
+      <MudText Typo="Typo.h6">Total Recaudado</MudText>
+      <MudText Typo="Typo.h3">@_totalAmount.ToString("C0")</MudText>
+      <MudText Typo="Typo.caption">Mes en curso</MudText>
+    </MudPaper>
+  </MudItem>
+  <MudItem xs="12" sm="3">
+    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center h-100"
+              Style="background-color: var(--mud-palette-secondary); color: white;">
+      <MudText Typo="Typo.h6">DDJJ Presentadas</MudText>
+      <MudText Typo="Typo.h3">@_declarations.Count</MudText>
+      <MudText Typo="Typo.caption">Período actual</MudText>
+    </MudPaper>
+  </MudItem>
+  <MudItem xs="12" sm="3">
+    <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center h-100"
+              Style="cursor: pointer; background-color: var(--mud-palette-error-lighten);"
+              OnClick="@(() => Navigation.NavigateTo("/sindicato/renuncias"))">
+      <MudText Typo="Typo.h6">Renuncias de Socios</MudText>
+      <MudText Typo="Typo.h3">@_pendingResignationsCount</MudText>
+      <MudText Typo="Typo.caption">Pendientes de aprobación</MudText>
+    </MudPaper>
+  </MudItem>
+</MudGrid>
+
+  <MudPaper Elevation="2" Class="pa-4 mb-6">
+  <AuthorizeView Roles="Admin">
+    <MudGrid>
+      <MudItem xs="12" sm="8">
+        <MudSelect T="int" Label="Sindicato / Filial" Variant="Variant.Outlined" Value="_selectedUnionId"
+                   ValueChanged="OnUnionChanged" AnchorOrigin="Origin.BottomCenter">
+          @foreach (var union in _unions)
+          {
+            <MudSelectItem Value="@union.Id">@union.Name (@union.JurisdictionCity)</MudSelectItem>
+          }
+        </MudSelect>
+      </MudItem>
+    </MudGrid>
+  </AuthorizeView>
+
+  <AuthorizeView Roles="Sindicato">
+    <MudGrid>
+      <MudItem xs="12">
+        <MudAlert Severity="Severity.Info" Variant="Variant.Filled">
+          Panel de Control - @(_unions.FirstOrDefault(u => u.Id == _selectedUnionId)?.Name ?? "Cargando...")
+        </MudAlert>
+      </MudItem>
+    </MudGrid>
+  </AuthorizeView>
+
+  <MudGrid Class="mt-2">
+    <MudItem xs="12" sm="2">
+      <MudCard Elevation="0" Style="background-color: var(--mud-palette-info-lighten);">
+        <MudCardContent>
+          <MudText Typo="Typo.subtitle2">Total Recaudado</MudText>
+          <MudText Typo="Typo.h6">@_totalAmount.ToString("C2")</MudText>
+        </MudCardContent>
+      </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="2">
+      <MudCard Elevation="0" Style="background-color: var(--mud-palette-success-lighten);">
+        <MudCardContent>
+          <MudText Typo="Typo.subtitle2">DDJJ</MudText>
+          <MudText Typo="Typo.h6">@_totalCount</MudText>
+        </MudCardContent>
+      </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="2">
+      <MudCard Elevation="0" Style="background-color: var(--mud-palette-warning-lighten);">
+        <MudCardContent>
+          <MudText Typo="Typo.subtitle2">Rectificativas</MudText>
+          <MudText Typo="Typo.h6">@_rectificationCount</MudText>
+        </MudCardContent>
+      </MudCard>
+    </MudItem>
+    <MudItem xs="12" sm="2">
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="h-100"
+                 OnClick="ReloadCurrentPage" Disabled="@(_selectedUnionId == 0)" StartIcon="@Icons.Material.Filled.Refresh">
+        Actualizar
+      </MudButton>
+    </MudItem>
+  </MudGrid>
+</MudPaper>
+
+<MudTable Items="@_declarations" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" CustomHeader="true"
+          Dense="true" Striped="true" ServerData="LoadServerData" @ref="_table">
+  <HeaderContent>
+    <MudTHeadRow>
+      <MudTh>Empresa</MudTh>
+      <MudTh>CUIT</MudTh>
+      <MudTh>Periodo</MudTh>
+      <MudTh>Fecha Presentación</MudTh>
+      <MudTh>Aporte Ley (2%)</MudTh>
+      <MudTh>Socio (2%)</MudTh>
+      <MudTh>Total</MudTh>
+      <MudTh>Estado</MudTh>
+      <MudTh>Pago MP</MudTh>
+      <MudTh>Acciones</MudTh>
+    </MudTHeadRow>
+  </HeaderContent>
+  <RowTemplate>
+    <MudTd DataLabel="Empresa">@context.CompanyName</MudTd>
+    <MudTd DataLabel="CUIT">@context.CompanyCuit</MudTd>
+    <MudTd DataLabel="Periodo">@context.Period</MudTd>
+    <MudTd DataLabel="Fecha">@context.SubmissionDate.ToString("dd/MM/yyyy HH:mm")</MudTd>
+    <MudTd DataLabel="Aporte Ley">@context.AporteLey.ToString("C")</MudTd>
+    <MudTd DataLabel="Socio">@context.CuotaSocio.ToString("C")</MudTd>
+    <MudTd DataLabel="Total"><b>@context.TotalAmount.ToString("C")</b></MudTd>
+    <MudTd DataLabel="Estado">
+      <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small" Variant="Variant.Text">
+        @context.Status</MudChip>
+      </MudTd>
+      <MudTd DataLabel="Pago MP">
+        @if (!string.IsNullOrEmpty(context.MercadoPagoPaymentId))
+        {
+          <MudTooltip Text="Pago confirmado via API">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+          </MudTooltip>
+        }
+        else
+        {
+          <MudIcon Icon="@Icons.Material.Filled.Pending" Color="Color.Default" Size="Size.Small" />
+        }
+      </MudTd>
+      <MudTd DataLabel="Acciones">
+        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Primary" Size="Size.Small" />
+      </MudTd>
+    </RowTemplate>
+    <PagerContent>
+      <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas:" />
+    </PagerContent>
+  </MudTable>
+
+@code {
+  private List<DeclarationResponseDto> _declarations = new();
+  private List<Union> _unions = new();
+  private int _selectedUnionId;
+  private bool _loading = false;
+  private int _pendingStudiosCount = 0;
+  private int _pendingAssociationsCount = 0;
+  private int _pendingResignationsCount = 0;
+  private int _totalCount = 0;
+  private int _rectificationCount = 0;
+  private decimal _totalAmount = 0m;
+  private MudTable<DeclarationResponseDto> _table = null!;
+
+  protected override async Task OnInitializedAsync()
+  {
+    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+    var user = authState.User;
+
+    if (user.IsInRole("Sindicato"))
+    {
+      var union = await UnionService.GetByUsernameAsync(user.Identity?.Name ?? "");
+      if (union != null)
+      {
+        _selectedUnionId = union.Id;
+        _unions = new List<Union> { new Union { Id = union.Id, Name = union.Name, JurisdictionCity = union.JurisdictionCity } };
+      }
+      else
+      {
+        Snackbar.Add("No se encontró un sindicato asociado a su usuario.", Severity.Warning);
+      }
+    }
+    else
+    {
+      await LoadUnions();
+    }
+
+    await LoadSummary();
+  }
+
+  private async Task LoadSummary()
+  {
+    try
+    {
+      var pendingStudios = await StudioService.GetPendingApprovalsAsync();
+      _pendingStudiosCount = pendingStudios.Count();
+
+      if (_selectedUnionId != 0)
+      {
+        var pendingAssoc = await AssociationService.GetRequestsForUnionAsync(_selectedUnionId);
+        _pendingAssociationsCount = pendingAssoc.Count(r => r.Status == SIRGA.Domain.Entities.RequestStatus.Pending);
+
+        var resignations = await Http.GetFromJsonAsync<List<SIRGA.Application.DTOs.MembershipResignationDto>>(
+            $"api/employees/membership/requests?unionId={_selectedUnionId}");
+        _pendingResignationsCount = resignations?.Count ?? 0;
+
+        var page = await Http.GetFromJsonAsync<PagedDeclarationsDto>($"api/declarations/by-union/{_selectedUnionId}/paged?page=1&pageSize=1");
+        if (page != null)
+        {
+          _totalCount = page.TotalCount;
+          _totalAmount = page.TotalAmount;
+          _rectificationCount = 0;
+        }
+      }
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine("Error al cargar resúmenes: " + ex.Message);
+    }
+  }
+
+  private async Task LoadUnions()
+  {
+    try
+    {
+      _unions = await Http.GetFromJsonAsync<List<Union>>("api/unions") ?? new();
+      if (_unions.Any())
+      {
+        _selectedUnionId = _unions.First().Id;
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar sindicatos: " + ex.Message, Severity.Error);
+    }
+  }
+
+  private async Task OnUnionChanged(int unionId)
+  {
+    _selectedUnionId = unionId;
+    await LoadSummary();
+    await ReloadCurrentPage();
+  }
+
+  private async Task<TableData<DeclarationResponseDto>> LoadServerData(TableState state, CancellationToken cancellationToken)
+  {
+    if (_selectedUnionId == 0)
+    {
+      return new TableData<DeclarationResponseDto> { TotalItems = 0, Items = new List<DeclarationResponseDto>() };
+    }
+
+    _loading = true;
+    try
+    {
+      var page = state.Page + 1;
+      var pageSize = state.PageSize;
+      var result = await Http.GetFromJsonAsync<PagedDeclarationsDto>($"api/declarations/by-union/{_selectedUnionId}/paged?page={page}&pageSize={pageSize}", cancellationToken);
+      if (result != null)
+      {
+        _declarations = result.Items;
+        _totalCount = result.TotalCount;
+        _totalAmount = result.TotalAmount;
+        return new TableData<DeclarationResponseDto> { TotalItems = result.TotalCount, Items = result.Items };
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar fiscalización: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+    return new TableData<DeclarationResponseDto> { TotalItems = _totalCount, Items = _declarations };
+  }
+
+  private async Task ReloadCurrentPage()
+  {
+    if (_table != null)
+    {
+      await _table.ReloadServerData();
+    }
+  }
+
+  private Color GetStatusColor(string status)
+  {
+    return status switch
+    {
+      "Paid" => Color.Success,
+      "Draft" => Color.Info,
+      "Cancelled" => Color.Error,
+      _ => Color.Default
+    };
+  }
+}

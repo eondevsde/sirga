@@ -1,0 +1,143 @@
+@page "/"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavManager
+@attribute [Authorize]
+
+<PageTitle>SIRGA - Inicio</PageTitle>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.IsInRole("EstudioContable"))
+        {
+            NavManager.NavigateTo("/estudio/dashboard");
+        }
+        else if (user.IsInRole("Sindicato"))
+        {
+            NavManager.NavigateTo("/sindicato/dashboard");
+        }
+        else if (user.IsInRole("Admin") || user.IsInRole("Auditor"))
+        {
+            NavManager.NavigateTo("/audit/dashboard");
+        }
+    }
+}
+
+<MudText Typo="Typo.h4" GutterBottom="true" Color="Color.Primary" Class="font-weight-bold">Panel de Control</MudText>
+<MudText Typo="Typo.subtitle1" Class="mb-8 mud-text-secondary">Bienvenido al Sistema Integral de Recaudación y Gestión
+    de Afiliados.</MudText>
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="4" Class="rounded-xl">
+                <MudCardContent Class="d-flex align-center pa-6">
+                    <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large" Class="mr-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Business" />
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Empresas</MudText>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold">120</MudText>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="4" Class="rounded-xl">
+                <MudCardContent Class="d-flex align-center pa-6">
+                    <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Large" Class="mr-4">
+                        <MudIcon Icon="@Icons.Material.Filled.People" />
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Empleados</MudText>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold">4,500</MudText>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="4" Class="rounded-xl">
+                <MudCardContent Class="d-flex align-center pa-6">
+                    <MudAvatar Color="Color.Info" Variant="Variant.Filled" Size="Size.Large" Class="mr-4">
+                        <MudIcon Icon="@Icons.Material.Filled.Assignment" />
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">DDJJ Pendientes</MudText>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold">15</MudText>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="4" Class="rounded-xl">
+                <MudCardContent Class="d-flex align-center pa-6">
+                    <MudAvatar Color="Color.Success" Variant="Variant.Filled" Size="Size.Large" Class="mr-4">
+                        <MudIcon Icon="@Icons.Material.Filled.AccountBalanceWallet" />
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.subtitle2" Class="mud-text-secondary">Recaudado Mes</MudText>
+                        <MudText Typo="Typo.h5" Class="font-weight-bold">$2.4M</MudText>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" md="7">
+            <MudCard Elevation="3" Class="rounded-xl h-100">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6" Class="font-weight-bold">Acciones Rápidas</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudGrid>
+                        <AuthorizeView Roles="EstudioContable,Auditor,Admin" Context="nuevaDdjjContext">
+                            <Authorized>
+                                <MudItem xs="12" sm="6">
+                                    <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary"
+                                               FullWidth="true" Class="rounded-pill py-3" Href="/declarations/new">Nueva DDJJ</MudButton>
+                                </MudItem>
+                            </Authorized>
+                        </AuthorizeView>
+                        <MudItem xs="12" sm="6">
+                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Search"
+                                       Color="Color.Secondary" FullWidth="true" Class="rounded-pill py-3" Href="/employees">
+                                Consultar Empleado</MudButton>
+                            </MudItem>
+                            <MudItem xs="12" sm="6">
+                                <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.NotificationImportant"
+                                           Color="Color.Info" FullWidth="true" Class="rounded-pill py-3" Href="/association-requests">
+                                    Solicitudes de Asociación</MudButton>
+                                </MudItem>
+                            </MudGrid>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+
+                <MudItem xs="12" md="5">
+                    <MudCard Elevation="3" Class="rounded-xl h-100">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6" Class="font-weight-bold">Estado de Servicios</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList T="string">
+                                <MudListItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success">
+                                    Base de Datos: Operativa
+                                </MudListItem>
+                                <MudListItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success">
+                                    Servicios AFIP/ARCA: Conectados
+                                </MudListItem>
+                                <MudListItem Icon="@Icons.Material.Filled.CheckCircle" IconColor="Color.Success">
+                                    Pagos MercadoPago: Activo
+                                </MudListItem>
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>

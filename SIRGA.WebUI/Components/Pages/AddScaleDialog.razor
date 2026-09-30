@@ -1,0 +1,97 @@
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@using MudBlazor
+@inject SalaryScaleService ScaleService
+@inject EmployeeCategoryService CategoryService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+  <DialogContent>
+    <MudForm @ref="_form">
+      <MudGrid>
+        <MudItem xs="6">
+          <MudDatePicker Label="Mes / Año" @bind-Date="_date" OpenTo="OpenTo.Month" DateFormat="MM/yyyy"
+                         Variant="Variant.Outlined" Required="true" />
+        </MudItem>
+        <MudItem xs="6">
+          <MudSelect T="int" Label="Categoría" @bind-Value="Scale.EmployeeCategoryId" Variant="Variant.Outlined"
+                     Required="true">
+            @foreach (var cat in _categories)
+            {
+              <MudSelectItem Value="@cat.Id">@cat.Code - @cat.Name</MudSelectItem>
+            }
+          </MudSelect>
+        </MudItem>
+        <MudItem xs="6">
+          <MudNumericField Label="Sueldo Básico" @bind-Value="Scale.BasicAmount" Variant="Variant.Outlined"
+                           Required="true" Format="N2" T="decimal" />
+        </MudItem>
+        <MudItem xs="6">
+          <MudNumericField Label="Antigüedad (%)" @bind-Value="Scale.AntiguedadPercentage" Variant="Variant.Outlined"
+                           Required="true" T="decimal" HelperText="ej: 1% por año" />
+        </MudItem>
+        <MudItem xs="6">
+          <MudNumericField Label="Acuerdo NR 1" @bind-Value="Scale.AgreementNR1" Variant="Variant.Outlined" Format="N2"
+                           T="decimal" />
+        </MudItem>
+        <MudItem xs="6">
+          <MudNumericField Label="Acuerdo NR 2" @bind-Value="Scale.AgreementNR2" Variant="Variant.Outlined" Format="N2"
+                           T="decimal" />
+        </MudItem>
+        <MudItem xs="12">
+          <MudSwitch T="bool" @bind-Value="Scale.IsActive" Label="Activa" Color="Color.Primary" />
+        </MudItem>
+      </MudGrid>
+    </MudForm>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Guardar</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+  [Parameter] public SalaryScaleDto Scale { get; set; } = new() { Period = DateTime.Now, IsActive = true };
+  [Parameter] public int UnionId { get; set; }
+
+  private MudForm _form = null!;
+  private DateTime? _date = DateTime.Now;
+  private List<EmployeeCategory> _categories = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    _date = Scale.Period;
+    if (Scale.Id == 0) Scale.Period = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+    
+    _categories = await CategoryService.GetByUnionAsync(UnionId);
+    if (Scale.Id == 0) Scale.UnionId = UnionId;
+  }
+
+  private void Cancel() => MudDialog.Cancel();
+
+  private async Task Submit()
+  {
+    await _form.Validate();
+    if (!_form.IsValid) return;
+
+    Scale.Period = _date ?? DateTime.Now;
+    Scale.Period = new DateTime(Scale.Period.Year, Scale.Period.Month, 1);
+
+    try
+    {
+      if (Scale.Id == 0)
+        await ScaleService.CreateAsync(Scale);
+      else
+        await ScaleService.UpdateAsync(Scale);
+
+      Snackbar.Add("Cambios guardados con éxito", Severity.Success);
+      MudDialog.Close(DialogResult.Ok(true));
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al guardar: " + ex.Message, Severity.Error);
+    }
+  }
+}

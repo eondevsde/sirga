@@ -1,0 +1,158 @@
+﻿@page "/register"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Antiforgery
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject UnionService UnionService
+@attribute [RequireAntiforgeryToken]
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8 mb-16">
+  <MudPaper Elevation="4" Class="pa-8">
+    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true">Registro</MudText>
+    <MudText Align="Align.Center" Class="mb-8">Crear cuenta en SIRGA</MudText>
+
+    <form action="account/register" method="post">
+      <AntiforgeryToken />
+            
+      <MudTextField Label="E-mail de contacto" Variant="Variant.Outlined" @bind-Value="_model.Email" Name="email"
+                    InputType="InputType.Email" Class="mb-4" Required="true" />
+
+      <MudSelect T="string" Label="Tipo de Usuario" Variant="Variant.Outlined" @bind-Value="_model.Role" Name="role"
+                 Class="mb-4" Required="true">
+        <MudSelectItem Value="@("Empresa")">Empresa (Auto-gestión)</MudSelectItem>
+        <MudSelectItem Value="@("EstudioContable")">Estudio Contable (Gestión de terceros)</MudSelectItem>
+      </MudSelect>
+
+      @if (_model.Role == "EstudioContable")
+      {
+        <MudDivider Class="my-4" />
+        <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-4">DATOS DEL ESTUDIO</MudText>
+        
+        <MudTextField Label="Nombre / Razón Social" Variant="Variant.Outlined" @bind-Value="_model.StudioName"
+                      Name="studioName" Class="mb-4" Required="true" />
+        
+        <MudTextField Label="Teléfono Fijo" Variant="Variant.Outlined" @bind-Value="_model.Phone" Name="phone"
+                      Class="mb-4" Required="true" />
+        
+        <MudTextField Label="Celular de contacto" Variant="Variant.Outlined" @bind-Value="_model.CellPhone"
+                      Name="cellPhone" Class="mb-4" Required="true" />
+        
+        <MudTextField Label="Dirección / Domicilio" Variant="Variant.Outlined" @bind-Value="_model.Address" Name="address"
+                      Class="mb-4" Required="true" />
+        
+        <MudTextField Label="Persona de Referencia" Variant="Variant.Outlined" @bind-Value="_model.ReferencePerson"
+                      Name="referencePerson" Class="mb-4" Required="true" />
+
+        <MudTextField Label="Celular de Referencia" Variant="Variant.Outlined" @bind-Value="_model.ReferencePhone"
+                      Name="referencePhone" Class="mb-4" Required="true" />
+
+        <MudSelect T="int" Label="Provincia" Variant="Variant.Outlined" @bind-Value="_selectedProvinceId" Class="mb-4"
+                   Required="true" SelectedValuesChanged="OnProvinceChanged">
+          @foreach (var prov in _provinces)
+          {
+            <MudSelectItem Value="@prov.Id">@prov.Name</MudSelectItem>
+          }
+        </MudSelect>
+
+        <MudSelect T="int?" Label="Localidad" Variant="Variant.Outlined" @bind-Value="_model.CityId" Name="cityId"
+                   Class="mb-4" Required="true" Disabled="@(!_cities.Any())">
+          @foreach (var city in _cities)
+          {
+            <MudSelectItem Value="(int?)city.Id">@city.Name (@city.ZipCode)</MudSelectItem>
+          }
+        </MudSelect>
+      }
+            
+      <MudDivider Class="my-4" />
+      <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-4">SEGURIDAD</MudText>
+
+      <MudTextField Label="Contraseña" Variant="Variant.Outlined" @bind-Value="_model.Password" Name="password"
+                    InputType="InputType.Password" Class="mb-4" Required="true" />
+
+      <MudTextField Label="Confirmar Contraseña" Variant="Variant.Outlined" @bind-Value="_model.ConfirmPassword"
+                    InputType="InputType.Password" Class="mb-6" Required="true" />
+
+      <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Secondary" FullWidth="true"
+                 Size="Size.Large" Disabled="_loading">
+        @if (_loading)
+        {
+          <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+          <MudText Class="ms-2">Creando cuenta...</MudText>
+        }
+        else
+        {
+          <MudText>Registrarse</MudText>
+        }
+      </MudButton>
+    </form>
+
+    <MudDivider Class="my-6" />
+
+    <div class="d-flex justify-center">
+      <MudLink href="/login">Ya tengo cuenta. Iniciar sesión</MudLink>
+    </div>
+  </MudPaper>
+</MudContainer>
+
+@code {
+  private RegisterModel _model = new();
+  private bool _loading = false;
+  private List<Province> _provinces = new();
+  private List<City> _cities = new();
+  private int _selectedProvinceId;
+
+  [SupplyParameterFromQuery]
+  public string? Error { get; set; }
+
+  [SupplyParameterFromQuery]
+  public string? Email { get; set; }
+
+  protected override async Task OnInitializedAsync()
+  {
+    if (!string.IsNullOrEmpty(Email)) _model.Email = Email;
+    if (!string.IsNullOrEmpty(Error))
+    {
+      var errors = Error.Split("|");
+      foreach (var err in errors)
+      {
+        Snackbar.Add(err, Severity.Error);
+      }
+    }
+
+    _provinces = await UnionService.GetProvincesAsync();
+  }
+
+  private async Task OnProvinceChanged()
+  {
+    _cities = await UnionService.GetCitiesByProvinceAsync(_selectedProvinceId);
+    _model.CityId = null;
+    StateHasChanged();
+  }
+
+  public class RegisterModel
+  {
+    [Required(ErrorMessage = "El email es obligatorio")]
+    [EmailAddress(ErrorMessage = "Email inválido")]
+    public string Email { get; set; } = "";
+
+    [Required(ErrorMessage = "El tipo de usuario es obligatorio")]
+    public string Role { get; set; } = "Empresa";
+
+    public string? StudioName { get; set; }
+    public string? Phone { get; set; }
+    public string? CellPhone { get; set; }
+    public string? Address { get; set; }
+    public string? ReferencePerson { get; set; }
+    public string? ReferencePhone { get; set; }
+    public int? CityId { get; set; }
+
+    [Required(ErrorMessage = "La contraseña es obligatoria")]
+    [StringLength(100, ErrorMessage = "La {0} debe tener al menos {2} caracteres.", MinimumLength = 6)]
+    public string Password { get; set; } = "";
+
+    [Compare("Password", ErrorMessage = "Las contraseñas no coinciden")]
+    public string ConfirmPassword { get; set; } = "";
+  }
+}

@@ -1,0 +1,47 @@
+@using SIRGA.Application.DTOs
+@using System.ComponentModel.DataAnnotations
+
+<MudDialog>
+  <DialogContent>
+    <MudForm @ref="_form" Model="@_model">
+      <MudTextField Label="Nombre del Sindicato" @bind-Value="_model.Name" For="@(() => _model.Name)" Required="true"
+                    Class="mb-4" />
+            
+      <MudTextField Label="Código CCT" @bind-Value="_model.CctCode" For="@(() => _model.CctCode)" Required="true"
+                    Class="mb-4" />
+
+      <MudTextField Label="Provincia / Jurisdicción" @bind-Value="_model.JurisdictionProvince"
+                    For="@(() => _model.JurisdictionProvince)" Required="true" Class="mb-4" />
+
+      <MudTextField Label="Ciudad / Localidad" @bind-Value="_model.JurisdictionCity"
+                    For="@(() => _model.JurisdictionCity)" Class="mb-4" />
+
+      <MudTextField Label="Email Administrador (Usuario Sindicato)" @bind-Value="_model.AdminEmail"
+                    For="@(() => _model.AdminEmail)" HelperText="Email con el que el sindicato ingresará al sistema" Class="mb-4" />
+
+      <MudSwitch @bind-Value="_model.IsActive" Label="Activo" Color="Color.Primary" />
+    </MudForm>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" OnClick="Submit">Guardar</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+  [Parameter] public UnionDto _model { get; set; } = new();
+
+  private MudForm _form = null!;
+
+  private async Task Submit()
+  {
+    await _form.Validate();
+    if (_form.IsValid)
+    {
+      MudDialog.Close(DialogResult.Ok(_model));
+    }
+  }
+
+  private void Cancel() => MudDialog.Cancel();
+}

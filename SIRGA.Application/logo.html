@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logo SIRGA</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 24px;
+            padding: 60px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+        }
+        
+        .logo-showcase {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+        
+        .logo-main {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 16px;
+        }
+        
+        .variations {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .variation {
+            padding: 30px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .variation.dark {
+            background: #1a202c;
+        }
+        
+        .variation.light {
+            background: white;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .variation.color {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .info {
+            text-align: center;
+            margin-top: 20px;
+            color: #4a5568;
+        }
+        
+        .info h2 {
+            margin: 0 0 10px 0;
+            color: #2d3748;
+        }
+        
+        .info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo-showcase">
+            <!-- Logo Principal -->
+            <div class="logo-main">
+                <svg width="400" height="140" viewBox="0 0 400 140" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Ícono -->
+                    <g id="icon">
+                        <!-- Círculo exterior con gradiente -->
+                        <defs>
+                            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                            </linearGradient>
+                            <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#48bb78;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#38a169;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        
+                        <!-- Círculo base -->
+                        <circle cx="60" cy="70" r="45" fill="url(#grad1)" opacity="0.1"/>
+                        
+                        <!-- Flechas circulares representando flujo/recaudación -->
+                        <path d="M 45 35 Q 30 50 35 70 Q 40 90 60 95" 
+                              stroke="url(#grad1)" 
+                              stroke-width="5" 
+                              fill="none" 
+                              stroke-linecap="round"/>
+                        
+                        <path d="M 75 105 Q 90 90 85 70 Q 80 50 60 45" 
+                              stroke="url(#grad2)" 
+                              stroke-width="5" 
+                              fill="none" 
+                              stroke-linecap="round"/>
+                        
+                        <!-- Puntas de flecha -->
+                        <polygon points="60,92 65,100 55,98" fill="url(#grad1)"/>
+                        <polygon points="60,48 55,40 65,42" fill="url(#grad2)"/>
+                        
+                        <!-- Centro: símbolo de moneda/gestión -->
+                        <circle cx="60" cy="70" r="15" fill="white"/>
+                        <text x="60" y="78" 
+                              font-family="Arial, sans-serif" 
+                              font-size="20" 
+                              font-weight="bold" 
+                              fill="url(#grad1)" 
+                              text-anchor="middle">$</text>
+                    </g>
+                    
+                    <!-- Texto SIRGA -->
+                    <text x="130" y="65" 
+                          font-family="Arial, sans-serif" 
+                          font-size="42" 
+                          font-weight="900" 
+                          fill="#2d3748" 
+                          letter-spacing="2">SIRGA</text>
+                    
+                    <!-- Subtítulo -->
+                    <text x="130" y="88" 
+                          font-family="Arial, sans-serif" 
+                          font-size="11" 
+                          fill="#718096" 
+                          letter-spacing="1">SISTEMA INTEGRAL DE RECAUDACIÓN</text>
+                    
+                    <text x="130" y="102" 
+                          font-family="Arial, sans-serif" 
+                          font-size="11" 
+                          fill="#718096" 
+                          letter-spacing="1">Y GESTIÓN DE APORTES</text>
+                </svg>
+            </div>
+            
+            <!-- Información -->
+            <div class="info">
+                <h2>Logo SIRGA</h2>
+                <p>Sistema Integral de Recaudación y Gestión de Aportes</p>
+                <p>El diseño incorpora flechas circulares que representan el flujo continuo de recaudación y gestión</p>
+            </div>
+            
+            <!-- Variaciones -->
+            <div class="variations">
+                <!-- Versión sobre fondo oscuro -->
+                <div class="variation dark">
+                    <svg width="200" height="70" viewBox="0 0 400 140" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="grad1-white" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#a3bffa;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#d6bcfa;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <circle cx="60" cy="70" r="45" fill="white" opacity="0.1"/>
+                        <path d="M 45 35 Q 30 50 35 70 Q 40 90 60 95" stroke="white" stroke-width="5" fill="none" stroke-linecap="round"/>
+                        <path d="M 75 105 Q 90 90 85 70 Q 80 50 60 45" stroke="#68d391" stroke-width="5" fill="none" stroke-linecap="round"/>
+                        <polygon points="60,92 65,100 55,98" fill="white"/>
+                        <polygon points="60,48 55,40 65,42" fill="#68d391"/>
+                        <circle cx="60" cy="70" r="15" fill="#1a202c"/>
+                        <text x="60" y="78" font-family="Arial" font-size="20" font-weight="bold" fill="white" text-anchor="middle">$</text>
+                        <text x="130" y="78" font-family="Arial" font-size="42" font-weight="900" fill="white" letter-spacing="2">SIRGA</text>
+                    </svg>
+                </div>
+                
+                <!-- Versión monocromática -->
+                <div class="variation light">
+                    <svg width="200" height="70" viewBox="0 0 400 140" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="60" cy="70" r="45" fill="#2d3748" opacity="0.1"/>
+                        <path d="M 45 35 Q 30 50 35 70 Q 40 90 60 95" stroke="#2d3748" stroke-width="5" fill="none" stroke-linecap="round"/>
+                        <path d="M 75 105 Q 90 90 85 70 Q 80 50 60 45" stroke="#4a5568" stroke-width="5" fill="none" stroke-linecap="round"/>
+                        <polygon points="60,92 65,100 55,98" fill="#2d3748"/>
+                        <polygon points="60,48 55,40 65,42" fill="#4a5568"/>
+                        <circle cx="60" cy="70" r="15" fill="white"/>
+                        <text x="60" y="78" font-family="Arial" font-size="20" font-weight="bold" fill="#2d3748" text-anchor="middle">$</text>
+                        <text x="130" y="78" font-family="Arial" font-size="42" font-weight="900" fill="#2d3748" letter-spacing="2">SIRGA</text>
+                    </svg>
+                </div>
+                
+                <!-- Solo ícono -->
+                <div class="variation color">
+                    <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="60" cy="60" r="45" fill="white" opacity="0.2"/>
+                        <path d="M 45 25 Q 30 40 35 60 Q 40 80 60 85" stroke="white" stroke-width="6" fill="none" stroke-linecap="round"/>
+                        <path d="M 75 95 Q 90 80 85 60 Q 80 40 60 35" stroke="#68d391" stroke-width="6" fill="none" stroke-linecap="round"/>
+                        <polygon points="60,82 65,90 55,88" fill="white"/>
+                        <polygon points="60,38 55,30 65,32" fill="#68d391"/>
+                        <circle cx="60" cy="60" r="18" fill="white"/>
+                        <text x="60" y="70" font-family="Arial" font-size="24" font-weight="bold" fill="#667eea" text-anchor="middle">$</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

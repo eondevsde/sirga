@@ -1,0 +1,120 @@
+@page "/employees"
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@inject EmployeeService EmployeeService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+@attribute [Authorize(Roles = "Admin,Auditor")]
+
+<PageTitle>SIRGA - Gestión de Empleados</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+  <MudText Typo="Typo.h4" Class="mb-4">Gestión de Empleados</MudText>
+
+  <MudTable Items="@_employees" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+            Filter="new Func<EmployeeDto,bool>(FilterFunc1)" @bind-SelectedItem="_selectedEmployee">
+    <ToolBarContent>
+      <MudText Typo="Typo.h6">Padrón General de Empleados</MudText>
+      <MudSpacer />
+      <MudTextField @bind-Value="_searchString" Placeholder="Buscar por CUIL o Nombre" Adornment="Adornment.Start"
+                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+      <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download" Class="ml-2"
+                 OnClick="DownloadPadron">Exportar Padrón</MudButton>
+    </ToolBarContent>
+    <HeaderContent>
+      <MudTh>CUIL/DNI</MudTh>
+      <MudTh>Nombre Completo</MudTh>
+      <MudTh>Fecha Ingreso</MudTh>
+      <MudTh>Estado</MudTh>
+      <MudTh>Acciones</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+      <MudTd DataLabel="DNI">@context.Dni</MudTd>
+      <MudTd DataLabel="Nombre">@context.FullName</MudTd>
+      <MudTd DataLabel="Ingreso">@context.JoinedDate.ToShortDateString()</MudTd>
+      <MudTd DataLabel="Estado">
+        <MudChip T="string" Color="@(context.IsActive? Color.Success: Color.Error)" Size="Size.Small">
+          @(context.IsActive ? "Activo" : "Baja")
+        </MudChip>
+      </MudTd>
+      <MudTd DataLabel="Acciones">
+        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small"
+                       OnClick="@(() => OnEditEmployee(context))" />
+        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                       OnClick="@(() => OnDeleteEmployee(context))" />
+      </MudTd>
+    </RowTemplate>
+    <PagerContent>
+      <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas por página:" />
+    </PagerContent>
+  </MudTable>
+</MudContainer>
+
+@code {
+  private bool _loading = true;
+  private string _searchString = "";
+  private EmployeeDto? _selectedEmployee;
+  private IEnumerable<EmployeeDto> _employees = new List<EmployeeDto>();
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadEmployees();
+  }
+
+  private async Task LoadEmployees()
+  {
+    _loading = true;
+    try
+    {
+      _employees = (await EmployeeService.GetPadronAsync()).ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar empleados: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private bool FilterFunc1(EmployeeDto element) => FilterFunc(element, _searchString);
+
+  private bool FilterFunc(EmployeeDto element, string searchString)
+  {
+    if (string.IsNullOrWhiteSpace(searchString))
+      return true;
+    if (element.Dni.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+      return true;
+    if (element.FullName.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+      return true;
+    return false;
+  }
+
+  private async Task OnEditEmployee(EmployeeDto employee)
+  {
+    Snackbar.Add("Edición de empleado disponible desde la ficha de la empresa", Severity.Info);
+  }
+
+  private async Task OnDeleteEmployee(EmployeeDto employee)
+  {
+    // Similar al de Uniones, pero implementando el borrado real si el service lo permite
+    Snackbar.Add("Acción no permitida desde el listado general", Severity.Warning);
+  }
+
+  private async Task DownloadPadron()
+  {
+    try
+    {
+      var url = $"/api/report/padron";
+      await JSRuntime.InvokeVoidAsync("open", url, "_blank");
+      Snackbar.Add("Generando padrón de beneficiarios...", Severity.Info);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al descargar el padrón: " + ex.Message, Severity.Error);
+    }
+  }
+}

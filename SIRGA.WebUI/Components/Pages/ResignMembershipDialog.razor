@@ -1,0 +1,78 @@
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+
+<MudDialog>
+  <TitleContent>
+    <MudText Typo="Typo.h6">
+      <MudIcon Icon="@Icons.Material.Filled.PersonOff" Class="mr-3 mb-n1" />
+      Solicitar Renuncia como Socio
+    </MudText>
+  </TitleContent>
+  <DialogContent>
+    <MudText Class="mb-4">
+      Vas a solicitar la renuncia de <b>@EmployeeName</b> como socio voluntario (dejará de aplicarse el aporte del 2%).
+      La solicitud debe ser aprobada por el sindicato.
+    </MudText>
+    <MudForm @ref="_form" @bind-IsValid="_success">
+      <MudTextField T="string" Label="Motivo" @bind-Value="_reason" Variant="Variant.Outlined" Rows="3"
+                    RowsMax="5" Lines="3" MaxLength="500" HelperText="Opcional pero recomendado" />
+    </MudForm>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Color="Color.Warning" Variant="Variant.Filled" OnClick="Submit" Disabled="@(_processing)">
+      @if (_processing)
+      {
+        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+        <MudText Class="ms-2">Enviando...</MudText>
+      }
+      else
+      {
+        <MudText>Solicitar Renuncia</MudText>
+      }
+    </MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+  [Parameter] public int AssignmentId { get; set; }
+  [Parameter] public string EmployeeName { get; set; } = "";
+
+  private MudForm _form = null!;
+  private bool _success;
+  private bool _processing;
+  private string _reason = "";
+
+  private async Task Submit()
+  {
+    _processing = true;
+    try
+    {
+      var response = await Http.PostAsJsonAsync("api/employees/membership/resign",
+          new { AssignmentId, Reason = _reason });
+
+      if (response.IsSuccessStatusCode)
+      {
+        Snackbar.Add("Solicitud de renuncia enviada. El sindicato debe aprobarla.", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+      }
+      else
+      {
+        var error = await response.Content.ReadAsStringAsync();
+        Snackbar.Add("Error: " + error, Severity.Error);
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error de conexión: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _processing = false;
+    }
+  }
+
+  private void Cancel() => MudDialog.Cancel();
+}

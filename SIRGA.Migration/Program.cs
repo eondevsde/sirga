@@ -1,0 +1,680 @@
+using System.Data;
+using System.Text;
+using Microsoft.Data.SqlClient;
+
+namespace SIRGA.Migration;
+
+public static class Program
+{
+    private static int _unionId;
+    private static decimal _lawPct = 2m;
+    private static decimal _memberPct = 2m;
+
+    private static readonly Dictionary<string, int> _provByLetter = new();
+    private static readonly Dictionary<string, int> _cityByKey = new();      // (letra|codloc) -> CityId
+    private static readonly Dictionary<string, int> _companyByCuit = new();
+    private static readonly Dictionary<string, int> _employeeByCuil = new();
+    private static readonly Dictionary<string, int> _assignmentByKey = new(); // (cuil|cuit) -> AssignmentId
+    private static readonly Dictionary<string, int> _registryByKey = new();   // (cuit|yyyy-MM) -> DeclarationId
+    private static readonly Dictionary<string, int> _rectByKey = new();        // (cuit|yyyy-MM) -> rect (última versión)
+    private static readonly Dictionary<int, int> _studioById = new();         // legacy EstudioContableId -> StudioId
+    private static readonly Dictionary<string, int> _categoryByCode = new();
+
+    public static async Task<int> Main(string[] args)
+    {
+        var step = args.Length > 0 ? args[0].ToLowerInvariant() : "all";
+        Console.OutputEncoding = Encoding.UTF8;
+        Log.Section($"SIRGA Migration - step={step}");
+
+        try
+        {
+            switch (step)
+            {
+                case "geo": Geo(); break;
+                case "union": Union(); break;
+                case "interest": Interest(); break;
+                case "categories": Categories(); break;
+                case "scales": Scales(); break;
+                case "companies": Companies(); break;
+                case "employees": Employees(); break;
+                case "assignments": Assignments(); break;
+                case "studios": Studios(); break;
+                case "declarations": Declarations(); break;
+                case "details": Details(); break;
+                case "finalize": Finalize(); break;
+                case "reconcile": Reconcile(); break;
+                case "clean": Clean(); break;
+                case "all":
+                    Clean();
+                    Geo(); Union(); Interest(); Categories(); Scales();
+                    Companies(); Employees(); Assignments(); Studios();
+                    Declarations(); Details(); Finalize();
+                    Reconcile();
+                    break;
+                default:
+                    Console.WriteLine($"Paso desconocido: {step}. Use: geo|union|interest|categories|scales|companies|employees|assignments|studios|declarations|details|reconcile|clean|all");
+                    return 2;
+            }
+            Log.Section("Migración completada OK");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Log.Write("ERROR: " + ex.Message);
+            Log.Write(ex.StackTrace ?? "");
+            return 1;
+        }
+    }
+
+    // ---------- LIMPIEZA ----------
+    private static void Clean()
+    {
+        Log.Section("Clean: eliminando datos de prueba del destino");
+        var sql = """
+            TRUNCATE TABLE DeclarationDetails;
+            DELETE FROM PaymentPlanInstallments;
+            DELETE FROM PaymentPlans;
+            DELETE FROM PaymentTransactions;
+            DELETE FROM CompanyBalances;
+            DELETE FROM BalanceHistories;
+            DELETE FROM Declarations;
+            DELETE FROM Assignments;
+            DELETE FROM SalaryScales;
+            DELETE FROM EmployeeCategories;
+            DELETE FROM Companies;
+            DELETE FROM Employees;
+            // AccountingStudios: NO se borran (upsert por ResponsibleUsername) para no perder
+            // estudios registrados desde la app.
+            DELETE FROM InterestRates;
+            DELETE FROM Unions;
+            DELETE FROM Cities;
+            DELETE FROM Provinces;
+            DELETE FROM AuditLogs;
+            DELETE FROM InspectionActPeriods;
+            DELETE FROM InspectionActs;
+            DELETE FROM InspectionVisits;
+            DELETE FROM PrejudicialNotices;
+            DELETE FROM NoticeAttachments;
+            DELETE FROM UnionSubscriptionPayments;
+            DELETE FROM UnionSubscriptions;
+            DELETE FROM UnionSubscriptionRequests;
+            DELETE FROM AssociationRequests;
+            DELETE FROM Inspectors;
+            """;
+        Db.Run(Db.TargetCs, sql);
+        Log.Write("Limpieza OK");
+    }
+
+    // ---------- GEOGRAFIA ----------
+    private static void Geo()
+    {
+        Log.Section("Geo: provincias y localidades desde legado");
+        using var src = Db.Open(Db.LegacyCs);
+
+        // Provincias
+        using (var prov = new SqlCommand("SELECT MAEPROV_CODPRO, MAEPROV_NOMBRE FROM provincias ORDER BY MAEPROV_CODPRO", src))
+        using (var r = prov.ExecuteReader())
+        {
+            while (r.Read())
+            {
+                var letter = Db.Str(r["MAEPROV_CODPRO"]);
+                var name = Db.Str(r["MAEPROV_NOMBRE"]);
+                if (name.Length == 0) continue;
+                using var conn = Db.Open(Db.TargetCs);
+                using var cmd = new SqlCommand("INSERT INTO Provinces (Name) OUTPUT INSERTED.Id VALUES (@name)", conn);
+                cmd.Parameters.AddWithValue("@name", name);
+                var id = (int)cmd.ExecuteScalar();
+                _provByLetter[letter] = id;
+            }
+        }
+        Log.Write($"Provincias: {_provByLetter.Count}");
+
+        // Localidades
+        using (var loc = new SqlCommand(
+            "SELECT MAELOC_CODPROV, MAELOC_CODLOC, MAELOC_NOMBRE FROM localidad WHERE MAELOC_CODLOC <> 0 AND MAELOC_NOMBRE IS NOT NULL AND LTRIM(RTRIM(MAELOC_NOMBRE)) <> '' ORDER BY MAELOC_CODLOC", src))
+        using (var r = loc.ExecuteReader())
+        {
+            var count = 0;
+            while (r.Read())
+            {
+                var letter = Db.Str(r["MAELOC_CODPROV"]);
+                var cod = Convert.ToInt32(r["MAELOC_CODLOC"]);
+                var name = Db.Str(r["MAELOC_NOMBRE"]);
+                if (!_provByLetter.TryGetValue(letter, out var provId)) continue;
+                using var conn = Db.Open(Db.TargetCs);
+                using var cmd = new SqlCommand("INSERT INTO Cities (Name, ProvinceId) OUTPUT INSERTED.Id VALUES (@name, @prov)", conn);
+                cmd.Parameters.AddWithValue("@name", name);
+                cmd.Parameters.AddWithValue("@prov", provId);
+                var cityId = (int)cmd.ExecuteScalar();
+                _cityByKey[$"{letter}|{cod}"] = cityId;
+                count++;
+            }
+            Log.Write($"Localidades: {count}");
+        }
+    }
+
+    // ---------- UNION ----------
+    private static void Union()
+    {
+        Log.Section("Union: desde Filial (SEC)");
+        using var src = Db.Open(Db.LegacyCs);
+        using var cmd = new SqlCommand(
+            "SELECT Nombre, Provincia, Localidad, PorcentajeDescuentoLey, PorcentajeDescuentoSocio FROM Filial WHERE Id=1", src);
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) throw new Exception("Filial Id=1 no encontrada");
+        var nombre = Db.Str(r["Nombre"]);
+        var provincia = Db.Str(r["Provincia"]);
+        var localidad = Db.Str(r["Localidad"]);
+        if (r["PorcentajeDescuentoLey"] != DBNull.Value && Convert.ToDecimal(r["PorcentajeDescuentoLey"]) > 0)
+            _lawPct = Convert.ToDecimal(r["PorcentajeDescuentoLey"]);
+        if (r["PorcentajeDescuentoSocio"] != DBNull.Value && Convert.ToDecimal(r["PorcentajeDescuentoSocio"]) > 0)
+            _memberPct = Convert.ToDecimal(r["PorcentajeDescuentoSocio"]);
+        r.Close();
+
+        using var conn = Db.Open(Db.TargetCs);
+        using var ins = new SqlCommand("""
+            INSERT INTO Unions (Name, JurisdictionProvince, CctCode, IsActive, JurisdictionCity, LawContributionPercentage, UnionMemberPercentage, AdminEmail)
+            OUTPUT INSERTED.Id VALUES (@nombre, @prov, '130/75', 1, @localidad, @ley, @socio, 'sindicato@sirga.com')
+            """, conn);
+        ins.Parameters.AddWithValue("@nombre", nombre);
+        ins.Parameters.AddWithValue("@prov", provincia);
+        ins.Parameters.AddWithValue("@localidad", localidad);
+        ins.Parameters.AddWithValue("@ley", _lawPct);
+        ins.Parameters.AddWithValue("@socio", _memberPct);
+        _unionId = (int)ins.ExecuteScalar();
+        Log.Write($"Union Id={_unionId}: {nombre} (ley {_lawPct}%, socio {_memberPct}%)");
+    }
+
+    // ---------- TASA DE INTERES ----------
+    private static void Interest()
+    {
+        Log.Section("InterestRate: 3% mensual default");
+        using var conn = Db.Open(Db.TargetCs);
+        using var cmd = new SqlCommand(
+            "INSERT INTO InterestRates (EffectiveDate, MonthlyRate, Description) VALUES ('1900-01-01', 0.03, 'Tasa mensual por mora (default SIRGA)')", conn);
+        cmd.ExecuteNonQuery();
+        Log.Write("InterestRate OK");
+    }
+
+    // ---------- CATEGORIAS ----------
+    private static void Categories()
+    {
+        Log.Section("EmployeeCategories: desde categorias_empleado (excl. TODAS)");
+        using var src = Db.Open(Db.LegacyCs);
+        using var cmd = new SqlCommand(
+            "SELECT MAECAT_CODCAT, MAECAT_NOMCAT FROM categorias_empleado WHERE MAECAT_CODCAT <> 0 ORDER BY MAECAT_CODCAT", src);
+        using var r = cmd.ExecuteReader();
+        var count = 0;
+        while (r.Read())
+        {
+            var code = Convert.ToInt32(r["MAECAT_CODCAT"]).ToString();
+            var name = Db.Str(r["MAECAT_NOMCAT"]);
+            if (name.Length == 0) continue;
+            using var conn = Db.Open(Db.TargetCs);
+            using var ins = new SqlCommand(
+                "INSERT INTO EmployeeCategories (Code, Name, UnionId, IsActive) OUTPUT INSERTED.Id VALUES (@code, @name, @union, 1)", conn);
+            ins.Parameters.AddWithValue("@code", code);
+            ins.Parameters.AddWithValue("@name", name);
+            ins.Parameters.AddWithValue("@union", _unionId);
+            _categoryByCode[code] = (int)ins.ExecuteScalar();
+            count++;
+        }
+        Log.Write($"Categorías: {count}");
+    }
+
+    // ---------- ESCALAS ----------
+    private static void Scales()
+    {
+        Log.Section("SalaryScales: desde EscalaSalarial");
+        using var src = Db.Open(Db.LegacyCs);
+        using var cmd = new SqlCommand(
+            "SELECT Periodo, CodCategoria, Importe, AcuerdoNR1, AcuerdoNR2, Estado FROM EscalaSalarial ORDER BY Periodo, CodCategoria", src);
+        using var r = cmd.ExecuteReader();
+        var count = 0;
+        while (r.Read())
+        {
+            var code = Convert.ToInt32(r["CodCategoria"]).ToString();
+            if (!_categoryByCode.TryGetValue(code, out var catId)) continue;
+            using var conn = Db.Open(Db.TargetCs);
+            using var ins = new SqlCommand("""
+                INSERT INTO SalaryScales (Period, EmployeeCategoryId, BasicAmount, AntiguedadPercentage, AgreementNR1, AgreementNR2, IsActive, UnionId)
+                VALUES (@period, @cat, @basic, 0, @nr1, @nr2, @active, @union)
+                """, conn);
+            ins.Parameters.AddWithValue("@period", Convert.ToDateTime(r["Periodo"]));
+            ins.Parameters.AddWithValue("@cat", catId);
+            ins.Parameters.AddWithValue("@basic", Db.Dec(r["Importe"]));
+            ins.Parameters.AddWithValue("@nr1", Db.Dec(r["AcuerdoNR1"]));
+            ins.Parameters.AddWithValue("@nr2", Db.Dec(r["AcuerdoNR2"]));
+            ins.Parameters.AddWithValue("@active", Convert.ToInt32(r["Estado"]) == 1);
+            ins.Parameters.AddWithValue("@union", _unionId);
+            ins.ExecuteNonQuery();
+            count++;
+        }
+        Log.Write($"Escalas: {count}");
+    }
+
+    // ---------- EMPRESAS ----------
+    private static void Companies()
+    {
+        Log.Section("Companies: desde fotos_.maeemp");
+        using var src = Db.Open(Db.LegacyCs);
+        using var cmd = new SqlCommand("""
+            SELECT m.MEEMP_CUIT_STR, m.MAEEMP_RAZSOC, m.MAEEMP_CALLE, m.MAEEMP_NRO, m.MAEEMP_CODPROV, m.MAEEMP_CODLOC, m.MAEEMP_TEL, m.MAEEMP_EMAIL,
+                   CASE WHEN EXISTS (SELECT 1 FROM fotos_.socemp s WHERE s.SOCEMP_CUITE_STR = m.MEEMP_CUIT_STR AND s.SOCEMP_ESTADO = 1)
+                          OR EXISTS (SELECT 1 FROM ddjj d WHERE d.CUIT_STR = m.MEEMP_CUIT_STR AND d.periodo >= '2026-01-01')
+                        THEN 1 ELSE 0 END AS activa
+            FROM fotos_.maeemp m ORDER BY m.MEEMP_CUIT_STR
+            """, src);
+        using var r = cmd.ExecuteReader();
+        var count = 0;
+        while (r.Read())
+        {
+            var cuit = Db.PadCuit(Db.Str(r["MEEMP_CUIT_STR"]));
+            if (cuit.Length == 0) continue;
+            var razsoc = Db.Str(r["MAEEMP_RAZSOC"]);
+            if (razsoc.Length == 0) razsoc = cuit;
+            var calle = Db.Str(r["MAEEMP_CALLE"]);
+            var nro = Db.Str(r["MAEEMP_NRO"]);
+            var address = (calle + (nro.Length > 0 ? " " + nro : "")).Trim();
+            if (address.Length == 0) address = "SIN DIRECCIÓN";
+            var cityKey = Db.Str(r["MAEEMP_CODPROV"]) + "|" + Convert.ToInt64(r["MAEEMP_CODLOC"]);
+            _cityByKey.TryGetValue(cityKey, out var cityId);
+            var isActive = Convert.ToInt32(r["activa"]);
+            using var conn = Db.Open(Db.TargetCs);
+            using var ins = new SqlCommand("""
+                INSERT INTO Companies (BusinessName, Cuit, Address, CityId, Phone, ContactEmail, Status, IsActive)
+                OUTPUT INSERTED.Id VALUES (@name, @cuit, @address, @city, @tel, @email, 1, @active)
+                """, conn);
+            ins.Parameters.AddWithValue("@name", Trunc(razsoc, 200));
+            ins.Parameters.AddWithValue("@cuit", cuit);
+            ins.Parameters.AddWithValue("@address", Trunc(address, 200));
+            ins.Parameters.AddWithValue("@city", cityId == 0 ? DBNull.Value : cityId);
+            ins.Parameters.AddWithValue("@tel", NullIfEmpty(Db.Str(r["MAEEMP_TEL"]), 100));
+            ins.Parameters.AddWithValue("@email", NullIfEmpty(Db.Str(r["MAEEMP_EMAIL"]), 100));
+            ins.Parameters.AddWithValue("@active", isActive);
+            _companyByCuit[cuit] = (int)ins.ExecuteScalar();
+            count++;
+        }
+        Log.Write($"Empresas: {count}");
+    }
+
+    // ---------- EMPLEADOS ----------
+    private static void Employees()
+    {
+        Log.Section("Employees: desde fotos_.maesoc");
+        using var src = Db.Open(Db.LegacyCs);
+        using var cmd = new SqlCommand("""
+            SELECT MAESOC_CUIL_STR, APENOM, MAESOC_APELLIDO, MAESOC_NOMBRE, MAESOC_FECHAALTA, MAESOC_FECHADESEMPLEO, MAESOC_ESTADO
+            FROM fotos_.maesoc ORDER BY MAESOC_CUIL_STR
+            """, src);
+        using var r = cmd.ExecuteReader();
+        var count = 0;
+        while (r.Read())
+        {
+            var cuil = Db.PadCuit(Db.Str(r["MAESOC_CUIL_STR"]));
+            if (cuil.Length == 0) continue;
+            var apenom = Db.Str(r["APENOM"]);
+            if (apenom.Length == 0)
+                apenom = (Db.Str(r["MAESOC_APELLIDO"]) + " " + Db.Str(r["MAESOC_NOMBRE"])).Trim();
+            if (apenom.Length == 0) apenom = cuil;
+            var alta = Db.Dt(r["MAESOC_FECHAALTA"]) ?? new DateTime(1900, 1, 1);
+            if (alta.Year < 1900) alta = new DateTime(1900, 1, 1);
+            var baja = Db.Dt(r["MAESOC_FECHADESEMPLEO"]);
+            if (baja.HasValue && (baja.Value.Year < 1900 || baja.Value > DateTime.Today)) baja = null;
+            var estado = Convert.ToInt32(r["MAESOC_ESTADO"]);
+            using var conn = Db.Open(Db.TargetCs);
+            using var ins = new SqlCommand("""
+                INSERT INTO Employees (Dni, FullName, HireDate, TerminationDate, Status)
+                OUTPUT INSERTED.Id VALUES (@dni, @name, @alta, @baja, @status)
+                """, conn);
+            ins.Parameters.AddWithValue("@dni", cuil);
+            ins.Parameters.AddWithValue("@name", Trunc(apenom, 200));
+            ins.Parameters.AddWithValue("@alta", alta);
+            ins.Parameters.AddWithValue("@baja", baja.HasValue ? baja.Value : DBNull.Value);
+            ins.Parameters.AddWithValue("@status", estado == 1 ? 1 : 5);
+            _employeeByCuil[cuil] = (int)ins.ExecuteScalar();
+            count++;
+        }
+        Log.Write($"Empleados: {count}");
+    }
+
+    // ---------- ASIGNACIONES ----------
+    private static void Assignments()
+    {
+        Log.Section("Assignments: desde fotos_.socemp");
+        using var src = Db.Open(Db.LegacyCs);
+        using var cmd = new SqlCommand("""
+            SELECT s.SOCEMP_CUIL_STR, s.SOCEMP_CUITE_STR, s.SOCEMP_FECHAING, s.SOCEMP_ESTADO, s.SOCEMP_FECHABAJA,
+                   CASE WHEN EXISTS (SELECT 1 FROM ddjj d
+                                     WHERE d.CUIL_STR = s.SOCEMP_CUIL_STR
+                                       AND d.CUIT_STR = s.SOCEMP_CUITE_STR
+                                       AND d.item2 = 1) THEN 1 ELSE 0 END AS vol
+            FROM fotos_.socemp s
+            """, src) { CommandTimeout = 900 };
+        using var r = cmd.ExecuteReader();
+        var count = 0;
+        while (r.Read())
+        {
+            var cuil = Db.PadCuit(Db.Str(r["SOCEMP_CUIL_STR"]));
+            var cuit = Db.PadCuit(Db.Str(r["SOCEMP_CUITE_STR"]));
+            if (cuil.Length == 0 || cuit.Length == 0) continue;
+            if (!_employeeByCuil.TryGetValue(cuil, out var empId)) continue;
+            if (!_companyByCuit.TryGetValue(cuit, out var compId)) continue;
+            var key = cuil + "|" + cuit;
+            if (_assignmentByKey.ContainsKey(key)) continue;
+            var fecha = Db.Dt(r["SOCEMP_FECHAING"]) ?? DateTime.Now;
+            var isVoluntary = Convert.ToBoolean(r["vol"]) ? 1 : 0;
+            var isActive = Convert.ToInt32(r["SOCEMP_ESTADO"]) == 1 ? 1 : 0;
+            var baja = Db.Dt(r["SOCEMP_FECHABAJA"]);
+            if (baja.HasValue && (baja.Value.Year < 1900 || baja.Value > DateTime.Today)) baja = null;
+            using var conn = Db.Open(Db.TargetCs);
+            using var ins = new SqlCommand("""
+                INSERT INTO Assignments (EmployeeId, CompanyId, UnionId, IsVoluntaryMember, CategoryCode, CreatedAt, IsActive, TerminationDate)
+                OUTPUT INSERTED.Id VALUES (@emp, @comp, @union, @vol, NULL, @fecha, @active, @baja)
+                """, conn);
+            ins.Parameters.AddWithValue("@emp", empId);
+            ins.Parameters.AddWithValue("@comp", compId);
+            ins.Parameters.AddWithValue("@union", _unionId);
+            ins.Parameters.AddWithValue("@vol", isVoluntary);
+            ins.Parameters.AddWithValue("@fecha", fecha);
+            ins.Parameters.AddWithValue("@active", isActive);
+            ins.Parameters.AddWithValue("@baja", baja.HasValue ? baja.Value : DBNull.Value);
+            _assignmentByKey[key] = (int)ins.ExecuteScalar();
+            count++;
+        }
+        Log.Write($"Asignaciones: {count}");
+    }
+
+    // ---------- ESTUDIOS ----------
+    private static void Studios()
+    {
+        Log.Section("AccountingStudios: desde EstudiosContables + EstudioContableEmpresa");
+        using var src = Db.Open(Db.LegacyCs);
+        using (var cmd = new SqlCommand(
+            "SELECT Id, RazonSocial, Nombre, Email, Estado, Domicilio, Telefono FROM EstudiosContables ORDER BY Id", src))
+        using (var r = cmd.ExecuteReader())
+        {
+            var count = 0;
+            while (r.Read())
+            {
+                var legacyId = Convert.ToInt32(r["Id"]);
+                var name = Db.Str(r["RazonSocial"]);
+                if (name.Length <= 1 || name == ".") name = Db.Str(r["Nombre"]);
+                if (name.Length == 0) name = "ESTUDIO " + legacyId;
+                var email = Db.Str(r["Email"]);
+                var estado = Convert.ToInt32(r["Estado"]);
+                var username = Trunc(email.Length > 0 ? email : "estudio" + legacyId, 100);
+                using var conn = Db.Open(Db.TargetCs);
+                using var ins = new SqlCommand("""
+                    IF EXISTS (SELECT 1 FROM AccountingStudios WHERE ResponsibleUsername = @user)
+                        SELECT Id FROM AccountingStudios WHERE ResponsibleUsername = @user;
+                    ELSE
+                        INSERT INTO AccountingStudios (Name, ResponsibleUsername, Email, ContactPhone, Address, IsApproved, IsActive, CreatedAt)
+                        OUTPUT INSERTED.Id VALUES (@name, @user, @email, @tel, @address, @approved, 1, @now);
+                    """, conn);
+                ins.Parameters.AddWithValue("@name", Trunc(name, 200));
+                ins.Parameters.AddWithValue("@user", username);
+                ins.Parameters.AddWithValue("@email", NullIfEmpty(email, 200));
+                ins.Parameters.AddWithValue("@tel", NullIfEmpty(Db.Str(r["Telefono"]), 50));
+                ins.Parameters.AddWithValue("@address", NullIfEmpty(Db.Str(r["Domicilio"]), 250));
+                ins.Parameters.AddWithValue("@approved", estado == 1);
+                ins.Parameters.AddWithValue("@now", DateTime.UtcNow);
+                _studioById[legacyId] = (int)ins.ExecuteScalar();
+                count++;
+            }
+            Log.Write($"Estudios: {count}");
+        }
+
+        // Vincular empresas al estudio
+        using (var cmd = new SqlCommand(
+            "SELECT EstudioContableId, CUIT FROM EstudioContableEmpresa", src))
+        using (var r = cmd.ExecuteReader())
+        {
+            var linked = 0;
+            while (r.Read())
+            {
+                var studioLegacyId = Convert.ToInt32(r["EstudioContableId"]);
+                var cuit = Db.PadCuit(Db.Str(r["CUIT"]));
+                if (!_studioById.TryGetValue(studioLegacyId, out var studioId)) continue;
+                if (!_companyByCuit.TryGetValue(cuit, out var compId)) continue;
+                Db.Run(Db.TargetCs, $"UPDATE Companies SET AccountingStudioId = {studioId} WHERE Id = {compId}");
+                linked++;
+            }
+            Log.Write($"Empresas vinculadas a estudios: {linked}");
+        }
+    }
+
+    // ---------- DECLARACIONES ----------
+    private static void Declarations()
+    {
+        Log.Section("Declarations: desde ddjjt (dedupe por periodo+cuit, futuras excluidas)");
+        using var src = Db.Open(Db.LegacyCs);
+        using var cmd = new SqlCommand("""
+            SELECT CUIT_STR, periodo, estado, rect, fpres, fpago, titem1, titem2, titem3
+            FROM (
+                SELECT CUIT_STR, periodo, estado, rect, fpres, fpago, titem1, titem2, titem3,
+                       ROW_NUMBER() OVER (PARTITION BY CONVERT(varchar(7),periodo,120), CUIT_STR
+                                          ORDER BY rect DESC, fmod DESC, fpres DESC, Id DESC) rn
+                FROM ddjjt WHERE periodo <= GETDATE() AND periodo >= '1990-01-01' AND rect < 100
+            ) x WHERE rn = 1
+            """, src) { CommandTimeout = 900 };
+        using var r = cmd.ExecuteReader();
+        var count = 0;
+        while (r.Read())
+        {
+            var cuit = Db.PadCuit(Db.Str(r["CUIT_STR"]));
+            var periodo = Convert.ToDateTime(r["periodo"]);
+            if (cuit.Length == 0) continue;
+            if (!_companyByCuit.TryGetValue(cuit, out var compId)) continue;
+            var period = periodo.ToString("yyyy-MM");
+            var key = cuit + "|" + period;
+            var estado = Convert.ToInt32(r["estado"]);
+            var rect = Convert.ToInt32(r["rect"]);
+            var fpres = Db.Dt(r["fpres"]) ?? periodo;
+            var fpago = Db.Dt(r["fpago"]);
+            var titem1 = Db.Dec(r["titem1"]);
+            var titem2 = Db.Dec(r["titem2"]);
+            var titem3 = Db.Dec(r["titem3"]);
+            var total = Math.Round(titem1 + titem2 + titem3, 2);
+            int status = MapStatus(estado, fpago);
+            var balance = fpago.HasValue ? 0m : total;
+            using var conn = Db.Open(Db.TargetCs);
+            using var ins = new SqlCommand("""
+                INSERT INTO Declarations (Period, CompanyId, UnionId, Status, TotalAmount, IsRectification,
+                                          SubmissionDate, ExternalReference, MercadoPagoPaymentId, PaymentDate,
+                                          PresencialBarCode, PresencialReference, BalanceAmount, PreviousAmount)
+                OUTPUT INSERTED.Id
+                VALUES (@period, @comp, @union, @status, @total, @rect, @fpres, NULL, NULL, @fpago, NULL, NULL, @balance, 0)
+                """, conn);
+            ins.Parameters.AddWithValue("@period", period);
+            ins.Parameters.AddWithValue("@comp", compId);
+            ins.Parameters.AddWithValue("@union", _unionId);
+            ins.Parameters.AddWithValue("@status", status);
+            ins.Parameters.AddWithValue("@total", total);
+            ins.Parameters.AddWithValue("@rect", rect > 0);
+            ins.Parameters.AddWithValue("@fpres", fpres);
+            ins.Parameters.AddWithValue("@fpago", fpago.HasValue ? fpago.Value : DBNull.Value);
+            ins.Parameters.AddWithValue("@balance", balance);
+            _registryByKey[key] = (int)ins.ExecuteScalar();
+            _rectByKey[key] = rect;
+            count++;
+        }
+        Log.Write($"Declaraciones: {count}");
+    }
+
+    private static int MapStatus(int estado, DateTime? fpago)
+    {
+        if (fpago.HasValue) return 5;                       // Paid
+        if (estado is 10 or 11 or 20 or 21) return 4;       // Rejected
+        return 2;                                            // Submitted
+    }
+
+    // ---------- DETALLES ----------
+    private static void Details()
+    {
+        Log.Section("DeclarationDetails: desde ddjj (bulk)");
+        // Empleados/empresas/asignaciones faltantes en ddjj pero no en maestros
+        EnsureMissingEntities();
+
+        using var src = Db.Open(Db.LegacyCs);
+        using var cmd = new SqlCommand("""
+            SELECT CUIL_STR, CUIT_STR, periodo, impo, impoaux, item2, rect FROM ddjj WHERE periodo <= GETDATE()
+            """, src) { CommandTimeout = 900 };
+        using var reader = cmd.ExecuteReader();
+
+        var dt = new DataTable();
+        dt.Columns.Add("RegistryId", typeof(int));
+        dt.Columns.Add("AssignmentId", typeof(int));
+        dt.Columns.Add("BaseSalary", typeof(decimal));
+        dt.Columns.Add("LawContribution", typeof(decimal));
+        dt.Columns.Add("MemberContribution", typeof(decimal));
+        dt.Columns.Add("TotalWithheld", typeof(decimal));
+
+        long total = 0;
+        using var target = Db.Open(Db.TargetCs);
+        while (reader.Read())
+        {
+            var cuil = Db.PadCuit(Db.Str(reader["CUIL_STR"]));
+            var cuit = Db.PadCuit(Db.Str(reader["CUIT_STR"]));
+            var periodo = Convert.ToDateTime(reader["periodo"]);
+            var rect = Convert.ToInt32(reader["rect"]);
+            if (cuil.Length == 0 || cuit.Length == 0) continue;
+            var regKey = cuit + "|" + periodo.ToString("yyyy-MM");
+            if (!_registryByKey.TryGetValue(regKey, out var regId)) continue;
+            if (_rectByKey.TryGetValue(regKey, out var cabRect) && rect != cabRect) continue;
+            var isVoluntary = Convert.ToBoolean(reader["item2"]);
+            var assKey = cuil + "|" + cuit;
+            if (!_assignmentByKey.TryGetValue(assKey, out var assId))
+            {
+                if (!TryCreateMissingAssignment(cuil, cuit, periodo, isVoluntary, out assId)) continue;
+            }
+            var baseSalary = Math.Round(Db.Dec(reader["impo"]), 2);
+            var aux = Db.Dec(reader["impoaux"]);
+            var baseTotal = Math.Round(baseSalary + Math.Round(aux, 2), 2);
+            var law = Math.Round(baseTotal * _lawPct / 100m, 2);
+            var member = isVoluntary ? Math.Round(baseTotal * _memberPct / 100m, 2) : 0m;
+            dt.Rows.Add(regId, assId, baseSalary, law, member, Math.Round(law + member, 2));
+            total++;
+            if (total % 50000 == 0)
+            {
+                Db.BulkInsert(target, "DeclarationDetails", dt);
+                Log.Write($"  detalles acumulados: {total}");
+                dt.Clear();
+            }
+        }
+        if (dt.Rows.Count > 0) Db.BulkInsert(target, "DeclarationDetails", dt);
+        Log.Write($"Detalles totales: {total}");
+    }
+
+    // Alinea TotalAmount/BalanceAmount de cabeceras con la suma real de sus detalles
+    private static void Finalize()
+    {
+        Log.Section("Finalize: TotalAmount y BalanceAmount = suma de detalles");
+        Db.Run(Db.TargetCs, """
+            UPDATE d
+            SET d.TotalAmount = ISNULL(x.s, 0),
+                d.BalanceAmount = CASE WHEN d.PaymentDate IS NOT NULL THEN 0 ELSE ISNULL(x.s, 0) END
+            FROM Declarations d
+            CROSS APPLY (SELECT ROUND(SUM(dt.TotalWithheld), 2) s FROM DeclarationDetails dt WHERE dt.RegistryId = d.Id) x
+            """, 900);
+        Log.Write("Finalize OK");
+    }
+
+    private static void EnsureMissingEntities()
+    {
+        Log.Write("Verificando maestros faltantes para detalles...");
+        // Empresas de ddjj no presentes
+        using var src = Db.Open(Db.LegacyCs);
+        using (var cmd = new SqlCommand(
+            "SELECT DISTINCT CUIT_STR FROM ddjj WHERE CUIT_STR NOT IN (SELECT MEEMP_CUIT_STR FROM fotos_.maeemp)", src) { CommandTimeout = 600 })
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+            {
+                var cuit = Db.PadCuit(Db.Str(r["CUIT_STR"]));
+                if (cuit.Length == 0 || _companyByCuit.ContainsKey(cuit)) continue;
+                using var conn = Db.Open(Db.TargetCs);
+                using var ins = new SqlCommand(
+                    "INSERT INTO Companies (BusinessName, Cuit, Address, Status, IsActive) OUTPUT INSERTED.Id VALUES (@name, @cuit, 'SIN DIRECCIÓN', 1, 1)", conn);
+                ins.Parameters.AddWithValue("@name", cuit);
+                ins.Parameters.AddWithValue("@cuit", cuit);
+                _companyByCuit[cuit] = (int)ins.ExecuteScalar();
+                Log.Write($"  Empresa faltante creada: {cuit}");
+            }
+        }
+        // Empleados de ddjj no presentes
+        using (var cmd = new SqlCommand(
+            "SELECT DISTINCT CUIL_STR FROM ddjj WHERE CUIL_STR NOT IN (SELECT MAESOC_CUIL_STR FROM fotos_.maesoc)", src) { CommandTimeout = 600 })
+        using (var r = cmd.ExecuteReader())
+        {
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r["CUIL_STR"]));
+                if (cuil.Length == 0 || _employeeByCuil.ContainsKey(cuil)) continue;
+                using var conn = Db.Open(Db.TargetCs);
+                using var ins = new SqlCommand(
+                    "INSERT INTO Employees (Dni, FullName, HireDate, Status) OUTPUT INSERTED.Id VALUES (@dni, @name, '1900-01-01', 5)", conn);
+                ins.Parameters.AddWithValue("@dni", cuil);
+                ins.Parameters.AddWithValue("@name", "SIN NOMBRE " + cuil);
+                _employeeByCuil[cuil] = (int)ins.ExecuteScalar();
+                Log.Write($"  Empleado faltante creado: {cuil}");
+            }
+        }
+    }
+
+    private static bool TryCreateMissingAssignment(string cuil, string cuit, DateTime fecha, bool isVoluntary, out int assId)
+    {
+        assId = 0;
+        if (!_employeeByCuil.TryGetValue(cuil, out var empId)) return false;
+        if (!_companyByCuit.TryGetValue(cuit, out var compId)) return false;
+        var key = cuil + "|" + cuit;
+        using var conn = Db.Open(Db.TargetCs);
+        using var ins = new SqlCommand("""
+            INSERT INTO Assignments (EmployeeId, CompanyId, UnionId, IsVoluntaryMember, CategoryCode, CreatedAt, IsActive, TerminationDate)
+            OUTPUT INSERTED.Id VALUES (@emp, @comp, @union, @vol, NULL, @fecha, 1, NULL)
+            """, conn);
+        ins.Parameters.AddWithValue("@emp", empId);
+        ins.Parameters.AddWithValue("@comp", compId);
+        ins.Parameters.AddWithValue("@union", _unionId);
+        ins.Parameters.AddWithValue("@vol", isVoluntary ? 1 : 0);
+        ins.Parameters.AddWithValue("@fecha", fecha);
+        assId = (int)ins.ExecuteScalar();
+        _assignmentByKey[key] = assId;
+        return true;
+    }
+
+    // ---------- RECONCILIACION ----------
+    private static void Reconcile()
+    {
+        Log.Section("Reconciliación destino vs legado");
+        var q = """
+            SELECT
+              (SELECT COUNT(*) FROM Provinces) provs,
+              (SELECT COUNT(*) FROM Cities) cities,
+              (SELECT COUNT(*) FROM Unions) unions,
+              (SELECT COUNT(*) FROM EmployeeCategories) cats,
+              (SELECT COUNT(*) FROM SalaryScales) scales,
+              (SELECT COUNT(*) FROM Companies) companies,
+              (SELECT COUNT(*) FROM Employees) employees,
+              (SELECT COUNT(*) FROM Assignments) assignments,
+              (SELECT COUNT(*) FROM AccountingStudios) studios,
+              (SELECT COUNT(*) FROM Declarations) declarations,
+              (SELECT COUNT(*) FROM DeclarationDetails) details,
+              (SELECT ROUND(SUM(TotalAmount),2) FROM Declarations) decl_amount,
+              (SELECT ROUND(SUM(TotalWithheld),2) FROM DeclarationDetails) detail_amount
+            """;
+        using var conn = Db.Open(Db.TargetCs);
+        using var cmd = new SqlCommand(q, conn);
+        using var r = cmd.ExecuteReader();
+        r.Read();
+        Log.Write($"Provincias: {r["provs"]}  Ciudades: {r["cities"]}  Sindicatos: {r["unions"]}");
+        Log.Write($"Categorías: {r["cats"]}  Escalas: {r["scales"]}  Empresas: {r["companies"]}");
+        Log.Write($"Empleados: {r["employees"]}  Asignaciones: {r["assignments"]}  Estudios: {r["studios"]}");
+        Log.Write($"Declaraciones: {r["declarations"]}  Detalles: {r["details"]}");
+        Log.Write($"Monto cabeceras: {r["decl_amount"]}  Monto detalles: {r["detail_amount"]}");
+    }
+
+    // ---------- HELPERS ----------
+    private static string Trunc(string s, int max) => s.Length <= max ? s : s[..max];
+    private static object NullIfEmpty(string s, int max) => s.Length == 0 ? DBNull.Value : Trunc(s, max);
+}

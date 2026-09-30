@@ -1,0 +1,6 @@
+@SIRGA.WebUI_HostAddress = http://localhost:5122
+
+GET {{SIRGA.WebUI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

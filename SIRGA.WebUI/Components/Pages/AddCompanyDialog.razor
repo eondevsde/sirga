@@ -1,0 +1,328 @@
+﻿@using SIRGA.Domain.Entities
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject UnionService UnionService
+
+<MudDialog>
+  <TitleContent>
+    <MudText Typo="Typo.h6">@(IsEdit ? "Editar Empresa" : "Registrar Nueva Empresa")</MudText>
+  </TitleContent>
+  <DialogContent>
+    <MudForm @ref="_form" @bind-IsValid="@_success">
+      <MudGrid>
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="CUIT" @bind-Value="_company.Cuit" Required="true" Variant="Variant.Outlined"
+                        Mask="@(new PatternMask("00-00000000-0"))" Validation="@ValidateCuitField" OnBlur="HandleCuitBlur" />
+        </MudItem>
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="Razón Social" @bind-Value="_company.BusinessName" Required="true"
+                        Variant="Variant.Outlined" />
+        </MudItem>
+        
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="Email de Contacto" @bind-Value="_company.ContactEmail" Required="true"
+                        Variant="Variant.Outlined" InputType="InputType.Email" />
+        </MudItem>
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="Teléfono" @bind-Value="_company.Phone" Variant="Variant.Outlined" />
+        </MudItem>
+
+        <MudItem xs="12">
+          <MudTextField T="string" Label="Dirección / Calle" @bind-Value="_company.Address" Required="true"
+                        Variant="Variant.Outlined" />
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+          <MudSelect T="int" Label="Provincia" Variant="Variant.Outlined" @bind-Value="_selectedProvinceId"
+                     Required="true" SelectedValuesChanged="OnProvinceChanged">
+            @foreach (var prov in _provinces)
+            {
+              <MudSelectItem Value="@prov.Id">@prov.Name</MudSelectItem>
+            }
+          </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+          <MudSelect T="int?" Label="Localidad" Variant="Variant.Outlined" @bind-Value="_company.CityId" Required="true"
+                     Disabled="@(!_cities.Any())">
+            @foreach (var city in _cities)
+            {
+              <MudSelectItem Value="(int?)city.Id">@city.Name (@city.ZipCode)</MudSelectItem>
+            }
+          </MudSelect>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="Persona de Referencia" @bind-Value="_company.ReferencePerson"
+                        Variant="Variant.Outlined" />
+        </MudItem>
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="Celular de Referencia" @bind-Value="_company.ReferencePhone"
+                        Variant="Variant.Outlined" />
+        </MudItem>
+
+        <MudItem xs="12">
+          <MudCheckBox T="bool" Label="La empresa tiene múltiples sucursales" @bind-Value="_hasBranches"
+                       Color="Color.Primary" />
+        </MudItem>
+
+        @if (_hasBranches)
+        {
+          <MudItem xs="12">
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+              Esta será la <b>Casa Central</b> (Sede Administrativa). Podrás añadir más puntos de venta luego.
+            </MudAlert>
+          </MudItem>
+          <MudItem xs="12">
+            <MudTextField T="string" Label="Nombre de esta Sede (Ej: Administración, Planta Principal)"
+                          @bind-Value="_company.BranchName" Required="true" Variant="Variant.Outlined" />
+          </MudItem>
+        }
+        else
+        {
+          <MudHidden Value="true">
+            <MudTextField T="string" @bind-Value="_company.BranchName" />
+          </MudHidden>
+        }
+
+
+        @if (!IsEdit)
+        {
+          <MudItem xs="12">
+            @if (_lookup != null)
+            {
+              @if (_lookup.AlreadyOwnedByCurrentStudio)
+              {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">
+                  Ya tienes esta empresa a cargo. No se puede volver a solicitar.
+                </MudAlert>
+              }
+              else if (_lookup.CuitExists && _lookup.OwnerStudioActive)
+              {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">
+                  Esta empresa ya pertenece al estudio contable '@(_lookup.OwnerStudioName)'. No puede darse de alta.
+                </MudAlert>
+              }
+              else if (_lookup.CuitExists)
+              {
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                  El CUIT ya está registrado (sin estudio a cargo). La solicitud se generará contra la empresa existente.
+                </MudAlert>
+              }
+              else if (_lookup.LegacyFound)
+              {
+                <MudAlert Severity="Severity.Success" Dense="true" Class="mb-2">
+                  CUIT verificado en los registros históricos del sindicato.
+                </MudAlert>
+              }
+              else
+              {
+                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
+                  Este CUIT no aparece en los registros históricos del sindicato. Verificá los datos antes de continuar.
+                </MudAlert>
+              }
+            }
+            <MudSelect T="int?" Label="Sindicato a Asociar" @bind-Value="_selectedUnionId" Required="true"
+                       Variant="Variant.Outlined">
+              @foreach (var u in _unions)
+              {
+                <MudSelectItem Value="(int?)u.Id">@u.Name</MudSelectItem>
+              }
+            </MudSelect>
+          </MudItem>
+        }
+      </MudGrid>
+    </MudForm>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(_processing || !_success || _blockSubmit)">
+      @if (_processing)
+      {
+        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+        <MudText Class="ms-2">Procesando...</MudText>
+      }
+      else
+      {
+        <MudText>@(IsEdit ? "Guardar Cambios" : "Registrar y Enviar Solicitud")</MudText>
+      }
+    </MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+  [Parameter] public Company? CompanyToEdit { get; set; }
+
+  private bool IsEdit => CompanyToEdit != null;
+  private Company _company = new() { BusinessName = "", Address = "", BranchName = "Sede Central" };
+  private bool _hasBranches;
+  private List<Company> _parentCompanies = new();
+  private MudForm _form = null!;
+  private bool _success;
+  private bool _processing;
+  private List<UnionDto> _unions = new();
+  private int? _selectedUnionId;
+  
+  private List<Province> _provinces = new();
+  private List<City> _cities = new();
+  private int _selectedProvinceId;
+  private CompanyLookupDto? _lookup;
+
+  [Parameter] public int? CurrentStudioId { get; set; }
+  [Parameter] public string? CurrentUsername { get; set; }
+
+  private bool _blockSubmit =>
+      _lookup is { AlreadyOwnedByCurrentStudio: true } or { CuitExists: true, OwnerStudioActive: true };
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      _unions = await Http.GetFromJsonAsync<List<UnionDto>>("api/unions") ?? new();
+      _provinces = await UnionService.GetProvincesAsync();
+      
+      var allCompanies = await Http.GetFromJsonAsync<List<Company>>("api/companies") ?? new();
+      _parentCompanies = allCompanies.Where(c => c.ParentCompanyId == null).ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar datos iniciales: " + ex.Message, Severity.Error);
+    }
+
+    if (IsEdit && CompanyToEdit != null)
+    {
+      _company = new Company
+      {
+        Id = CompanyToEdit.Id,
+        Cuit = CompanyToEdit.Cuit,
+        BusinessName = CompanyToEdit.BusinessName,
+        CityId = CompanyToEdit.CityId,
+        BranchName = CompanyToEdit.BranchName,
+        Address = CompanyToEdit.Address,
+        Phone = CompanyToEdit.Phone,
+        ReferencePerson = CompanyToEdit.ReferencePerson,
+        ReferencePhone = CompanyToEdit.ReferencePhone,
+        ContactEmail = CompanyToEdit.ContactEmail,
+        AccountingStudioId = CompanyToEdit.AccountingStudioId,
+        ParentCompanyId = CompanyToEdit.ParentCompanyId
+      };
+      
+      _hasBranches = _company.ParentCompanyId.HasValue;
+
+      if (_company.CityId.HasValue)
+      {
+        // Intentar pre-cargar provincia si editamos
+        var cities = await UnionService.GetCitiesAsync();
+        var city = cities.FirstOrDefault(c => c.Id == _company.CityId);
+        if (city != null)
+        {
+          _selectedProvinceId = city.ProvinceId;
+          _cities = await UnionService.GetCitiesByProvinceAsync(_selectedProvinceId);
+        }
+      }
+    }
+  }
+
+  private void OnParentCompanyChanged(int? parentId)
+  {
+    _company.ParentCompanyId = parentId;
+    if (parentId.HasValue)
+    {
+      var parent = _parentCompanies.FirstOrDefault(c => c.Id == parentId.Value);
+      if (parent != null)
+      {
+        _company.Cuit = parent.Cuit;
+        _company.BusinessName = parent.BusinessName;
+      }
+    }
+  }
+
+  private string? ValidateCuitField(string value)
+  {
+    if (string.IsNullOrWhiteSpace(value)) return null;
+    var (ok, error) = CompanyValidationService.ValidateCuit(value);
+    return ok ? null : error;
+  }
+
+  private async Task HandleCuitBlur()
+  {
+    if (IsEdit) return;
+
+    var norm = CompanyValidationService.NormalizeCuit(_company.Cuit);
+    if (norm.Length != 11) return;
+
+    _lookup = await Http.GetFromJsonAsync<CompanyLookupDto>(
+        $"api/companies/lookup?cuit={Uri.EscapeDataString(norm)}&studioId={CurrentStudioId}");
+    if (_lookup == null) return;
+
+    // Pre-sugerir razón social: empresa existente sin dueño, o CUIT verificado en el legado
+    if (_lookup.CuitExists && !_lookup.OwnerStudioActive && !_lookup.AlreadyOwnedByCurrentStudio
+        && !string.IsNullOrEmpty(_lookup.ExistingBusinessName) && string.IsNullOrWhiteSpace(_company.BusinessName))
+    {
+      _company.BusinessName = _lookup.ExistingBusinessName;
+    }
+    else if (!_lookup.CuitExists && _lookup.LegacyFound
+        && !string.IsNullOrEmpty(_lookup.LegacyBusinessName) && string.IsNullOrWhiteSpace(_company.BusinessName))
+    {
+      _company.BusinessName = _lookup.LegacyBusinessName;
+    }
+
+    StateHasChanged();
+  }
+
+  private async Task OnProvinceChanged()
+  {
+    _cities = await UnionService.GetCitiesByProvinceAsync(_selectedProvinceId);
+    _company.CityId = null;
+    StateHasChanged();
+  }
+
+  private void Cancel() => MudDialog.Cancel();
+
+  private async Task Submit()
+  {
+    await _form.Validate();
+    if (!_form.IsValid) return;
+
+    _processing = true;
+    try
+    {
+      HttpResponseMessage response;
+      if (IsEdit)
+      {
+        var editUrl = $"api/companies/{_company.Id}";
+        if (!string.IsNullOrEmpty(CurrentUsername))
+          editUrl += $"?username={Uri.EscapeDataString(CurrentUsername)}";
+        response = await Http.PutAsJsonAsync(editUrl, _company);
+      }
+      else
+      {
+        var url = $"api/companies?studioId={CurrentStudioId}&unionId={_selectedUnionId}";
+        response = await Http.PostAsJsonAsync(url, _company);
+      }
+
+      if (response.IsSuccessStatusCode)
+      {
+        Snackbar.Add(IsEdit ? "Empresa actualizada exitosamente" : "Empresa registrada. Solicitud enviada al Sindicato.",
+Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+      }
+      else
+      {
+        var error = await response.Content.ReadAsStringAsync();
+        Snackbar.Add("Error: " + error, Severity.Error);
+      }
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al procesar: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _processing = false;
+    }
+  }
+}

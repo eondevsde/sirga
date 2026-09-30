@@ -1,0 +1,73 @@
+@using SIRGA.Application.Interfaces
+@inject IInspectionService InspectionService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+  <DialogContent>
+    <MudForm @ref="_form">
+      <MudSelect T="string" Label="Tipo de Documento" @bind-Value="_docType" Required="true">
+        <MudSelectItem Value="@("Demanda")">Escrito de Demanda</MudSelectItem>
+        <MudSelectItem Value="@("Oficio")">Oficio Judicial</MudSelectItem>
+        <MudSelectItem Value="@("Notificacion")">Cédula de Notificación</MudSelectItem>
+        <MudSelectItem Value="@("Otros")">Otros Adjuntos</MudSelectItem>
+      </MudSelect>
+
+      <MudFileUpload T="IBrowserFile" OnFilesChanged="OnFilesChanged" Class="mt-4">
+        <MudButton HtmlTag="label" Variant="Variant.Filled" Color="Color.Info"
+                   StartIcon="@Icons.Material.Filled.CloudUpload">
+          Seleccionar Archivo
+        </MudButton>
+      </MudFileUpload>
+
+      @if (_file != null)
+      {
+        <MudText Class="mt-2" Typo="Typo.body2">Archivo: <b>@_file.Name</b> (@(_file.Size / 1024) KB)</MudText>
+      }
+    </MudForm>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+               Disabled="@(_file == null || string.IsNullOrEmpty(_docType))">
+      Subir Documento
+    </MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+  [Parameter] public int NoticeId { get; set; }
+
+  private MudForm _form = null!;
+  private string _docType = "";
+  private IBrowserFile? _file;
+
+  private void Cancel() => MudDialog.Cancel();
+
+  private void OnFilesChanged(InputFileChangeEventArgs e)
+  {
+    _file = e.File;
+  }
+
+  private async Task Submit()
+  {
+    if (_file == null) return;
+
+    try
+    {
+      // Leer archivo a byte[]
+      var buffer = new byte[_file.Size];
+      using var stream = _file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024); // 10MB max
+      await stream.ReadAsync(buffer);
+
+      await InspectionService.UploadNoticeAttachmentAsync(NoticeId, _file.Name, _docType, buffer);
+            
+      Snackbar.Add("Documento adjuntado exitosamente", Severity.Success);
+      MudDialog.Close(DialogResult.Ok(true));
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add($"Error al subir: {ex.Message}", Severity.Error);
+    }
+  }
+}

@@ -1,0 +1,236 @@
+@page "/union/inspection"
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@inject InspectionService InspectionService
+@inject CompanyService CompanyService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>SIRGA - Inspección y Actas de Oficio</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">Gestión de Inspecciones y Actas de Oficio</MudText>
+
+<MudGrid>
+  <MudItem xs="12" md="4">
+    <MudCard Elevation="2">
+      <MudCardHeader>
+        <CardHeaderContent>
+          <MudText Typo="Typo.h6">Generar Nueva Acta</MudText>
+        </CardHeaderContent>
+      </MudCardHeader>
+      <MudCardContent>
+        <MudAutocomplete T="Company" Label="Buscar Empresa" @bind-Value="_selectedCompany" SearchFunc="@SearchCompanies"
+                         ToStringFunc="@(c => c == null ? "" : $"{c.BusinessName} ({c.Cuit})")" Variant="Variant.Outlined"
+                         Margin="Margin.Dense" Class="mb-4" />
+
+        @if (_selectedCompany != null)
+        {
+          <MudText Typo="Typo.subtitle2" Class="mb-2">Seleccionar Periodos a Reclamar:</MudText>
+          <MudPaper Style="max-height: 200px; overflow-y: auto;" Outlined="true" Class="pa-2 mb-4">
+            @foreach (var period in _availablePeriods)
+            {
+              <MudCheckBox T="bool" Label="@period" Dense="true" Value="@(_selectedPeriods.Contains(period))"
+                           ValueChanged="@((val) => TogglePeriod(period, val))" />
+            }
+          </MudPaper>
+
+          <MudTextField T="string" Label="Observaciones / Motivo" @bind-Value="_observations" Variant="Variant.Outlined"
+                        Lines="3" Class="mb-4" />
+
+          <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="GenerateAct"
+                     Disabled="@(_selectedPeriods.Count == 0 || _submitting)">
+            @if (_submitting)
+            {
+              <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Generar Acta de Oficio
+          </MudButton>
+        }
+      </MudCardContent>
+    </MudCard>
+  </MudItem>
+
+  <MudItem xs="12" md="8">
+    <MudTable Items="@_recentActs" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="2" Loading="@_loading">
+      <ToolBarContent>
+        <MudText Typo="Typo.h6">Actas y Convenios</MudText>
+        <MudSpacer />
+      </ToolBarContent>
+      <HeaderContent>
+        <MudTh>Nro. Acta / Plan</MudTh>
+        <MudTh>Empresa</MudTh>
+        <MudTh>Fecha</MudTh>
+        <MudTh>Estado</MudTh>
+        <MudTh>Acciones</MudTh>
+      </HeaderContent>
+      <RowTemplate>
+        <MudTd DataLabel="Nro. Acta">@context.ActNumber</MudTd>
+        <MudTd DataLabel="Empresa">@context.Company?.BusinessName</MudTd>
+        <MudTd DataLabel="Fecha">@context.IssueDate.ToShortDateString()</MudTd>
+        <MudTd DataLabel="Estado">
+          <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip>
+        </MudTd>
+        <MudTd>
+          <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" Size="Size.Small"
+                         Title="Descargar Acta" Href="@($"/api/report/inspection/{context.Id}")" target="_blank" />
+          
+          <MudIconButton Icon="@Icons.Material.Filled.DirectionsRun" Color="Color.Warning" Size="Size.Small"
+                         Title="Registrar Visita" OnClick="@(() => OpenRegisterVisitDialog(context))" />
+
+          @if (context.Status == InspectionActStatus.Pending)
+          {
+            <MudIconButton Icon="@Icons.Material.Filled.Handshake" Color="Color.Primary" Size="Size.Small"
+                           Title="Crear Convenio" OnClick="@(() => OpenCreatePlanDialog(context))" />
+          }
+          
+          @if (context.Status != InspectionActStatus.Legal && context.Status != InspectionActStatus.Paid)
+          {
+            <MudIconButton Icon="@Icons.Material.Filled.Gavel" Color="Color.Error" Size="Size.Small"
+                           Title="Pasar a Legales" OnClick="@(() => OpenLegalNoticeDialog(context))" />
+          }
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+  </MudItem>
+</MudGrid>
+
+@code {
+  private Company? _selectedCompany;
+  private List<string> _availablePeriods = new();
+  private List<string> _selectedPeriods = new();
+  private string _observations = "";
+  private bool _submitting = false;
+  private bool _loading = true;
+  private IEnumerable<InspectionAct> _recentActs = new List<InspectionAct>();
+
+  protected override async Task OnInitializedAsync()
+  {
+    // Generar lista de últimos 12 meses para selección rápida
+    var now = DateTime.Now;
+    for (int i = 1; i <= 24; i++)
+    {
+      var date = now.AddMonths(-i);
+      _availablePeriods.Add(date.ToString("yyyy-MM"));
+    }
+    await LoadActs();
+  }
+
+  private async Task LoadActs()
+  {
+    _loading = true;
+    try
+    {
+      // Usamos el sindicato ID 1 por defecto para el prototipo
+      _recentActs = await InspectionService.GetActsByUnionAsync(1);
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private async Task<IEnumerable<Company>> SearchCompanies(string value, CancellationToken token)
+  {
+    var all = await CompanyService.GetAllAsync();
+    if (string.IsNullOrEmpty(value)) return all;
+    return all.Where(x => x.BusinessName.Contains(value, StringComparison.OrdinalIgnoreCase) || x.Cuit.Contains(value));
+  }
+
+  private void TogglePeriod(string period, bool selected)
+  {
+    if (selected) _selectedPeriods.Add(period);
+    else _selectedPeriods.Remove(period);
+  }
+
+  private async Task GenerateAct()
+  {
+    if (_selectedCompany == null) return;
+    _submitting = true;
+    try
+    {
+      await InspectionService.CreateActOficioAsync(_selectedCompany.Id, 1, _selectedPeriods, _observations);
+      Snackbar.Add("Acta de Oficio generada exitosamente", Severity.Success);
+      _selectedCompany = null;
+      _selectedPeriods.Clear();
+      _observations = "";
+      await LoadActs();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+    }
+    finally
+    {
+      _submitting = false;
+    }
+  }
+
+  private async Task OpenCreatePlanDialog(InspectionAct act)
+  {
+    var parameters = new DialogParameters { ["ActNumber"] = act.ActNumber };
+    var dialog = await DialogService.ShowAsync<CreatePlanDialog>("Nuevo Convenio de Pago", parameters);
+    var dialogResult = await dialog.Result;
+
+    if (dialogResult != null && !dialogResult.Canceled && dialogResult.Data != null)
+    {
+      try
+      {
+        dynamic data = dialogResult.Data;
+        await InspectionService.CreatePaymentPlanAsync(act.Id, (int)data.Installments, (decimal)data.DownPayment,
+(decimal)data.InterestRate);
+        Snackbar.Add("Convenio de pago generado exitosamente", Severity.Success);
+        await LoadActs();
+      }
+      catch (Exception ex)
+      {
+        Snackbar.Add($"Error al crear plan: {ex.Message}", Severity.Error);
+      }
+    }
+  }
+
+  private async Task OpenRegisterVisitDialog(InspectionAct act)
+  {
+    var parameters = new DialogParameters { ["ActId"] = act.Id, ["ActNumber"] = act.ActNumber };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+    var dialog = await DialogService.ShowAsync<RegisterVisitDialog>("Registrar Visita de Inspección", parameters, options);
+    var result = await dialog.Result;
+
+    if (result != null && !result.Canceled)
+    {
+      await LoadActs();
+      Snackbar.Add("Visita registrada", Severity.Success);
+    }
+  }
+
+  private async Task OpenLegalNoticeDialog(InspectionAct act)
+  {
+    bool? confirm = await DialogService.ShowAsync<MudBlazor.MudMessageBox>("Confirmar Pase a Legales", new DialogParameters
+{ { "Title", "Confirmar Pase a Legales" }, { "Message", "¿Desea dar inicio a la instancia prejudicial para esta empresa? El acta cambiará su estado y se emitirá una notificación de aviso." }, { "YesText", "Sí, Iniciar" }, { "CancelText",
+"Cancelar" } }) is not null;
+    
+    if (confirm == true)
+    {
+      try
+      {
+        await InspectionService.CreatePrejudicialNoticeAsync(act.Id, "Iniciado por falta de regularización tras visitas.");
+        Snackbar.Add("Causa enviada a Legales (Prejudicial)", Severity.Error);
+        await LoadActs();
+      }
+      catch (Exception ex)
+      {
+        Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+      }
+    }
+  }
+
+  private Color GetStatusColor(InspectionActStatus status) => status switch
+  {
+    InspectionActStatus.Pending => Color.Default,
+    InspectionActStatus.Notified => Color.Info,
+    InspectionActStatus.InCovenant => Color.Success,
+    InspectionActStatus.Paid => Color.Success,
+    InspectionActStatus.Cancelled => Color.Error,
+    InspectionActStatus.Legal => Color.Dark,
+    _ => Color.Default
+  };
+}

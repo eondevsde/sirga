@@ -1,0 +1,175 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using SIRGA.Application.Services
+@using SIRGA.Application.DTOs
+@inject AuthenticationStateProvider AuthStateProvider
+@inject AccountingStudioService StudioService
+@inject UnionService UnionService
+@inject NavigationManager NavManager
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_currentTheme" @bind-IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider FullWidth="true" MaxWidth="MaxWidth.Small" CloseButton="true" />
+<MudSnackbarProvider />
+
+<MudLayout>
+  <MudAppBar Elevation="4" Color="Color.Primary" Dense="false">
+    <AuthorizeView Context="appBarAuth">
+      <Authorized>
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@((e) => DrawerToggle())" />
+      </Authorized>
+    </AuthorizeView>
+    <MudText Typo="Typo.h5" Class="ml-3 font-weight-bold">SIRGA</MudText>
+    @if (!string.IsNullOrEmpty(_displayName))
+    {
+      <MudDivider Vertical="true" FlexItem="true" DividerType="DividerType.Middle" Class="mx-4 my-3"
+                  Style="background-color: rgba(255,255,255,0.3); width: 2px;" />
+      <MudText Typo="Typo.h6" Class="font-weight-light">@_displayName</MudText>
+    }
+    <MudSpacer />
+    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+      <MudTooltip Text="Cambiar Tema">
+        <MudIconButton Icon="@(_isDarkMode? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit" OnClick="@ToggleDarkMode" />
+      </MudTooltip>
+      <AuthorizeView Context="appBarMenu">
+        <Authorized>
+          <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight"
+                   TransformOrigin="Origin.TopRight">
+            <MudMenuItem href="/profile">Mi Perfil</MudMenuItem>
+            <MudMenuItem href="/settings">Configuración</MudMenuItem>
+            <MudDivider />
+            <MudMenuItem href="/logout">Cerrar Sesión</MudMenuItem>
+          </MudMenu>
+        </Authorized>
+        <NotAuthorized>
+          <MudButton Variant="Variant.Text" Color="Color.Inherit" href="/login">Iniciar Sesión</MudButton>
+        </NotAuthorized>
+      </AuthorizeView>
+    </MudStack>
+  </MudAppBar>
+
+  <AuthorizeView Context="drawerAuth">
+    <Authorized>
+      <AuthorizeView Roles="EstudioContable" Context="studioAuth">
+        <Authorized>
+          @* Lógica de bloqueo para estudios no aprobados *@
+          @if (_isStudioChecked && !_isApproved && !NavManager.Uri.Contains("/studio-pending"))
+          {
+            NavManager.NavigateTo("/studio-pending");
+          }
+        </Authorized>
+      </AuthorizeView>
+
+      <MudDrawer @bind-Open="_drawerOpen" Elevation="1" Variant="@DrawerVariant.Responsive"
+                 ClipMode="DrawerClipMode.Always">
+        <MudDrawerHeader Class="pa-4">
+          <MudText Typo="Typo.h6" Class="mud-text-secondary">Menú Principal</MudText>
+        </MudDrawerHeader>
+        <NavMenu />
+      </MudDrawer>
+    </Authorized>
+  </AuthorizeView>
+
+  <MudMainContent>
+    <AuthorizeView>
+      <Authorized>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-8 pt-4">
+          @Body
+        </MudContainer>
+      </Authorized>
+      <NotAuthorized>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-8 pt-4">
+          @Body
+        </MudContainer>
+      </NotAuthorized>
+    </AuthorizeView>
+  </MudMainContent>
+</MudLayout>
+
+@code {
+  bool _drawerOpen = true;
+  bool _isDarkMode = false;
+  
+  private MudTheme _currentTheme = new MudTheme()
+  {
+    PaletteLight = new PaletteLight()
+    {
+      Primary = "#1976D2",
+      Secondary = "#5C2D91",
+      Background = "#F8F9FA",
+      AppbarBackground = "#1976D2",
+      DrawerBackground = "#FFFFFF",
+      Surface = "#FFFFFF",
+      TextPrimary = "#2C3E50",
+      ActionDefault = "#546E7A",
+      AppbarText = "#FFFFFF"
+    },
+    PaletteDark = new PaletteDark()
+    {
+      Primary = "#90CAF9",
+      Background = "#121212",
+      Surface = "#1E1E1E",
+      AppbarBackground = "#1E1E1E",
+      DrawerBackground = "#1E1E1E",
+      TextPrimary = "#E0E0E0"
+    },
+    Typography = new Typography()
+    {
+      Default = new DefaultTypography() { FontFamily = new[] { "Inter", "Roboto", "Helvetica", "Arial", "sans-serif" } },
+      H4 = new H4Typography() { FontWeight = "700", FontSize = "2rem" },
+      H6 = new H6Typography() { FontWeight = "600" }
+    },
+    LayoutProperties = new LayoutProperties()
+    {
+      DefaultBorderRadius = "12px",
+      AppbarHeight = "64px"
+    }
+  };
+
+  void DrawerToggle()
+  {
+    _drawerOpen = !_drawerOpen;
+  }
+
+  void ToggleDarkMode()
+  {
+    _isDarkMode = !_isDarkMode;
+  }
+
+  private bool _isApproved = false;
+  private bool _isStudioChecked = false;
+  private string? _displayName;
+
+  protected override async Task OnInitializedAsync()
+  {
+    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+    var user = authState.User;
+
+    if (user.Identity?.IsAuthenticated == true)
+    {
+      if (user.IsInRole("EstudioContable"))
+      {
+        var studio = await StudioService.GetByUsernameAsync(user.Identity.Name!);
+        _isApproved = studio?.IsApproved ?? false;
+        _isStudioChecked = true;
+        _displayName = studio?.Name;
+            
+        if (!_isApproved && !NavManager.Uri.Contains("/studio-pending"))
+        {
+          NavManager.NavigateTo("/studio-pending");
+        }
+      }
+      else if (user.IsInRole("Sindicato"))
+      {
+        var union = await UnionService.GetByUsernameAsync(user.Identity.Name!);
+        _displayName = union?.Name;
+      }
+      else if (user.IsInRole("Admin"))
+      {
+        _displayName = "Administración Central";
+      }
+    }
+  }
+}

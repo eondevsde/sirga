@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="SIRGA.Application/SIRGA.Application.csproj" />
+  <Project Path="SIRGA.Domain/SIRGA.Domain.csproj" />
+  <Project Path="SIRGA.Infrastructure/SIRGA.Infrastructure.csproj" />
+</Solution>

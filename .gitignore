@@ -1,0 +1,88 @@
+# -------------------------
+# .NET / Visual Studio
+# -------------------------
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+build/
+bld/
+[Ll]og/
+[Ll]ogs/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.tlog
+*.binlog
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.rsuser
+*.userprefs
+*.tmp
+*.svclog
+*.coverage
+*.coveragexml
+TestResults/
+[Tt]est[Rr]esult*/
+.vs/
+.vscode/
+.idea/
+*.DotSettings.user
+
+# -------------------------
+# NuGet
+# -------------------------
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+packages/
+!packages/build/
+.nuget/
+
+# -------------------------
+# Publicación / despliegue (artefactos generados)
+# -------------------------
+publish/
+publish-migration/
+PublishProfiles/
+*.pubxml
+*.pubxml.user
+
+# -------------------------
+# Respaldos y logs del proyecto
+# -------------------------
+migracion_logs/
+*.log
+*.bak
+*.bak2
+*.trn
+*.mdf
+*.ldf
+
+# -------------------------
+# Secretos y configuración local
+# -------------------------
+appsettings.*.local.json
+secrets.json
+*.secrets.json
+.env
+.env.*
+
+# -------------------------
+# Sistema operativo
+# -------------------------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+.DS_Store

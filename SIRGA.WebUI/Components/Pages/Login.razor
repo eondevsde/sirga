@@ -1,0 +1,93 @@
+@page "/login"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Antiforgery
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@attribute [RequireAntiforgeryToken]
+
+<MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="d-flex align-center justify-center min-vh-100 mt-16">
+  <MudCard Elevation="8" Class="pa-10 rounded-xl" Style="width: 100%; max-width: 450px;">
+    <MudCardHeader Class="flex-column align-center px-0 pt-0">
+      <MudIcon Icon="@Icons.Material.Filled.Security" Color="Color.Primary" Style="font-size: 3rem;" Class="mb-4" />
+      <MudText Typo="Typo.h4" Align="Align.Center" Class="font-weight-bold">SIRGA</MudText>
+      <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary">Sistema de Recaudación</MudText>
+    </MudCardHeader>
+    <MudCardContent>
+      <form action="account/login" method="post">
+        <AntiforgeryToken />
+        <MudTextField Label="Correo Electrónico" Variant="Variant.Outlined" @bind-Value="_model.Email" Name="email"
+                      InputType="InputType.Email" Class="mb-4" Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Email" Required="true" />
+                
+        <MudTextField Label="Contraseña" Variant="Variant.Outlined" @bind-Value="_model.Password" Name="password"
+                      InputType="InputType.Password" Class="mb-4" Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Lock" Required="true" />
+
+        <div class="d-flex align-center justify-space-between mb-6">
+          <MudCheckBox T="bool" @bind-Value="_model.RememberMe" Name="rememberMe" Label="Recordarme"
+                       Color="Color.Primary" Dense="true" />
+          <MudLink href="/forgot-password" Color="Color.Primary" Typo="Typo.body2">¿Olvidaste tu contraseña?</MudLink>
+        </div>
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                   Size="Size.Large" Disabled="_loading" Class="rounded-pill py-3">
+          @if (_loading)
+          {
+            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+            <MudText Class="ms-2">Iniciando...</MudText>
+          }
+          else
+          {
+            <MudText>Entrar</MudText>
+          }
+        </MudButton>
+      </form>
+    </MudCardContent>
+    <MudCardActions Class="justify-center flex-column">
+      <div class="d-flex align-center">
+        <MudText Typo="Typo.body2">¿Estudio Contable?</MudText>
+        <MudLink href="/register" Class="ml-2 font-weight-bold">Regístrate</MudLink>
+      </div>
+      <div class="d-flex align-center mt-2">
+        <MudText Typo="Typo.body2">¿Eres un Sindicato?</MudText>
+        <MudLink href="/subscribe" Class="ml-2 font-weight-bold" Color="Color.Secondary">Solicitar SIRGA</MudLink>
+      </div>
+    </MudCardActions>
+  </MudCard>
+</MudContainer>
+
+@code {
+  private LoginModel _model = new();
+  private bool _loading = false;
+
+  [SupplyParameterFromQuery]
+  public string? Error { get; set; }
+
+  [SupplyParameterFromQuery]
+  public string? Email { get; set; }
+
+  protected override void OnInitialized()
+  {
+    if (!string.IsNullOrEmpty(Email)) _model.Email = Email;
+    if (Error == "InvalidCredentials")
+    {
+      Snackbar.Add("Credenciales inválidas.", Severity.Error);
+    }
+    else if (Error == "NotApproved")
+    {
+      Snackbar.Add("Su cuenta de estudio contable aún no ha sido aprobada por un administrador.", Severity.Warning);
+    }
+  }
+
+  public class LoginModel
+  {
+    [Required(ErrorMessage = "El email es obligatorio")]
+    [EmailAddress(ErrorMessage = "Email inválido")]
+    public string Email { get; set; } = "";
+
+    [Required(ErrorMessage = "La contraseña es obligatoria")]
+    public string Password { get; set; } = "";
+
+    public bool RememberMe { get; set; }
+  }
+}
