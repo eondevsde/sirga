@@ -31,7 +31,7 @@ SIRGA.Application     → 16 servicios con la lógica de negocio + DTOs.
 SIRGA.Infrastructure  → EF Core (persistencia), UnitOfWork + Repository, MercadoPago,
                         Email SMTP, Excel (ClosedXML), Migrations, DbInitializer.
 SIRGA.WebUI           → Blazor Server + MudBlazor + controladores API + middlewares.
-SIRGA.Tests           → xUnit (89 tests): cálculos financieros + reglas de dominio.
+SIRGA.Tests           → xUnit (96 tests): cálculos financieros + reglas de dominio + capa de servicios.
 ```
 
 > ✅ `SIRGA.slnx` ya referencia los 6 proyectos (Domain, Application, Infrastructure, WebUI, Tests y Migration): `dotnet build SIRGA.slnx` compila todo.
