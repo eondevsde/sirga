@@ -69,10 +69,14 @@ else
       <MudTd DataLabel="CUIT">@context.CompanyCuit</MudTd>
       <MudTd DataLabel="Motivo">@context.Reason</MudTd>
       <MudTd DataLabel="Acciones">
-        <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
-                       OnClick="@(() => ResolveRequest(context, true))" Tooltip="Aprobar renuncia" />
-        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
-                       OnClick="@(() => ResolveRequest(context, false))" Tooltip="Rechazar renuncia" />
+        <MudTooltip Text="Aprobar renuncia">
+          <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                         OnClick="@(() => ResolveRequest(context, true))" />
+        </MudTooltip>
+        <MudTooltip Text="Rechazar renuncia">
+          <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
+                         OnClick="@(() => ResolveRequest(context, false))" />
+        </MudTooltip>
       </MudTd>
     </RowTemplate>
   </MudTable>

@@ -18,7 +18,7 @@
   <MudItem xs="12" sm="3">
     <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center h-100"
               Style="cursor: pointer; background-color: var(--mud-palette-info);"
-              OnClick="@(() => Navigation.NavigateTo("/admin/studios-approval"))">
+              @onclick="@(() => Navigation.NavigateTo("/admin/studios-approval"))">
       <MudText Typo="Typo.h6">Estudios Pendientes</MudText>
       <MudText Typo="Typo.h3">@_pendingStudiosCount</MudText>
       <MudText Typo="Typo.caption">Nuevos registros</MudText>
@@ -27,7 +27,7 @@
   <MudItem xs="12" sm="3">
     <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center h-100"
               Style="cursor: pointer; background-color: var(--mud-palette-warning);"
-              OnClick="@(() => Navigation.NavigateTo("/association-requests"))">
+              @onclick="@(() => Navigation.NavigateTo("/association-requests"))">
       <MudText Typo="Typo.h6">Vinculaciones</MudText>
       <MudText Typo="Typo.h3">@_pendingAssociationsCount</MudText>
       <MudText Typo="Typo.caption">Pendientes de aprobación</MudText>
@@ -52,7 +52,7 @@
   <MudItem xs="12" sm="3">
     <MudPaper Elevation="2" Class="pa-4 d-flex flex-column align-center justify-center h-100"
               Style="cursor: pointer; background-color: var(--mud-palette-error-lighten);"
-              OnClick="@(() => Navigation.NavigateTo("/sindicato/renuncias"))">
+              @onclick="@(() => Navigation.NavigateTo("/sindicato/renuncias"))">
       <MudText Typo="Typo.h6">Renuncias de Socios</MudText>
       <MudText Typo="Typo.h3">@_pendingResignationsCount</MudText>
       <MudText Typo="Typo.caption">Pendientes de aprobación</MudText>

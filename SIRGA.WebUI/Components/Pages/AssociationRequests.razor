@@ -66,10 +66,14 @@ else
       <MudTd>
         @if (context.Status == RequestStatus.Pending)
         {
-          <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
-                         OnClick="@(() => ProcessRequest(context.Id, true))" Tooltip="Aprobar" />
-          <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
-                         OnClick="@(() => ProcessRequest(context.Id, false))" Tooltip="Rechazar" />
+          <MudTooltip Text="Aprobar">
+            <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                           OnClick="@(() => ProcessRequest(context.Id, true))" />
+          </MudTooltip>
+          <MudTooltip Text="Rechazar">
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
+                           OnClick="@(() => ProcessRequest(context.Id, false))" />
+          </MudTooltip>
         }
         else
         {

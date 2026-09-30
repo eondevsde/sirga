@@ -39,13 +39,13 @@
       </MudTd>
       <MudTd DataLabel="Acciones">
         <MudIconButton Icon="@Icons.Material.Filled.CloudUpload" Color="Color.Primary"
-                       OnClick="@(() => OpenUploadDialog(context))" Title="Subir Documento" />
+                       OnClick="@(() => OpenUploadDialog(context))" title="Subir Documento" />
         <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info"
-                       OnClick="@(() => ViewAttachments(context))" Title="Ver Documentos" />
+                       OnClick="@(() => ViewAttachments(context))" title="Ver Documentos" />
         @if (!context.IsJudicial)
         {
           <MudIconButton Icon="@Icons.Material.Filled.Gavel" Color="Color.Secondary"
-                         OnClick="@(() => PromoteToJudicial(context))" Title="Pasar a Judicial" />
+                         OnClick="@(() => PromoteToJudicial(context))" title="Pasar a Judicial" />
         }
       </MudTd>
     </RowTemplate>

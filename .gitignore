@@ -78,6 +78,11 @@ secrets.json
 .env.*
 
 # -------------------------
+# Herramientas temporales del agente
+# -------------------------
+.dsh-tools/
+
+# -------------------------
 # Sistema operativo
 # -------------------------
 Thumbs.db

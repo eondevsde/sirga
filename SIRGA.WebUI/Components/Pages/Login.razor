@@ -15,16 +15,16 @@
     <MudCardContent>
       <form action="account/login" method="post">
         <AntiforgeryToken />
-        <MudTextField Label="Correo Electrónico" Variant="Variant.Outlined" @bind-Value="_model.Email" Name="email"
+        <MudTextField Label="Correo Electrónico" Variant="Variant.Outlined" @bind-Value="_model.Email" name="email"
                       InputType="InputType.Email" Class="mb-4" Adornment="Adornment.Start"
                       AdornmentIcon="@Icons.Material.Filled.Email" Required="true" />
                 
-        <MudTextField Label="Contraseña" Variant="Variant.Outlined" @bind-Value="_model.Password" Name="password"
+        <MudTextField Label="Contraseña" Variant="Variant.Outlined" @bind-Value="_model.Password" name="password"
                       InputType="InputType.Password" Class="mb-4" Adornment="Adornment.Start"
                       AdornmentIcon="@Icons.Material.Filled.Lock" Required="true" />
 
         <div class="d-flex align-center justify-space-between mb-6">
-          <MudCheckBox T="bool" @bind-Value="_model.RememberMe" Name="rememberMe" Label="Recordarme"
+          <MudCheckBox T="bool" @bind-Value="_model.RememberMe" name="rememberMe" Label="Recordarme"
                        Color="Color.Primary" Dense="true" />
           <MudLink href="/forgot-password" Color="Color.Primary" Typo="Typo.body2">¿Olvidaste tu contraseña?</MudLink>
         </div>

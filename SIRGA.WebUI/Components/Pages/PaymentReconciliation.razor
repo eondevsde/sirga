@@ -9,7 +9,7 @@
 
 <MudText Typo="Typo.h4" Class="mb-6">Conciliación de Pagos</MudText>
 
-<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-6">
   <MudTabPanel Text="Pagos Recibidos">
     <MudTable Items="@_payments" Dense="true" Hover="true" Loading="@_loading"
               Filter="new Func<PaymentTransaction,bool>(FilterFunc1)">
@@ -70,7 +70,7 @@
           </MudSelect>
         </MudItem>
         <MudItem xs="12">
-          <MudTextField @bind-Value="_newPayment.Notes" Label="Notas adicionales" MultiLine="true" Rows="2"
+          <MudTextField @bind-Value="_newPayment.Notes" Label="Notas adicionales" Lines="2"
                         Variant="Variant.Outlined" />
         </MudItem>
       </MudGrid>
@@ -85,10 +85,12 @@
     <MudPaper Class="pa-4">
       <MudText Typo="Typo.h6" Class="mb-4">Conciliación Masiva (Carga de Extracto)</MudText>
       <MudFileUpload T="IBrowserFile" FilesChanged="HandleFileSelected" Accept=".xlsx">
-        <MudButton HtmlTag="label" Variant="Variant.Filled" Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.CloudUpload">
-          Subir Archivo Excel
-        </MudButton>
+        <CustomContent>
+          <MudButton HtmlTag="label" Variant="Variant.Filled" Color="Color.Primary"
+                     StartIcon="@Icons.Material.Filled.CloudUpload">
+            Subir Archivo Excel
+          </MudButton>
+        </CustomContent>
       </MudFileUpload>
 
       @if (_reconciliationResult != null)

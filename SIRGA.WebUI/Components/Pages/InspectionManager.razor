@@ -72,21 +72,21 @@
         </MudTd>
         <MudTd>
           <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" Size="Size.Small"
-                         Title="Descargar Acta" Href="@($"/api/report/inspection/{context.Id}")" target="_blank" />
+                         title="Descargar Acta" Href="@($"/api/report/inspection/{context.Id}")" target="_blank" />
           
           <MudIconButton Icon="@Icons.Material.Filled.DirectionsRun" Color="Color.Warning" Size="Size.Small"
-                         Title="Registrar Visita" OnClick="@(() => OpenRegisterVisitDialog(context))" />
+                         title="Registrar Visita" OnClick="@(() => OpenRegisterVisitDialog(context))" />
 
           @if (context.Status == InspectionActStatus.Pending)
           {
             <MudIconButton Icon="@Icons.Material.Filled.Handshake" Color="Color.Primary" Size="Size.Small"
-                           Title="Crear Convenio" OnClick="@(() => OpenCreatePlanDialog(context))" />
+                           title="Crear Convenio" OnClick="@(() => OpenCreatePlanDialog(context))" />
           }
           
           @if (context.Status != InspectionActStatus.Legal && context.Status != InspectionActStatus.Paid)
           {
             <MudIconButton Icon="@Icons.Material.Filled.Gavel" Color="Color.Error" Size="Size.Small"
-                           Title="Pasar a Legales" OnClick="@(() => OpenLegalNoticeDialog(context))" />
+                           title="Pasar a Legales" OnClick="@(() => OpenLegalNoticeDialog(context))" />
           }
         </MudTd>
       </RowTemplate>

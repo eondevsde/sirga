@@ -58,7 +58,7 @@ else
     <MudItem xs="12" md="7">
       <MudPaper Class="pa-4">
         <MudText Typo="Typo.h6" Class="mb-4">Evolución de Recaudación</MudText>
-        <MudChart ChartType="ChartType.Bar" ChartSeries="@_series" XAxisLabels="@_xAxisLabels" Width="100%"
+        <MudChart ChartType="ChartType.Bar" ChartSeries="@_series" ChartLabels="@_xAxisLabels" Width="100%"
                   Height="300px" />
       </MudPaper>
     </MudItem>
@@ -81,7 +81,7 @@ else
               <MudChip T="string" Size="Size.Small" Color="Color.Default">@context.LastPeriodPresented</MudChip>
             </MudTd>
             <MudTd>@context.EstimatedDebt.ToString("C0")</MudTd>
-            <MudTd Color="Color.Error"><b>@context.Interests.ToString("C0")</b></MudTd>
+            <MudTd Style="color: var(--mud-palette-error)"><b>@context.Interests.ToString("C0")</b></MudTd>
           </RowTemplate>
         </MudTable>
       </MudPaper>
@@ -90,7 +90,7 @@ else
     <MudItem xs="12">
       <MudPaper Class="pa-4">
         <MudText Typo="Typo.h6" Class="mb-4">Logs de Auditoría y Trazabilidad</MudText>
-        <MudTable Items="@_data.RecentLogs" Dense="true" Hover="true" MaxHeight="400px" FixedHeader="true">
+        <MudTable Items="@_data.RecentLogs" Dense="true" Hover="true" Height="400px" FixedHeader="true">
           <HeaderContent>
             <MudTh>Fecha</MudTh>
             <MudTh>Acción</MudTh>

@@ -14,8 +14,8 @@
       La solicitud debe ser aprobada por el sindicato.
     </MudText>
     <MudForm @ref="_form" @bind-IsValid="_success">
-      <MudTextField T="string" Label="Motivo" @bind-Value="_reason" Variant="Variant.Outlined" Rows="3"
-                    RowsMax="5" Lines="3" MaxLength="500" HelperText="Opcional pero recomendado" />
+      <MudTextField T="string" Label="Motivo" @bind-Value="_reason" Variant="Variant.Outlined"
+                    MaxLines="5" Lines="3" MaxLength="500" HelperText="Opcional pero recomendado" />
     </MudForm>
   </DialogContent>
   <DialogActions>

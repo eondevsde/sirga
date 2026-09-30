@@ -35,7 +35,7 @@
         <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip>
       </MudTd>
       <MudTd>
-        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" Title="Ver Detalles"
+        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" title="Ver Detalles"
                        OnClick="@(() => ViewDetails(context))" />
       </MudTd>
     </RowTemplate>
@@ -84,7 +84,7 @@
         </RowTemplate>
       </MudTable>
             
-      <MudTextField T="string" Label="Observaciones de Auditoría" Variant="Variant.Outlined" Header="Observaciones"
+      <MudTextField T="string" Label="Observaciones de Auditoría" Variant="Variant.Outlined"
                     Lines="3" @bind-Value="_observation" />
     }
   </DialogContent>

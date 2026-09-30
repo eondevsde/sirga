@@ -13,10 +13,12 @@
       </MudSelect>
 
       <MudFileUpload T="IBrowserFile" OnFilesChanged="OnFilesChanged" Class="mt-4">
-        <MudButton HtmlTag="label" Variant="Variant.Filled" Color="Color.Info"
-                   StartIcon="@Icons.Material.Filled.CloudUpload">
-          Seleccionar Archivo
-        </MudButton>
+        <CustomContent>
+          <MudButton HtmlTag="label" Variant="Variant.Filled" Color="Color.Info"
+                     StartIcon="@Icons.Material.Filled.CloudUpload">
+            Seleccionar Archivo
+          </MudButton>
+        </CustomContent>
       </MudFileUpload>
 
       @if (_file != null)

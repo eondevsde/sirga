@@ -16,10 +16,10 @@
     <form action="account/register" method="post">
       <AntiforgeryToken />
             
-      <MudTextField Label="E-mail de contacto" Variant="Variant.Outlined" @bind-Value="_model.Email" Name="email"
+      <MudTextField Label="E-mail de contacto" Variant="Variant.Outlined" @bind-Value="_model.Email" name="email"
                     InputType="InputType.Email" Class="mb-4" Required="true" />
 
-      <MudSelect T="string" Label="Tipo de Usuario" Variant="Variant.Outlined" @bind-Value="_model.Role" Name="role"
+      <MudSelect T="string" Label="Tipo de Usuario" Variant="Variant.Outlined" @bind-Value="_model.Role" name="role"
                  Class="mb-4" Required="true">
         <MudSelectItem Value="@("Empresa")">Empresa (Auto-gestión)</MudSelectItem>
         <MudSelectItem Value="@("EstudioContable")">Estudio Contable (Gestión de terceros)</MudSelectItem>
@@ -31,22 +31,22 @@
         <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-4">DATOS DEL ESTUDIO</MudText>
         
         <MudTextField Label="Nombre / Razón Social" Variant="Variant.Outlined" @bind-Value="_model.StudioName"
-                      Name="studioName" Class="mb-4" Required="true" />
+                      name="studioName" Class="mb-4" Required="true" />
         
-        <MudTextField Label="Teléfono Fijo" Variant="Variant.Outlined" @bind-Value="_model.Phone" Name="phone"
+        <MudTextField Label="Teléfono Fijo" Variant="Variant.Outlined" @bind-Value="_model.Phone" name="phone"
                       Class="mb-4" Required="true" />
         
         <MudTextField Label="Celular de contacto" Variant="Variant.Outlined" @bind-Value="_model.CellPhone"
-                      Name="cellPhone" Class="mb-4" Required="true" />
+                      name="cellPhone" Class="mb-4" Required="true" />
         
-        <MudTextField Label="Dirección / Domicilio" Variant="Variant.Outlined" @bind-Value="_model.Address" Name="address"
+        <MudTextField Label="Dirección / Domicilio" Variant="Variant.Outlined" @bind-Value="_model.Address" name="address"
                       Class="mb-4" Required="true" />
         
         <MudTextField Label="Persona de Referencia" Variant="Variant.Outlined" @bind-Value="_model.ReferencePerson"
-                      Name="referencePerson" Class="mb-4" Required="true" />
+                      name="referencePerson" Class="mb-4" Required="true" />
 
         <MudTextField Label="Celular de Referencia" Variant="Variant.Outlined" @bind-Value="_model.ReferencePhone"
-                      Name="referencePhone" Class="mb-4" Required="true" />
+                      name="referencePhone" Class="mb-4" Required="true" />
 
         <MudSelect T="int" Label="Provincia" Variant="Variant.Outlined" @bind-Value="_selectedProvinceId" Class="mb-4"
                    Required="true" SelectedValuesChanged="OnProvinceChanged">
@@ -56,7 +56,7 @@
           }
         </MudSelect>
 
-        <MudSelect T="int?" Label="Localidad" Variant="Variant.Outlined" @bind-Value="_model.CityId" Name="cityId"
+        <MudSelect T="int?" Label="Localidad" Variant="Variant.Outlined" @bind-Value="_model.CityId" name="cityId"
                    Class="mb-4" Required="true" Disabled="@(!_cities.Any())">
           @foreach (var city in _cities)
           {
@@ -68,7 +68,7 @@
       <MudDivider Class="my-4" />
       <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mb-4">SEGURIDAD</MudText>
 
-      <MudTextField Label="Contraseña" Variant="Variant.Outlined" @bind-Value="_model.Password" Name="password"
+      <MudTextField Label="Contraseña" Variant="Variant.Outlined" @bind-Value="_model.Password" name="password"
                     InputType="InputType.Password" Class="mb-4" Required="true" />
 
       <MudTextField Label="Confirmar Contraseña" Variant="Variant.Outlined" @bind-Value="_model.ConfirmPassword"

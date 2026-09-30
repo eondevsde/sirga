@@ -65,9 +65,9 @@
           <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
             <MudText Typo="Typo.h6">Evolución de Recaudación Mensual</MudText>
             <MudIconButton Icon="@Icons.Material.Filled.Download" Color="Color.Primary" OnClick="DownloadCollectionsExcel"
-                           Title="Descargar Excel" />
+                           title="Descargar Excel" />
           </MudStack>
-          <MudChart ChartType="ChartType.Line" ChartSeries="@_series" XAxisLabels="@_xAxisLabels" Width="100%"
+          <MudChart ChartType="ChartType.Line" ChartSeries="@_series" ChartLabels="@_xAxisLabels" Width="100%"
                     Height="350px" />
         </MudPaper>
       </MudItem>
@@ -78,7 +78,7 @@
           <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
             <MudText Typo="Typo.h6" Color="Color.Error">Top Deudores Estimados</MudText>
             <MudIconButton Icon="@Icons.Material.Filled.Email" Color="Color.Error" OnClick="NotifyDebtors"
-                           Title="Notificar por Email" />
+                           title="Notificar por Email" />
           </MudStack>
           <MudTable Items="@_data.Debtors.Take(10)" Dense="true" Hover="true" FixedHeader="true" Height="330px"
                     Elevation="0">
