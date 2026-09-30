@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SIRGA.Application.Interfaces;
 
@@ -8,6 +9,7 @@ namespace SIRGA.WebUI.Controllers;
 public class PaymentsController(IPaymentService paymentService) : ControllerBase
 {
   [HttpPost("preferences/{declarationId:int}")]
+  [Authorize(Roles = "EstudioContable,Auditor,Admin")]
   public async Task<IActionResult> CreatePreference(int declarationId)
   {
     try
@@ -21,6 +23,8 @@ public class PaymentsController(IPaymentService paymentService) : ControllerBase
     }
   }
 
+  // El webhook lo llama MercadoPago desde afuera, así que queda anónimo a propósito (verificar
+  // la firma es el paso que corresponde, no exigir cookie).
   [HttpPost("webhook")]
   public async Task<IActionResult> Webhook([FromQuery] string topic, [FromQuery] string id)
   {

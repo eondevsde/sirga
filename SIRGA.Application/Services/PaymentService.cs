@@ -77,4 +77,58 @@ public class PaymentService(IUnitOfWork unitOfWork, ILogger<PaymentService> logg
     logger.LogInformation("Pago confirmado exitosamente para DDJJ {Id}", declarationId);
     return true;
   }
+
+  /// <summary>
+  /// Confirma en bloque los pagos que devolvió la conciliación bancaria: marca cada DDJJ como
+  /// pagada y registra su transacción, guardando una sola vez al final. Antes esta lógica vivía
+  /// en el controlador y sólo era alcanzable por HTTP.
+  /// </summary>
+  public async Task<int> ConfirmBulkAsync(IEnumerable<PaymentTransaction> payments)
+  {
+    var confirmados = 0;
+
+    foreach (var payment in payments)
+    {
+      var declaration = await unitOfWork.Declarations.GetByIdAsync(payment.DeclarationId);
+      if (declaration == null) continue;
+
+      await unitOfWork.PaymentTransactions.AddAsync(payment);
+      declaration.Status = DeclarationStatus.Paid;
+      await unitOfWork.Declarations.UpdateAsync(declaration);
+      confirmados++;
+    }
+
+    await unitOfWork.CompleteAsync();
+    logger.LogInformation("Conciliación en bloque: {Confirmados} pagos confirmados", confirmados);
+    return confirmados;
+  }
+
+  /// <summary>
+  /// Registra un pago manual o por transferencia respetando el importe y la fecha que cargó el
+  /// usuario (a diferencia de <see cref="ConfirmPaymentAsync"/>, que usa el total de la DDJJ).
+  /// Devuelve null si la declaración no existe.
+  /// </summary>
+  public async Task<PaymentTransaction?> RegisterManualPaymentAsync(PaymentTransaction payment)
+  {
+    var declaration = await unitOfWork.Declarations.GetByIdAsync(payment.DeclarationId);
+    if (declaration == null) return null;
+
+    payment.CreatedAt = DateTime.UtcNow;
+    payment.PaymentMethod = payment.PaymentMethod ?? "Manual/Transferencia";
+    await unitOfWork.PaymentTransactions.AddAsync(payment);
+
+    declaration.Status = DeclarationStatus.Paid;
+    await unitOfWork.Declarations.UpdateAsync(declaration);
+
+    await unitOfWork.CompleteAsync();
+    logger.LogInformation("Pago manual registrado para DDJJ {Id}", payment.DeclarationId);
+    return payment;
+  }
+
+  /// <summary>Pagos registrados, del más reciente al más antiguo.</summary>
+  public async Task<IEnumerable<PaymentTransaction>> GetTransactionsAsync()
+  {
+    var payments = await unitOfWork.PaymentTransactions.GetAllAsync();
+    return payments.OrderByDescending(p => p.PaymentDate).ToList();
+  }
 }

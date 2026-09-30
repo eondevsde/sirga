@@ -9,6 +9,7 @@
 @inject CompanyService CompanyService
 @inject UnionService UnionService
 @inject DeclarationService DeclarationService
+@inject IPaymentService PaymentService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
@@ -445,16 +446,21 @@ new();
       _lastResult = await DeclarationService.CreateDeclarationAsync(request);
       Snackbar.Add("¡Declaración Jurada presentada con éxito!", Severity.Success);
 
-      // Generar preferencia de pago si hay saldo positivo
+      // Generar preferencia de pago si hay saldo positivo. Llamada directa al servicio: el
+      // endpoint ahora exige rol y el HttpClient no lleva cookie. Si falla (por ejemplo, sin
+      // credenciales de MercadoPago), la DDJJ ya quedó guardada y sólo se avisa.
       if (_lastResult != null && _lastResult.BalanceAmount > 0)
       {
-        var payResponse = await Http.PostAsync($"api/payments/preferences/{_lastResult.Id}", null);
-        if (payResponse.IsSuccessStatusCode)
+        try
         {
-          var pref = await payResponse.Content.ReadFromJsonAsync<PaymentPreferenceResponseDto>();
+          var pref = await PaymentService.CreatePaymentPreferenceAsync(_lastResult.Id);
           _paymentUrl = pref?.SandboxInitPoint ?? "";
           _showPaymentButton = true;
           Snackbar.Add("Link de pago generado. Puede proceder a pagar.", Severity.Info);
+        }
+        catch (Exception exPago)
+        {
+          Snackbar.Add("La DDJJ se guardó, pero no se pudo generar el link de pago: " + exPago.Message, Severity.Warning);
         }
       }
     }
@@ -477,27 +483,21 @@ new();
   {
     try
     {
-      using var content = new MultipartFormDataContent();
-      var fileContent = new StreamContent(file.OpenReadStream());
-      content.Add(fileContent, "file", file.Name);
-
-      var response = await Http.PostAsync("api/payment/salaries-excel", content);
-      if (response.IsSuccessStatusCode)
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      using var stream = file.OpenReadStream(10 * 1024 * 1024); // Max 10MB
+      var salaries = (await DeclarationService.ProcessExcelDeclarationAsync(stream)).ToList();
+      if (salaries.Any())
       {
-        var salaries = await response.Content.ReadFromJsonAsync<List<EmployeeSalaryDto>>();
-        if (salaries != null)
+        foreach (var salary in salaries)
         {
-          foreach (var salary in salaries)
+          var detail = _details.FirstOrDefault(d => d.EmployeeId == salary.EmployeeId);
+          if (detail != null)
           {
-            var detail = _details.FirstOrDefault(d => d.EmployeeId == salary.EmployeeId);
-            if (detail != null)
-            {
-              detail.GrossSalary = salary.BaseSalary;
-              Recalculate(detail);
-            }
+            detail.GrossSalary = salary.BaseSalary;
+            Recalculate(detail);
           }
-          Snackbar.Add("Remuneraciones cargadas desde Excel con éxito.", Severity.Success);
         }
+        Snackbar.Add("Remuneraciones cargadas desde Excel con éxito.", Severity.Success);
       }
     }
     catch (Exception ex)

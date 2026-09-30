@@ -1,8 +1,10 @@
 @page "/admin/payments"
 @using SIRGA.Domain.Entities
 @using SIRGA.Domain.Enums
+@using SIRGA.Application.Services
 @attribute [Authorize(Roles = "Sindicato,Auditor,Admin")]
-@inject HttpClient Http
+@inject BankReconciliationService ReconciliationService
+@inject PaymentService PaymentService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -142,16 +144,10 @@
     if (file == null) return;
     try
     {
-      using var content = new MultipartFormDataContent();
-      var fileContent = new StreamContent(file.OpenReadStream(10 * 1024 * 1024)); // Max 10MB
-      content.Add(fileContent, "file", file.Name);
-
-      var response = await Http.PostAsync("api/payment/import-excel", content);
-      if (response.IsSuccessStatusCode)
-      {
-        _reconciliationResult = await response.Content.ReadFromJsonAsync<SIRGA.Application.Services.ReconciliationResultDto>();
-        Snackbar.Add("Archivo procesado. Revise los resultados.", Severity.Success);
-      }
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      using var stream = file.OpenReadStream(10 * 1024 * 1024); // Max 10MB
+      _reconciliationResult = await ReconciliationService.ProcessBankExcelAsync(stream);
+      Snackbar.Add("Archivo procesado. Revise los resultados.", Severity.Success);
     }
     catch (Exception ex)
     {
@@ -163,13 +159,10 @@
   {
     if (_reconciliationResult == null || !_reconciliationResult.MatchedPayments.Any()) return;
 
-    var response = await Http.PostAsJsonAsync("api/payment/bulk-confirm", _reconciliationResult.MatchedPayments);
-    if (response.IsSuccessStatusCode)
-    {
-      Snackbar.Add("Pagos procesados correctamente", Severity.Success);
-      _reconciliationResult = null;
-      await LoadPayments();
-    }
+    var confirmados = await PaymentService.ConfirmBulkAsync(_reconciliationResult.MatchedPayments);
+    Snackbar.Add($"Pagos procesados correctamente: {confirmados}.", Severity.Success);
+    _reconciliationResult = null;
+    await LoadPayments();
   }
 
   private async Task LoadPayments()
@@ -177,7 +170,7 @@
     _loading = true;
     try
     {
-      _payments = await Http.GetFromJsonAsync<List<PaymentTransaction>>("api/payment") ?? new();
+      _payments = (await PaymentService.GetTransactionsAsync()).ToList();
     }
     catch (Exception ex)
     {
@@ -200,8 +193,8 @@
     try
     {
       _newPayment.PaymentDate = _paymentDate ?? DateTime.Today;
-      var response = await Http.PostAsJsonAsync("api/payment/manual", _newPayment);
-      if (response.IsSuccessStatusCode)
+      var registrado = await PaymentService.RegisterManualPaymentAsync(_newPayment);
+      if (registrado != null)
       {
         Snackbar.Add("¡Pago conciliado y DDJJ actualizada!", Severity.Success);
         _newPayment = new() { PaymentDate = DateTime.Today };
@@ -209,13 +202,12 @@
       }
       else
       {
-        var error = await response.Content.ReadAsStringAsync();
-        Snackbar.Add($"Error: {error}", Severity.Error);
+        Snackbar.Add("Error: la DDJJ indicada no existe.", Severity.Error);
       }
     }
     catch (Exception ex)
     {
-      Snackbar.Add("Error en la conexión: " + ex.Message, Severity.Error);
+      Snackbar.Add("Error al registrar el pago: " + ex.Message, Severity.Error);
     }
   }
 

@@ -86,29 +86,32 @@ public class MercadoPagoService : IPaymentService
   public async Task<bool> ProcessWebhookAsync(string topic, string id)
   {
     // En Mercado Pago v2, el topic suele ser 'payment' o 'merchant_order'
-    if (topic == "payment")
-    {
-      var client = new MercadoPago.Client.Payment.PaymentClient();
-      var payment = await client.GetAsync(long.Parse(id));
+    if (topic != "payment") return false;
 
-      if (payment.Status == "approved")
-      {
-        // Extraer el ID de la DDJJ desde el ExternalReference (Formato: DDJJ_{id}_CLI_{comp})
-        var parts = payment.ExternalReference.Split('_');
-        if (parts.Length >= 2 && int.TryParse(parts[1], out int declarationId))
-        {
-          var declaration = await _unitOfWork.Declarations.GetByIdAsync(declarationId);
-          if (declaration != null)
-          {
-            declaration.Status = DeclarationStatus.Paid;
-            declaration.MercadoPagoPaymentId = payment.Id.ToString();
-            declaration.PaymentDate = payment.DateApproved;
-            await _unitOfWork.CompleteAsync();
-            return true;
-          }
-        }
-      }
-    }
-    return false;
+    // Un id no numérico no es un fallo transitorio: se descarta sin llamar a la API. Antes
+    // long.Parse lanzaba FormatException y el endpoint (anónimo) respondía 500 con cualquier
+    // cosa que le mandaran. Un fallo real de MercadoPago sigue propagándose como 5xx a
+    // propósito, para que MP reintente la notificación.
+    if (!long.TryParse(id, out var paymentId)) return false;
+
+    var client = new MercadoPago.Client.Payment.PaymentClient();
+    var payment = await client.GetAsync(paymentId);
+
+    if (payment.Status != "approved") return false;
+
+    // Extraer el ID de la DDJJ desde el ExternalReference (Formato: DDJJ_{id}_CLI_{comp})
+    if (string.IsNullOrEmpty(payment.ExternalReference)) return false;
+
+    var parts = payment.ExternalReference.Split('_');
+    if (parts.Length < 2 || !int.TryParse(parts[1], out int declarationId)) return false;
+
+    var declaration = await _unitOfWork.Declarations.GetByIdAsync(declarationId);
+    if (declaration == null) return false;
+
+    declaration.Status = DeclarationStatus.Paid;
+    declaration.MercadoPagoPaymentId = payment.Id.ToString();
+    declaration.PaymentDate = payment.DateApproved;
+    await _unitOfWork.CompleteAsync();
+    return true;
   }
 }

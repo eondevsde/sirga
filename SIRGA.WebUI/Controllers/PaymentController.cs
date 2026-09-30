@@ -1,17 +1,21 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SIRGA.Application.Interfaces;
 using SIRGA.Application.Services;
 using SIRGA.Domain.Entities;
-using SIRGA.Domain.Enums;
 using System.Text.Json;
 
 namespace SIRGA.WebUI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class PaymentController(IUnitOfWork unitOfWork, ILogger<PaymentController> logger, BankReconciliationService reconciliationService, DeclarationService declarationService, PaymentService paymentService) : ControllerBase
+public class PaymentController(ILogger<PaymentController> logger, BankReconciliationService reconciliationService, DeclarationService declarationService, PaymentService paymentService) : ControllerBase
 {
+  // Cada endpoint exige el rol de la pantalla que lo usa. La lógica que estaba acá se movió a
+  // PaymentService para que las pantallas puedan llamarla directamente, sin pasar por HTTP: el
+  // HttpClient de los componentes Blazor no lleva la cookie de sesión, así que con el endpoint
+  // protegido habrían empezado a recibir 401.
   [HttpPost("import-excel")]
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   public async Task<IActionResult> ImportExcel(IFormFile file)
   {
     if (file == null || file.Length == 0) return BadRequest("Archivo no proporcionado");
@@ -23,6 +27,7 @@ public class PaymentController(IUnitOfWork unitOfWork, ILogger<PaymentController
   }
 
   [HttpPost("salaries-excel")]
+  [Authorize(Roles = "EstudioContable,Auditor,Admin")]
   public async Task<IActionResult> SalariesExcel(IFormFile file)
   {
     if (file == null || file.Length == 0) return BadRequest("Archivo no proporcionado");
@@ -34,48 +39,29 @@ public class PaymentController(IUnitOfWork unitOfWork, ILogger<PaymentController
   }
 
   [HttpPost("bulk-confirm")]
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   public async Task<IActionResult> BulkConfirm([FromBody] List<PaymentTransaction> payments)
   {
-    foreach (var payment in payments)
-    {
-      var declaration = await unitOfWork.Declarations.GetByIdAsync(payment.DeclarationId);
-      if (declaration != null)
-      {
-        await unitOfWork.PaymentTransactions.AddAsync(payment);
-        declaration.Status = DeclarationStatus.Paid;
-        await unitOfWork.Declarations.UpdateAsync(declaration);
-      }
-    }
-    await unitOfWork.CompleteAsync();
-    return Ok(new { count = payments.Count });
+    var confirmados = await paymentService.ConfirmBulkAsync(payments);
+    return Ok(new { count = confirmados });
   }
 
   [HttpGet]
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   public async Task<IActionResult> GetPayments()
   {
-    var payments = await unitOfWork.PaymentTransactions.GetAllAsync();
-    return Ok(payments.OrderByDescending(p => p.PaymentDate));
+    return Ok(await paymentService.GetTransactionsAsync());
   }
 
   [HttpPost("manual")]
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   public async Task<IActionResult> RegisterManualPayment([FromBody] PaymentTransaction payment)
   {
     try
     {
-      var declaration = await unitOfWork.Declarations.GetByIdAsync(payment.DeclarationId);
-      if (declaration == null) return NotFound("Declaración no encontrada");
-
-      // Registrar el pago
-      payment.CreatedAt = DateTime.UtcNow;
-      payment.PaymentMethod = payment.PaymentMethod ?? "Manual/Transferencia";
-      await unitOfWork.PaymentTransactions.AddAsync(payment);
-
-      // Actualizar estado de la declaración
-      declaration.Status = DeclarationStatus.Paid;
-      await unitOfWork.Declarations.UpdateAsync(declaration);
-
-      await unitOfWork.CompleteAsync();
-      return Ok(payment);
+      var registrado = await paymentService.RegisterManualPaymentAsync(payment);
+      if (registrado == null) return NotFound("Declaración no encontrada");
+      return Ok(registrado);
     }
     catch (Exception ex)
     {
@@ -84,6 +70,8 @@ public class PaymentController(IUnitOfWork unitOfWork, ILogger<PaymentController
     }
   }
 
+  // El webhook lo llama MercadoPago desde afuera, así que queda anónimo a propósito: lo que
+  // corresponde acá es verificar la firma de la notificación, no exigir cookie de sesión.
   [HttpPost("webhook/mercadopago")]
   public async Task<IActionResult> MercadoPagoWebhook([FromBody] JsonElement payload)
   {
