@@ -17,6 +17,11 @@ builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddMudServices(); // Agregar servicios de MudBlazor
 
+// Compresión de respuestas dinámicas (HTML de las páginas y JSON de la API).
+// Los assets estáticos ya viajan precomprimidos por MapStaticAssets.
+// EnableForHttps queda en false (su valor por defecto) para no exponer el patrón BREACH sobre TLS.
+builder.Services.AddResponseCompression();
+
 // ASP.NET Core Identity
 builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
 {
@@ -50,7 +55,12 @@ builder.Services.AddRazorPages();
 
 builder.Services.AddDbContextFactory<SIRG_DbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.MigrationsAssembly(typeof(SIRG_DbContext).Assembly.FullName)));
+        b =>
+        {
+            b.MigrationsAssembly(typeof(SIRG_DbContext).Assembly.FullName);
+            // Reintenta ante fallos transitorios de SQL Server (cortes breves, deadlocks).
+            b.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null);
+        }));
 
 builder.Services.AddScoped<SIRG_DbContext>(p =>
     p.GetRequiredService<IDbContextFactory<SIRG_DbContext>>().CreateDbContext());
@@ -100,7 +110,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-app.UseStaticFiles();
+app.UseResponseCompression();
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
@@ -112,6 +122,10 @@ app.UseMiddleware<SubscriptionStatusMiddleware>();
 app.UseAntiforgery();
 
 app.UseMiddleware<ErrorHandlerMiddleware>(); // Middleware Global de Errores
+
+// Sirve los assets estáticos con fingerprint en la URL, compresión previa y caché
+// inmutable (reemplaza a UseStaticFiles, que los entregaba sin ninguna de las tres).
+app.MapStaticAssets();
 
 app.MapControllers(); // Mapear rutas de controladores
 app.MapRazorComponents<SIRGA.WebUI.Components.App>()
