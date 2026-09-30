@@ -12,6 +12,7 @@
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UnionService UnionService
+@inject DeclarationService DeclarationService
 
 <MudText Typo="Typo.h4" Class="mb-4">Dashboard de Gestión del Sindicato</MudText>
 
@@ -223,7 +224,8 @@
         var resignations = await EmployeeService.GetMembershipResignationRequestsAsync(_selectedUnionId);
         _pendingResignationsCount = resignations?.Count() ?? 0;
 
-        var page = await Http.GetFromJsonAsync<PagedDeclarationsDto>($"api/declarations/by-union/{_selectedUnionId}/paged?page=1&pageSize=1");
+        // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+        var page = await DeclarationService.GetDeclarationsByUnionPagedAsync(_selectedUnionId, 1, 1);
         if (page != null)
         {
           _totalCount = page.TotalCount;
@@ -273,7 +275,7 @@
     {
       var page = state.Page + 1;
       var pageSize = state.PageSize;
-      var result = await Http.GetFromJsonAsync<PagedDeclarationsDto>($"api/declarations/by-union/{_selectedUnionId}/paged?page={page}&pageSize={pageSize}", cancellationToken);
+      var result = await DeclarationService.GetDeclarationsByUnionPagedAsync(_selectedUnionId, page, pageSize);
       if (result != null)
       {
         _declarations = result.Items;

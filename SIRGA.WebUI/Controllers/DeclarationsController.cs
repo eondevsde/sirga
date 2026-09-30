@@ -43,6 +43,7 @@ public class DeclarationsController : ControllerBase
   /// la memoria del proceso. Para filtrar por estado, sindicato o empresa, o buscar por
   /// razón social o CUIT, usar <c>/api/declarations/paged</c>.
   /// </summary>
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet]
   [ProducesResponseType(typeof(IEnumerable<DeclarationResponseDto>), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 200)
@@ -54,6 +55,7 @@ public class DeclarationsController : ControllerBase
     return Ok(result.Items);
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("by-union/{unionId}")]
   [ProducesResponseType(typeof(IEnumerable<DeclarationResponseDto>), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetByUnion(int unionId)
@@ -62,6 +64,7 @@ public class DeclarationsController : ControllerBase
     return Ok(result);
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("by-union/{unionId}/paged")]
   [ProducesResponseType(typeof(PagedDeclarationsDto), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetByUnionPaged(int unionId, int page = 1, int pageSize = 10)
@@ -70,6 +73,7 @@ public class DeclarationsController : ControllerBase
     return Ok(result);
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("paged")]
   [ProducesResponseType(typeof(PagedDeclarationsDto), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
@@ -83,6 +87,7 @@ public class DeclarationsController : ControllerBase
     return Ok(result);
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("{id}")]
   [ProducesResponseType(typeof(DeclarationResponseDto), StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -93,6 +98,7 @@ public class DeclarationsController : ControllerBase
     return Ok(result);
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("history/{companyId}")]
   [ProducesResponseType(typeof(IEnumerable<DeclarationResponseDto>), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetHistory(int companyId)
@@ -101,6 +107,7 @@ public class DeclarationsController : ControllerBase
     return Ok(result);
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("{id}/details")]
   [ProducesResponseType(typeof(IEnumerable<DeclarationDetailDto>), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetDetails(int id)

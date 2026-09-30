@@ -1,8 +1,9 @@
 @page "/company/{CompanyId:int}/balance"
 @using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
-@inject HttpClient Http
+@inject BalanceService BalanceService
 @inject ISnackbar Snackbar
 
 <PageTitle>SIRGA - Estado de Cuenta</PageTitle>
@@ -109,7 +110,8 @@
   {
     try
     {
-      _data = await Http.GetFromJsonAsync<CompanyBalanceDto>($"api/balance/{CompanyId}");
+      // Llamada directa al servicio: el endpoint ahora exige sesión y el HttpClient no lleva cookie.
+      _data = await BalanceService.GetFullStatementAsync(CompanyId);
     }
     catch (Exception ex)
     {

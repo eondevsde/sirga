@@ -126,13 +126,11 @@
     try
     {
       var page = state.Page + 1;
-      var url = $"api/declarations/paged?page={page}&pageSize={state.PageSize}&status=Submitted";
-      if (!string.IsNullOrWhiteSpace(_searchString))
-      {
-        url += $"&search={Uri.EscapeDataString(_searchString.Trim())}";
-      }
-
-      var result = await Http.GetFromJsonAsync<PagedDeclarationsDto>(url, cancellationToken);
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient del
+      // componente no lleva la cookie de sesión.
+      var result = await DeclarationService.GetDeclarationsPagedAsync(
+          page, state.PageSize, "Submitted", null, null,
+          string.IsNullOrWhiteSpace(_searchString) ? null : _searchString.Trim());
       if (result != null)
       {
         _declarations = result.Items;
@@ -169,7 +167,7 @@
     _observation = "";
     try
     {
-      _details = await Http.GetFromJsonAsync<List<DeclarationDetailDto>>($"api/declarations/{dec.Id}/details") ?? new();
+      _details = await DeclarationService.GetDeclarationDetailsAsync(dec.Id);
     }
     catch (Exception ex)
     {
