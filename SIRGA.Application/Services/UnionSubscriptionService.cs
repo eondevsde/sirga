@@ -2,6 +2,7 @@ using SIRGA.Application.DTOs;
 using SIRGA.Domain.Entities;
 using SIRGA.Application.Interfaces;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace SIRGA.Application.Services;
 
@@ -116,30 +117,52 @@ public class UnionSubscriptionService
 
   public async Task<AdminDashboardDto> GetAdminDashboardStatsAsync()
   {
-    var subscriptions = await _unitOfWork.UnionSubscriptions.GetAllAsync();
-    var requests = await _unitOfWork.UnionSubscriptionRequests.GetAllAsync();
-    var studios = await _unitOfWork.AccountingStudios.GetAllAsync();
-    var employees = await _unitOfWork.Employees.GetAllAsync();
-    var payments = await _unitOfWork.UnionSubscriptionPayments.GetAllAsync();
-
+    // Los 11 contadores se agregan en SQL. Antes se traían cinco tablas completas —incluidos
+    // los 27.934 empleados con su columna varbinary(max) de biometría— solo para contarlas.
     var now = DateTime.Now;
     var firstDayOfMonth = new DateTime(now.Year, now.Month, 1);
 
     return new AdminDashboardDto
     {
-      ActiveUnionsCount = subscriptions.Count(s => s.IsServiceActive && s.NextBillingDate >= now),
-      DelinquentUnionsCount = subscriptions.Count(s => !s.IsServiceActive || s.NextBillingDate < now),
-      TotalUnionsCount = subscriptions.Count(),
-      PendingRequestsCount = requests.Count(r => r.Status == SubscriptionRequestStatus.Pending),
-      TotalAccountingStudiosCount = studios.Count(),
-      TotalEmployeesCount = employees.Count(),
+      ActiveUnionsCount = await _unitOfWork.UnionSubscriptions.RunQueryAsync(q =>
+        q.CountAsync(s => s.IsServiceActive && s.NextBillingDate >= now)),
 
-      RequestsCurrentMonth = requests.Count(r => r.RequestDate >= firstDayOfMonth),
-      ApprovedCurrentMonth = requests.Count(r => r.Status == SubscriptionRequestStatus.Approved && r.RequestDate >= firstDayOfMonth),
-      RejectedCurrentMonth = requests.Count(r => r.Status == SubscriptionRequestStatus.Rejected && r.RequestDate >= firstDayOfMonth),
+      DelinquentUnionsCount = await _unitOfWork.UnionSubscriptions.RunQueryAsync(q =>
+        q.CountAsync(s => !s.IsServiceActive || s.NextBillingDate < now)),
 
-      MonthlyRevenue = payments.Where(p => p.PaymentDate >= firstDayOfMonth).Sum(p => p.Amount)
+      TotalUnionsCount = await _unitOfWork.UnionSubscriptions.RunQueryAsync(q => q.CountAsync()),
+
+      PendingRequestsCount = await _unitOfWork.UnionSubscriptionRequests.RunQueryAsync(q =>
+        q.CountAsync(r => r.Status == SubscriptionRequestStatus.Pending)),
+
+      TotalAccountingStudiosCount = await _unitOfWork.AccountingStudios.RunQueryAsync(q => q.CountAsync()),
+
+      TotalEmployeesCount = await _unitOfWork.Employees.RunQueryAsync(q => q.CountAsync()),
+
+      RequestsCurrentMonth = await _unitOfWork.UnionSubscriptionRequests.RunQueryAsync(q =>
+        q.CountAsync(r => r.RequestDate >= firstDayOfMonth)),
+
+      ApprovedCurrentMonth = await _unitOfWork.UnionSubscriptionRequests.RunQueryAsync(q =>
+        q.CountAsync(r => r.Status == SubscriptionRequestStatus.Approved && r.RequestDate >= firstDayOfMonth)),
+
+      RejectedCurrentMonth = await _unitOfWork.UnionSubscriptionRequests.RunQueryAsync(q =>
+        q.CountAsync(r => r.Status == SubscriptionRequestStatus.Rejected && r.RequestDate >= firstDayOfMonth)),
+
+      MonthlyRevenue = await _unitOfWork.UnionSubscriptionPayments.RunQueryAsync(q =>
+        q.Where(p => p.PaymentDate >= firstDayOfMonth).SumAsync(p => (decimal?)p.Amount)) ?? 0m
     };
+  }
+
+  /// <summary>
+  /// Indica si corresponde bloquear el acceso del sindicato por suscripción inactiva o vencida.
+  /// Es una consulta puntual: el SubscriptionStatusMiddleware la ejecuta en cada request
+  /// autenticado y antes traía las suscripciones y los sindicatos completos para mirar una fila.
+  /// </summary>
+  public async Task<bool> IsServiceBlockedAsync(int unionId)
+  {
+    var now = DateTime.Now;
+    return await _unitOfWork.UnionSubscriptions.RunQueryAsync(q =>
+        q.AnyAsync(s => s.UnionId == unionId && (!s.IsServiceActive || s.NextBillingDate < now)));
   }
 
   // --- Suscripciones ---

@@ -38,25 +38,21 @@ public class SubscriptionStatusMiddleware
       return;
     }
 
-    // 4. Verificar estado de suscripción
+    // 4. Verificar estado de suscripción con una consulta puntual (antes traía las
+    //    suscripciones y los sindicatos completos en cada request autenticado).
     using (var scope = serviceProvider.CreateScope())
     {
       var subscriptionService = scope.ServiceProvider.GetRequiredService<UnionSubscriptionService>();
-      var subscriptions = await subscriptionService.GetAllSubscriptionsAsync();
-      var sub = subscriptions.FirstOrDefault(s => s.UnionId == unionId);
+      var bloqueado = await subscriptionService.IsServiceBlockedAsync(unionId);
 
-      if (sub != null)
+      if (bloqueado)
       {
-        // Si el servicio está explícitamente inactivo o la fecha de vencimiento pasó
-        if (!sub.IsServiceActive || sub.NextBillingDate < DateTime.Now)
+        // Evitar bucle infinito si ya está en la página de bloqueo o logout
+        var path = context.Request.Path.Value?.ToLower();
+        if (path != "/subscription-expired" && path != "/logout" && !path!.Contains("/api/"))
         {
-          // Evitar bucle infinito si ya está en la página de bloqueo o logout
-          var path = context.Request.Path.Value?.ToLower();
-          if (path != "/subscription-expired" && path != "/logout" && !path!.Contains("/api/"))
-          {
-            context.Response.Redirect("/subscription-expired");
-            return;
-          }
+          context.Response.Redirect("/subscription-expired");
+          return;
         }
       }
     }
