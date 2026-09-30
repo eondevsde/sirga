@@ -190,6 +190,19 @@ public class EmployeeService(IUnitOfWork unitOfWork)
 
     public async Task<IEnumerable<Employee>> GetAllAsync() => await unitOfWork.Employees.GetAllAsync();
 
+    /// <summary>
+    /// Empleados paginados y ordenados por nombre, para el endpoint que antes devolvía
+    /// los 27.934 registros completos en una sola respuesta.
+    /// </summary>
+    public async Task<IEnumerable<Employee>> GetPagedAsync(int page, int pageSize)
+    {
+        return await unitOfWork.Employees.RunQueryAsync(q =>
+            q.OrderBy(e => e.FullName)
+             .Skip((page - 1) * pageSize)
+             .Take(pageSize)
+             .ToListAsync());
+    }
+
     public async Task<Employee?> GetByDniAsync(string dni)
     {
         var result = await unitOfWork.Employees.FindAsync(e => e.Dni == dni);

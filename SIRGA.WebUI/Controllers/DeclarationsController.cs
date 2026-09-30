@@ -37,14 +37,21 @@ public class DeclarationsController : ControllerBase
   }
 
   /// <summary>
-  /// Obtiene todas las DDJJ para auditoría del Sindicato.
+  /// Devuelve las DDJJ más recientes, paginadas y ordenadas por fecha de presentación.
+  /// Antes devolvía las 248.151 completas (115,68 MB de JSON, 40,5 s y dos consultas por
+  /// fila) en un endpoint anónimo: unas pocas llamadas simultáneas alcanzaban para agotar
+  /// la memoria del proceso. Para filtrar por estado, sindicato o empresa, o buscar por
+  /// razón social o CUIT, usar <c>/api/declarations/paged</c>.
   /// </summary>
   [HttpGet]
   [ProducesResponseType(typeof(IEnumerable<DeclarationResponseDto>), StatusCodes.Status200OK)]
-  public async Task<IActionResult> GetAll()
+  public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 200)
   {
-    var result = await _declarationService.GetAllDeclarationsAsync();
-    return Ok(result);
+    if (page < 1) page = 1;
+    if (pageSize < 1 || pageSize > 500) pageSize = 200;
+
+    var result = await _declarationService.GetDeclarationsPagedAsync(page, pageSize);
+    return Ok(result.Items);
   }
 
   [HttpGet("by-union/{unionId}")]

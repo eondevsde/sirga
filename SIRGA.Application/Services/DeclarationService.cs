@@ -291,44 +291,6 @@ public class DeclarationService(
     };
   }
 
-  public async Task<IEnumerable<DeclarationResponseDto>> GetAllDeclarationsAsync()
-  {
-    var list = await unitOfWork.Declarations.GetAllAsync();
-
-    // Para el historial, cargamos un poco más de info necesaria para el PDF
-    var results = new List<DeclarationResponseDto>();
-    foreach (var d in list)
-    {
-      var company = await unitOfWork.Companies.GetByIdAsync(d.CompanyId);
-      var union = await unitOfWork.Unions.GetByIdAsync(d.UnionId);
-
-      // Re-calculamos subtotales para el DTO (usado por el PDF)
-      var totalAporteLey = d.Details.Sum(x => x.LawContribution);
-      var totalCuotaSocio = d.Details.Sum(x => x.MemberContribution);
-      var totalSepelio = d.Details.Sum(x => x.TotalWithheld) - totalAporteLey - totalCuotaSocio;
-
-      results.Add(new DeclarationResponseDto
-      {
-        Id = d.Id,
-        Period = d.Period,
-        TotalAmount = d.TotalAmount,
-        Status = d.Status.ToString(),
-        CompanyName = company?.BusinessName ?? "N/A",
-        CompanyCuit = company?.Cuit ?? "N/A",
-        UnionName = union?.Name ?? "N/A",
-        SubmissionDate = d.SubmissionDate,
-        ExpirationDate = d.SubmissionDate.AddDays(15),
-        IsRectification = d.IsRectification,
-        PresencialBarCode = d.PresencialBarCode,
-        PresencialReference = d.PresencialReference,
-        AporteLey = totalAporteLey,
-        SeguroSepelio = totalSepelio,
-        CuotaSocio = totalCuotaSocio
-      });
-    }
-    return results;
-  }
-
   public async Task<IEnumerable<DeclarationResponseDto>> GetDeclarationsByUnionAsync(int unionId)
   {
     var page = await GetDeclarationsByUnionPagedAsync(unionId, 1, int.MaxValue);

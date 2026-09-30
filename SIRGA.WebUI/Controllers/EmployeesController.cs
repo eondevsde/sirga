@@ -17,8 +17,19 @@ public class EmployeesController : ControllerBase
     _employeeService = employeeService;
   }
 
+  /// <summary>
+  /// Empleados paginados y ordenados por nombre. Antes devolvía los 27.934 completos
+  /// (4,76 MB de JSON) en un endpoint anónimo. Para los de una empresa usar
+  /// <c>/api/employees/by-company/{companyId}</c>.
+  /// </summary>
   [HttpGet]
-  public async Task<IActionResult> GetAll() => Ok(await _employeeService.GetAllAsync());
+  public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 200)
+  {
+    if (page < 1) page = 1;
+    if (pageSize < 1 || pageSize > 500) pageSize = 200;
+
+    return Ok(await _employeeService.GetPagedAsync(page, pageSize));
+  }
 
   [HttpGet("by-company/{companyId}")]
   public async Task<IActionResult> GetByCompany(int companyId)
