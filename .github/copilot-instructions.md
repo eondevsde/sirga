@@ -6,6 +6,17 @@ Este documento define tres agentes colaborativos (roles) para guiar y asistir en
 
 ---
 
+## Convenciones obligatorias
+
+- **Todo script que se genere debe ser idempotente**: tiene que poder ejecutarse dos veces seguidas —y desde cualquier estado intermedio— sin fallar, sin duplicar y sin pisar datos. Vale para SQL, PowerShell, migraciones y herramientas internas.
+  - En SQL: verificar antes de crear o borrar (`IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE ...)`, `OBJECT_ID('dbo.Tabla')`, `COL_LENGTH(...)`, `IF EXISTS (...)`). Nunca `CREATE` / `ALTER` / `INSERT` a secas.
+  - En PowerShell: usar `-Force`, `Test-Path` y `-ErrorAction SilentlyContinue` para que crear algo que ya existe o borrar algo que ya no está no rompa la ejecución.
+  - Ejemplo de referencia: `script_sirga_db_indices_performance.sql`.
+- **Los cambios de esquema van como migración de EF** (`dotnet ef migrations add`) y se aplican con `dotnet ef database update`, que ya es idempotente porque lleva el historial. Si además hace falta un script para otros entornos, va con guardas por objeto y registra la migración en `__EFMigrationsHistory`.
+- **Verificación obligatoria de un script**: ejecutarlo dos veces y comprobar (a) que la segunda corrida no cambia nada, (b) que no hubo errores y (c) que el estado final es el esperado.
+
+---
+
 ## Agentes definidos
 
 1) PM (Project Manager)
