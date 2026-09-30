@@ -1,5 +1,6 @@
 @page "/inspectors"
 @using SIRGA.Application.Interfaces
+@attribute [Authorize(Roles = "Sindicato,Auditor,Admin")]
 @inject IInspectionService InspectionService
 @inject ISnackbar Snackbar
 @inject MudBlazor.IDialogService DialogService

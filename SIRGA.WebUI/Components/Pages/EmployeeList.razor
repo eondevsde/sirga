@@ -2,7 +2,7 @@
 @using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "EstudioContable,Admin,Auditor")]
+@attribute [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
 @inject EmployeeService EmpService
 @inject CompanyService CompanyService
 @inject HttpClient Http

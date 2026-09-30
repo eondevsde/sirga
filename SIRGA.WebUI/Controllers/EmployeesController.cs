@@ -61,7 +61,7 @@ public class EmployeesController : ControllerBase
     }
   }
 
-  [Authorize(Roles = "EstudioContable,Auditor,Admin")]
+  [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
   [HttpPatch("transfer/{employeeId}")]
   public async Task<IActionResult> Transfer(int employeeId, [FromQuery] int fromCompanyId, [FromQuery] int toCompanyId)
   {
