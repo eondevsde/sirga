@@ -2,6 +2,7 @@
 @using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @using MudBlazor
+@attribute [Authorize(Roles = "Admin")]
 @inject SalaryScaleService ScaleService
 @inject UnionService UnionService
 @inject EmployeeCategoryService CategoryService

@@ -1,6 +1,7 @@
-﻿@page "/admin/payments"
+@page "/admin/payments"
 @using SIRGA.Domain.Entities
 @using SIRGA.Domain.Enums
+@attribute [Authorize(Roles = "Sindicato,Auditor,Admin")]
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService

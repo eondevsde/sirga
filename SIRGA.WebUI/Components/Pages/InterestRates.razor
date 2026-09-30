@@ -1,5 +1,6 @@
 @page "/admin/interest-rates"
 @using SIRGA.Domain.Entities
+@attribute [Authorize(Roles = "Admin")]
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 

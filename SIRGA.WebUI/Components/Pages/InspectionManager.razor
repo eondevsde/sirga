@@ -1,6 +1,7 @@
 @page "/union/inspection"
 @using SIRGA.Application.Services
 @using SIRGA.Domain.Entities
+@attribute [Authorize(Roles = "Sindicato,Auditor,Admin")]
 @inject InspectionService InspectionService
 @inject CompanyService CompanyService
 @inject ISnackbar Snackbar

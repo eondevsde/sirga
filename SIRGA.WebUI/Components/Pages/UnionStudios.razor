@@ -2,6 +2,7 @@
 @using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @using SIRGA.Domain.Entities
+@attribute [Authorize(Roles = "Sindicato,Auditor,Admin")]
 @inject HttpClient Http
 @inject AccountingStudioService StudioService
 @inject NavigationManager Navigation
