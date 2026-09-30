@@ -38,8 +38,9 @@ SIRGA.Tests           → xUnit (52 tests): cálculos financieros + reglas de do
 
 ### 2.2 Registro de dependencias (`SIRGA.WebUI/Program.cs`)
 
-- `AddDbContextFactory<SIRG_DbContext>` + `SIRG_DbContext` scoped (creado desde la factory) → **una instancia de contexto por request**.
+- `AddDbContextFactory<SIRG_DbContext>` + `SIRG_DbContext` **transient** (creado desde la factory): el `UnitOfWork` (scoped) resuelve uno y lo comparte entre sus 24 repositorios, y los stores de Identity resuelven el suyo aparte. Antes era `scoped` (una sola instancia por circuito) y se reprodujo con un banco de pruebas que Identity + repositorio en paralelo lanzan `A second operation was started on this context instance`, porque el semáforo solo serializa el acceso del repositorio.
 - `AddScoped<IUnitOfWork, UnitOfWork>` → UnitOfWork y todos los repositorios comparten el mismo `SIRG_DbContext` (transaccionalidad implícita por contexto compartido; sin `BeginTransaction`).
+- `AddScoped(_ => new SemaphoreSlim(1, 1))` → serializa el acceso del repositorio dentro de cada circuito (en Blazor Server el scope es el circuito, no el request). **Pendiente**: reemplazarlo por un contexto por operación, que es el patrón recomendado para Blazor Server; son 251 usos de `unitOfWork` en 104 métodos.
 - Servicios registrados como **Scoped**: `DeclarationService`, `EmployeeService`, `CompanyService`, `UnionService`, `SalaryScaleService`, `AuditService`, `InspectionService`, `AccountingStudioService`, `PaymentService`, `PdfReportService`, `BankReconciliationService`, `DebtNotificationService`, `BalanceService`, `AssociationService`, `EmployeeCategoryService`, `UnionSubscriptionService`, `IEmailService → EmailService`, `IPaymentService → MercadoPagoService`, `IReportService → ExcelReportService`.
 - ASP.NET Identity: `AddIdentity<IdentityUser, IdentityRole>` con policy de contraseña laxa (min 6 chars, sin requisitos).
 

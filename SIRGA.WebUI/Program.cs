@@ -62,7 +62,12 @@ builder.Services.AddDbContextFactory<SIRG_DbContext>(options =>
             b.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null);
         }));
 
-builder.Services.AddScoped<SIRG_DbContext>(p =>
+// Se registra como Transient a propósito: el UnitOfWork (scoped) resuelve el contexto una
+// sola vez y lo comparte entre sus 24 repositorios, pero los stores de Identity resuelven el
+// suyo aparte. Con AddScoped había UNA sola instancia por circuito, y se reprodujo que
+// Identity + repositorio en paralelo lanzan "A second operation was started on this context
+// instance": el SemaphoreSlim solo serializa el acceso del repositorio, no el de Identity.
+builder.Services.AddTransient<SIRG_DbContext>(p =>
     p.GetRequiredService<IDbContextFactory<SIRG_DbContext>>().CreateDbContext());
 
 // Blazor Server: los componentes corren OnInitializedAsync en paralelo sobre el
