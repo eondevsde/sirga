@@ -2,4 +2,7 @@
   <Project Path="SIRGA.Application/SIRGA.Application.csproj" />
   <Project Path="SIRGA.Domain/SIRGA.Domain.csproj" />
   <Project Path="SIRGA.Infrastructure/SIRGA.Infrastructure.csproj" />
+  <Project Path="SIRGA.Migration/SIRGA.Migration.csproj" />
+  <Project Path="SIRGA.Tests/SIRGA.Tests.csproj" />
+  <Project Path="SIRGA.WebUI/SIRGA.WebUI.csproj" />
 </Solution>
