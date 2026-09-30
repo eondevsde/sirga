@@ -7,6 +7,14 @@ namespace SIRGA.WebUI.Controllers;
 [Route("account")]
 public class AccountController : Controller
 {
+  /// <summary>
+  /// Roles que un usuario puede elegir al registrarse por su cuenta. Son los dos tipos de cuenta
+  /// que ofrece la pantalla de registro. Antes NO se validaba: el rol llegaba del formulario y se
+  /// asignaba tal cual (creando el rol si no existía), así que posteando <c>role=Admin</c>
+  /// cualquiera se creaba un usuario administrador y quedaba logueado en el sistema.
+  /// </summary>
+  private static readonly string[] RolesAutoRegistro = { "Empresa", "EstudioContable" };
+
   private readonly SignInManager<IdentityUser> _signInManager;
   private readonly UserManager<IdentityUser> _userManager;
   private readonly AccountingStudioService _studioService;
@@ -73,6 +81,14 @@ public class AccountController : Controller
       string? returnUrl = null)
   {
     returnUrl ??= Url.Content("~/");
+
+    // Sólo se admiten los roles de auto-registro; cualquier otro valor (por ejemplo "Admin")
+    // se rechaza antes de crear nada.
+    if (!RolesAutoRegistro.Contains(role, StringComparer.Ordinal))
+    {
+      _logger.LogWarning("Intento de registro con rol no permitido: {Role}", role);
+      return Redirect($"/register?error={Uri.EscapeDataString("El tipo de cuenta seleccionado no es válido.")}");
+    }
 
     var user = new IdentityUser { UserName = email, Email = email };
     var result = await _userManager.CreateAsync(user, password);
