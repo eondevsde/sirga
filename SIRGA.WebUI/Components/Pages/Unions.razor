@@ -3,10 +3,10 @@
 @using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @inject UnionService UnionService
+@inject UnionSubscriptionService SubscriptionService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthStateProvider
-@inject HttpClient Http
 @attribute [Authorize(Roles = "Admin,Auditor")]
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
@@ -95,22 +95,28 @@
     {
       await UnionService.CreateAsync(newUnion);
       
-      // Intentar crear el usuario automáticamente
+      // Crear el usuario de sindicato. Llamada directa al servicio: el endpoint ahora exige rol
+      // y el HttpClient del componente no lleva la cookie de sesión.
       try
       {
-        var response = await Http.PostAsJsonAsync("api/unions/create-user", newUnion);
-        if (response.IsSuccessStatusCode)
+        var (_, yaExistia, error) = await SubscriptionService.EnsureUnionUserAsync(newUnion.AdminEmail);
+
+        if (error != null)
         {
-          Snackbar.Add("Sindicato y usuario (pass: 12345) creados con éxito", Severity.Success);
+          Snackbar.Add("Sindicato creado, pero hubo un error al crear el usuario: " + error, Severity.Warning);
+        }
+        else if (yaExistia)
+        {
+          Snackbar.Add("Sindicato creado. El usuario ya existía.", Severity.Info);
         }
         else
         {
-          Snackbar.Add("Sindicato creado, pero hubo un error al crear el usuario.", Severity.Warning);
+          Snackbar.Add("Sindicato y usuario creados con éxito. La contraseña inicial es 12345: cambiala en el primer acceso.", Severity.Success);
         }
       }
-      catch (Exception)
+      catch (Exception ex)
       {
-        Snackbar.Add("Error al conectar para crear el usuario.", Severity.Error);
+        Snackbar.Add("Error al crear el usuario: " + ex.Message, Severity.Error);
       }
 
       await LoadUnions();

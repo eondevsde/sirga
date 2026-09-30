@@ -22,6 +22,44 @@ public class UnionSubscriptionService
     _roleManager = roleManager;
   }
 
+  // Contraseña inicial de los usuarios de sindicato. Es una deuda conocida (ver la sección de
+  // deuda técnica de DOCUMENTACION_SIRGA.md): cambiarla requiere un flujo de primer acceso.
+  private const string ClaveInicialSindicato = "12345";
+  private const string RolSindicato = "Sindicato";
+
+  /// <summary>
+  /// Garantiza el usuario de Identity del sindicato con rol Sindicato. Es idempotente: si el
+  /// email ya está registrado lo informa en lugar de fallar. La lógica estaba duplicada entre el
+  /// alta desde el panel de sindicatos y la aprobación de una solicitud de suscripción.
+  /// </summary>
+  public async Task<(bool Creado, bool YaExistia, string? Error)> EnsureUnionUserAsync(string? email)
+  {
+    if (string.IsNullOrWhiteSpace(email))
+    {
+      return (false, false, "El email del administrador es requerido.");
+    }
+
+    if (await _userManager.FindByEmailAsync(email) != null)
+    {
+      return (false, true, null);
+    }
+
+    var user = new IdentityUser { UserName = email, Email = email, EmailConfirmed = true };
+    var resultado = await _userManager.CreateAsync(user, ClaveInicialSindicato);
+    if (!resultado.Succeeded)
+    {
+      return (false, false, string.Join("; ", resultado.Errors.Select(e => e.Description)));
+    }
+
+    if (!await _roleManager.RoleExistsAsync(RolSindicato))
+    {
+      await _roleManager.CreateAsync(new IdentityRole(RolSindicato));
+    }
+    await _userManager.AddToRoleAsync(user, RolSindicato);
+
+    return (true, false, null);
+  }
+
   // --- Solicitudes ---
   public async Task CreateRequestAsync(SubscriptionRequestDto dto)
   {
@@ -85,22 +123,9 @@ public class UnionSubscriptionService
       await _unitOfWork.Unions.AddAsync(union);
       await _unitOfWork.CompleteAsync(); // Para obtener el Id de la unión
 
-      // 1. Crear el usuario de Identity si no existe
-      var existingUser = await _userManager.FindByEmailAsync(request.ContactEmail);
-      if (existingUser == null)
-      {
-        var user = new IdentityUser { UserName = request.ContactEmail, Email = request.ContactEmail, EmailConfirmed = true };
-        var createResult = await _userManager.CreateAsync(user, "12345");
-        if (createResult.Succeeded)
-        {
-          // 2. Asignar el rol de Sindicato
-          if (!await _roleManager.RoleExistsAsync("Sindicato"))
-          {
-            await _roleManager.CreateAsync(new IdentityRole("Sindicato"));
-          }
-          await _userManager.AddToRoleAsync(user, "Sindicato");
-        }
-      }
+      // 1 y 2. Crear el usuario de Identity con rol Sindicato si no existe. Es la misma lógica
+      // que usa el alta desde el panel de sindicatos (antes estaba duplicada acá).
+      await EnsureUnionUserAsync(request.ContactEmail);
 
       var subscription = new UnionSubscription
       {
