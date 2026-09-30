@@ -240,7 +240,7 @@ else
   private List<Company> _parentCompanies = new();
   private List<Company> _branches = new();
   private int _selectedParentId;
-  private List<Union> _unions = new();
+  private List<UnionDto> _unions = new();
   private List<SalaryScaleDto> _currentScales = new();
   private List<DeclarationDetailViewModel> _details = new();
 
@@ -258,7 +258,8 @@ else
       _companies = rawCompanies.Where(c => c.Status == SIRGA.Domain.Enums.CompanyStatus.Active).ToList();
       
       _parentCompanies = _companies.Where(c => c.ParentCompanyId == null).ToList();
-      _unions = await Http.GetFromJsonAsync<List<Union>>("api/unions") ?? new();
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      _unions = (await UnionService.GetAllAsync()).ToList();
             
       if (!_parentCompanies.Any())
       {

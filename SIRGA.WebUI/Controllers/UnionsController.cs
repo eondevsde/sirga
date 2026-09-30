@@ -19,6 +19,11 @@ public class UnionsController : ControllerBase
     _subscriptionService = subscriptionService;
   }
 
+  /// <summary>
+  /// Sindicatos para los selectores de las pantallas. Era anónimo; ahora exige los roles de las
+  /// tres pantallas que lo consumen (alta de empresas, nueva DDJJ y panel de sindicato).
+  /// </summary>
+  [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
   [HttpGet]
   public async Task<IActionResult> GetAll()
   {

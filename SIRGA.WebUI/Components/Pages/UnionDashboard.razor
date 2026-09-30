@@ -172,7 +172,7 @@
 
 @code {
   private List<DeclarationResponseDto> _declarations = new();
-  private List<Union> _unions = new();
+  private List<UnionDto> _unions = new();
   private int _selectedUnionId;
   private bool _loading = false;
   private int _pendingStudiosCount = 0;
@@ -194,7 +194,7 @@
       if (union != null)
       {
         _selectedUnionId = union.Id;
-        _unions = new List<Union> { new Union { Id = union.Id, Name = union.Name, JurisdictionCity = union.JurisdictionCity } };
+        _unions = new List<UnionDto> { new UnionDto { Id = union.Id, Name = union.Name, JurisdictionCity = union.JurisdictionCity } };
       }
       else
       {
@@ -244,7 +244,7 @@
   {
     try
     {
-      _unions = await Http.GetFromJsonAsync<List<Union>>("api/unions") ?? new();
+      _unions = (await UnionService.GetAllAsync()).ToList();
       if (_unions.Any())
       {
         _selectedUnionId = _unions.First().Id;
