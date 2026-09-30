@@ -1,4 +1,5 @@
 @using SIRGA.Domain.Entities
+@using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @inject HttpClient Http
 @inject CompanyService CompanyService
@@ -97,8 +98,9 @@
       // Si la casa central tiene un estudio, la sucursal también
       _newBranch.AccountingStudioId = MainCompany.AccountingStudioId;
 
-      var response = await Http.PostAsJsonAsync("api/companies", _newBranch);
-      if (response.IsSuccessStatusCode)
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      var result = await CompanyService.CreateCompanyAsync(_newBranch, null, null);
+      if (result.Status is CompanySaveStatus.Created or CompanySaveStatus.Ok)
       {
         Snackbar.Add("Sucursal agregada con éxito", Severity.Success);
         _newBranch = new Company(); // Resetear el objeto correctamente
@@ -106,8 +108,7 @@
       }
       else
       {
-        var error = await response.Content.ReadAsStringAsync();
-        Snackbar.Add($"Error al guardar: {error}", Severity.Error);
+        Snackbar.Add($"Error al guardar: {result.Message ?? "no se pudo guardar la sucursal."}", Severity.Error);
       }
     }
     catch (Exception ex)

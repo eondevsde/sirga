@@ -293,21 +293,13 @@
     _processing = true;
     try
     {
-      HttpResponseMessage response;
-      if (IsEdit)
-      {
-        var editUrl = $"api/companies/{_company.Id}";
-        if (!string.IsNullOrEmpty(CurrentUsername))
-          editUrl += $"?username={Uri.EscapeDataString(CurrentUsername)}";
-        response = await Http.PutAsJsonAsync(editUrl, _company);
-      }
-      else
-      {
-        var url = $"api/companies?studioId={CurrentStudioId}&unionId={_selectedUnionId}";
-        response = await Http.PostAsJsonAsync(url, _company);
-      }
+      // Llamada directa al servicio: los endpoints ahora exigen rol y el HttpClient del
+      // componente no lleva la cookie de sesión.
+      var result = IsEdit
+          ? await CompanyService.UpdateCompanyAsync(_company.Id, _company, CurrentUsername)
+          : await CompanyService.CreateCompanyAsync(_company, CurrentStudioId, _selectedUnionId);
 
-      if (response.IsSuccessStatusCode)
+      if (result.Status is CompanySaveStatus.Created or CompanySaveStatus.Ok)
       {
         Snackbar.Add(IsEdit ? "Empresa actualizada exitosamente" : "Empresa registrada. Solicitud enviada al Sindicato.",
 Severity.Success);
@@ -315,8 +307,7 @@ Severity.Success);
       }
       else
       {
-        var error = await response.Content.ReadAsStringAsync();
-        Snackbar.Add("Error: " + error, Severity.Error);
+        Snackbar.Add("Error: " + (result.Message ?? "no se pudo guardar la empresa."), Severity.Error);
       }
     }
     catch (Exception ex)

@@ -36,7 +36,12 @@ public class ServiceLayerTests
     unitOfWork.SetupGet(u => u.Companies).Returns(companiesRepo.Object);
     unitOfWork.SetupGet(u => u.AccountingStudios).Returns(studiosRepo.Object);
 
-    return (new CompanyService(unitOfWork.Object), companiesRepo, studiosRepo);
+    // CompanyService ahora también recibe las validaciones y las solicitudes de vinculación,
+    // porque el alta y la edición se movieron del controlador al servicio.
+    var validation = new CompanyValidationService(unitOfWork.Object, new Mock<ILegacyCompanyLookup>().Object);
+    var associations = new AssociationService(unitOfWork.Object);
+
+    return (new CompanyService(unitOfWork.Object, validation, associations), companiesRepo, studiosRepo);
   }
 
   [Fact]
