@@ -1,8 +1,11 @@
 @page "/audit/dashboard"
 @using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Sindicato,Admin,Auditor")]
 @inject HttpClient Http
+@inject AuditService AuditService
+@inject DebtNotificationService DebtNotificationService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
 
@@ -151,7 +154,7 @@ else
   {
     try
     {
-      _data = await Http.GetFromJsonAsync<AuditDashboardDto>("api/audit/dashboard");
+      _data = await AuditService.GetStatsAsync();
       if (_data != null)
       {
         PrepareChart();
@@ -168,16 +171,10 @@ else
     _isNotifying = true;
     try
     {
-      var response = await Http.PostAsync("api/audit/notify-debtors", null);
-      if (response.IsSuccessStatusCode)
-      {
-        var count = await response.Content.ReadAsStringAsync();
-        Snackbar.Add($"Se enviaron {count} notificaciones a empresas deudoras.", Severity.Success);
-      }
-      else
-      {
-        Snackbar.Add("Error al enviar notificaciones.", Severity.Error);
-      }
+      // Llamada directa al servicio: el endpoint HTTP ahora exige rol y el HttpClient del
+      // componente no lleva la cookie de sesión.
+      var enviados = await DebtNotificationService.NotifyAllDebtorsAsync();
+      Snackbar.Add($"Se enviaron {enviados} notificaciones a empresas deudoras.", Severity.Success);
     }
     catch (Exception ex)
     {
