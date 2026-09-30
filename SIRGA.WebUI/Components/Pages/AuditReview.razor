@@ -11,12 +11,16 @@
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
   <MudText Typo="Typo.h4" Class="mb-6">Revisión y Auditoría de DDJJ</MudText>
 
-  <MudTable Items="@_declarations" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Elevation="4">
+  @* ServerData: la grilla pide de a una página al servidor. Antes se traían las 248.151
+     DDJJ completas (115,68 MB y 40,5 s) y se filtraban en el navegador. *@
+  <MudTable Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading" Elevation="4"
+            ServerData="LoadServerData" @ref="_table" Dense="true">
     <ToolBarContent>
       <MudText Typo="Typo.h6">Declaraciones Pendientes de Revisión</MudText>
       <MudSpacer />
       <MudTextField @bind-Value="_searchString" Placeholder="Buscar por CUIT o Empresa" Adornment="Adornment.Start"
-                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"
+                    Immediate="true" DebounceInterval="400" OnDebounceIntervalElapsed="OnSearchChanged"></MudTextField>
     </ToolBarContent>
     <HeaderContent>
       <MudTh>Periodo</MudTh>
@@ -41,6 +45,9 @@
                        OnClick="@(() => ViewDetails(context))" />
       </MudTd>
     </RowTemplate>
+    <PagerContent>
+      <MudTablePager InfoFormat="Mostrando {first_item}-{last_item} de {all_items}" RowsPerPageString="Filas:" />
+    </PagerContent>
   </MudTable>
 </MudContainer>
 
@@ -98,6 +105,7 @@
 </MudDialog>
 
 @code {
+  private MudTable<DeclarationResponseDto> _table = null!;
   private List<DeclarationResponseDto> _declarations = new();
   private List<DeclarationDetailDto> _details = new();
   private bool _loading = true;
@@ -108,20 +116,28 @@
   private string _observation = "";
   private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
 
-  protected override async Task OnInitializedAsync()
-  {
-    await LoadData();
-  }
-
-  private async Task LoadData()
+  /// <summary>
+  /// Carga de a una página: el filtro por estado, la búsqueda y el Skip/Take los resuelve
+  /// la base. Antes se traían las 248.151 DDJJ (115,68 MB, 40,5 s) y se filtraban acá.
+  /// </summary>
+  private async Task<TableData<DeclarationResponseDto>> LoadServerData(TableState state, CancellationToken cancellationToken)
   {
     _loading = true;
     try
     {
-      // En este prototipo traemos todas, pero en producción filtraríamos por SindicatoId del usuario logueado
-      var all = await Http.GetFromJsonAsync<List<DeclarationResponseDto>>("api/declarations") ?? new();
-      // Mostramos solo las que están en estado "Pending" o "Submitted"
-      _declarations = all.Where(d => d.Status == "Submitted" || d.Status == "Pending").ToList();
+      var page = state.Page + 1;
+      var url = $"api/declarations/paged?page={page}&pageSize={state.PageSize}&status=Submitted";
+      if (!string.IsNullOrWhiteSpace(_searchString))
+      {
+        url += $"&search={Uri.EscapeDataString(_searchString.Trim())}";
+      }
+
+      var result = await Http.GetFromJsonAsync<PagedDeclarationsDto>(url, cancellationToken);
+      if (result != null)
+      {
+        _declarations = result.Items;
+        return new TableData<DeclarationResponseDto> { TotalItems = result.TotalCount, Items = result.Items };
+      }
     }
     catch (Exception ex)
     {
@@ -131,6 +147,18 @@
     {
       _loading = false;
     }
+
+    return new TableData<DeclarationResponseDto> { TotalItems = 0, Items = new List<DeclarationResponseDto>() };
+  }
+
+  private async Task OnSearchChanged(string value)
+  {
+    if (_table != null) await _table.ReloadServerData();
+  }
+
+  private async Task ReloadTable()
+  {
+    if (_table != null) await _table.ReloadServerData();
   }
 
   private async Task ViewDetails(DeclarationResponseDto dec)
@@ -164,7 +192,7 @@
       await DeclarationService.ApproveDeclarationAsync(_selectedDeclaration.Id, _observation);
       Snackbar.Add("Declaración Aprobada con éxito", Severity.Success);
       _detailsVisible = false;
-      await LoadData();
+      await ReloadTable();
     }
     catch (Exception ex)
     {
@@ -187,7 +215,7 @@
       await DeclarationService.RejectDeclarationAsync(_selectedDeclaration.Id, _observation);
       Snackbar.Add("Declaración Rechazada", Severity.Warning);
       _detailsVisible = false;
-      await LoadData();
+      await ReloadTable();
     }
     catch (Exception ex)
     {

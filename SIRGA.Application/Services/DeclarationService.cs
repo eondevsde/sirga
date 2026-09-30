@@ -356,6 +356,49 @@ public class DeclarationService(
     });
   }
 
+  /// <summary>
+  /// Versión paginada y filtrable para las grillas de auditoría, usando la proyección
+  /// eficiente (joins a Empresa/Sindicato y subtotales agregados en SQL).
+  /// Reemplaza el patrón de traer todas las DDJJ a la UI: medido, GET /api/declarations
+  /// tardaba 40,5 s y devolvía 115,68 MB de JSON, y además calculaba los subtotales sobre
+  /// <c>Details</c> sin cargar la colección, por lo que AporteLey y CuotaSocio daban 0 en
+  /// las 248.151 filas.
+  /// </summary>
+  public async Task<PagedDeclarationsDto> GetDeclarationsPagedAsync(
+      int page, int pageSize, string? status = null, int? unionId = null, int? companyId = null, string? search = null)
+  {
+    return await unitOfWork.Declarations.RunQueryAsync(async q =>
+    {
+      var baseQuery = q.AsQueryable();
+
+      if (unionId.HasValue) baseQuery = baseQuery.Where(d => d.UnionId == unionId.Value);
+      if (companyId.HasValue) baseQuery = baseQuery.Where(d => d.CompanyId == companyId.Value);
+
+      if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<DeclarationStatus>(status, true, out var estado))
+      {
+        baseQuery = baseQuery.Where(d => d.Status == estado);
+      }
+
+      if (!string.IsNullOrWhiteSpace(search))
+      {
+        var texto = search.Trim();
+        baseQuery = baseQuery.Where(d => d.Company.BusinessName.Contains(texto) || d.Company.Cuit.Contains(texto));
+      }
+
+      var totalCount = await baseQuery.CountAsync();
+      var totalAmount = await baseQuery.SumAsync(d => (decimal?)d.TotalAmount) ?? 0m;
+
+      var items = await baseQuery
+          .OrderByDescending(d => d.SubmissionDate)
+          .Skip((page - 1) * pageSize)
+          .Take(pageSize)
+          .Select(ProjectDeclaration())
+          .ToListAsync();
+
+      return new PagedDeclarationsDto { TotalCount = totalCount, TotalAmount = totalAmount, Items = items };
+    });
+  }
+
   public async Task<DeclarationResponseDto?> GetResponseByIdAsync(int id)
   {
     var d = await unitOfWork.Declarations.GetByIdAsync(id);

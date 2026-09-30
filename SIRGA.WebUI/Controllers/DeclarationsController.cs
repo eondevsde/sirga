@@ -63,6 +63,19 @@ public class DeclarationsController : ControllerBase
     return Ok(result);
   }
 
+  [HttpGet("paged")]
+  [ProducesResponseType(typeof(PagedDeclarationsDto), StatusCodes.Status200OK)]
+  public async Task<IActionResult> GetPaged([FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+      [FromQuery] string? status = null, [FromQuery] int? unionId = null,
+      [FromQuery] int? companyId = null, [FromQuery] string? search = null)
+  {
+    if (page < 1) page = 1;
+    if (pageSize < 1 || pageSize > 200) pageSize = 25;
+
+    var result = await _declarationService.GetDeclarationsPagedAsync(page, pageSize, status, unionId, companyId, search);
+    return Ok(result);
+  }
+
   [HttpGet("{id}")]
   [ProducesResponseType(typeof(DeclarationResponseDto), StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status404NotFound)]
