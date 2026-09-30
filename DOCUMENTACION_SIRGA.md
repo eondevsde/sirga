@@ -503,11 +503,16 @@ Todo se midió contra la base real (`SIRGA_DB`: 248.151 DDJJ, 1.269.977 detalles
 
 También se corrigió un bug que hacía que `AporteLey`, `CuotaSocio` y `SeguroSepelio` fueran **0 en las 248.151 filas** (se sumaba la colección `Details` sin cargarla).
 
+### Hecho después de esa tabla
+
+- La migración de índices quedó **aplicada** en `SIRGA_DB` (y el script idempotente para otros entornos es `script_sirga_db_indices_performance.sql`).
+- `GET /api/audit/dashboard` y `POST /api/audit/notify-debtors` ahora **exigen rol**: eran anónimos, así que se podía leer toda la recaudación con la lista de deudores y, peor, disparar el envío masivo de avisos por email desde afuera.
+- **7 páginas que se renderizaban sin sesión** pasaron a exigir inicio de sesión: `/admin/payments`, `/admin/interest-rates`, `/admin/salary-scales`, `/union/inspection`, `/union/studios`, `/legal-notices` y `/studio-pending` (`Routes.razor` usa `AuthorizeRouteView`, que solo exige autorización en las páginas que llevan `[Authorize]`).
+
 ### Pendiente, por orden sugerido
 
-1. **Aplicar la migración `AddPerformanceIndexes`** (generada y medida, sin aplicar):
-   `dotnet ef database update --project SIRGA.Infrastructure --startup-project SIRGA.WebUI`
+1. **Endpoints anónimos que escriben** (mismo patrón: primero pasar la llamada de la UI al servicio, después exigir rol): `POST /api/payment/bulk-confirm` y `/manual` (marcan DDJJ como pagadas y registran pagos), `/import-excel`, `/salaries-excel`, `POST /api/payments/preferences/{id}`, `POST /api/unions/create-user` (crea usuarios con contraseña fija `12345`), `POST /api/companies`, `POST /api/employees` y `PATCH /api/employees/transfer`. Los **webhooks de MercadoPago deben quedar anónimos** (los llama MP): lo que corresponde ahí es verificar la firma, no exigir cookie.
 2. **Reemplazar el `SemaphoreSlim` por un contexto por operación**, que es el patrón recomendado en Blazor Server. Son 251 usos de `unitOfWork` en 104 métodos de 16 servicios: conviene hacerlo de a un servicio por vez. El arnés `.dsh-tools/Concurrency` (ignorado por git) reproduce la concurrencia y sirve de red: el choque Identity + repositorio ya está resuelto, pero **dos llamadas concurrentes de Identity sobre el mismo scope siguen fallando** (es inherente al `UserStore` scoped).
-3. **N+1 restantes**: `AssociationService` (3 consultas por fila), `InspectionService`, la importación de Excel de nómina y la conciliación bancaria (una consulta por fila del archivo).
-4. **Sacar del hilo del circuito** el envío masivo de mails ("notificar deudores" manda un SMTP por deudor y hay 4.352 deudores) y la generación de PDF/Excel.
+3. **Sacar del hilo del circuito** el envío masivo de mails ("notificar deudores" manda un SMTP por deudor y hay 4.352 deudores) y la generación de PDF/Excel.
+4. **N+1 restantes: medidos y hoy sin impacto.** Todas las tablas involucradas (`AssociationRequests`, `InspectionActs`, `InspectionVisits`, `PrejudicialNotices`, `PaymentPlans`, `PaymentTransactions`, `AuditLogs`, `BalanceHistories`, `UnionSubscriptions`) tienen **0 filas**. Son higiene para cuando se usen esos módulos, no optimización.
 5. **Seguridad**: la política permite contraseñas de 5 caracteres, y `UnionsController.create-user` y `UnionSubscriptionService` crean usuarios con `12345` fija. Subir la política sin cambiar eso rompería el alta de usuarios de sindicato.
