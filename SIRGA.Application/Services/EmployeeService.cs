@@ -99,18 +99,18 @@ public class EmployeeService(IUnitOfWork unitOfWork)
 
     public async Task<IEnumerable<EmployeeDto>> GetPadronAsync()
     {
-        var employees = await unitOfWork.Employees.GetAllAsync();
-        var assignments = await unitOfWork.Assignments.GetAllAsync();
-        var activeByEmployee = assignments.Where(a => a.IsActive).Select(a => a.EmployeeId).ToHashSet();
-
-        return employees.Select(e => new EmployeeDto
-        {
-            Id = e.Id,
-            Dni = e.Dni,
-            FullName = e.FullName,
-            JoinedDate = e.HireDate,
-            IsActive = activeByEmployee.Contains(e.Id)
-        }).ToList();
+        // Una sola consulta proyectada en SQL. Antes traía los 27.934 empleados y las 36.011
+        // asignaciones completas —y rastreadas por el change tracker del circuito, que las
+        // retenía en memoria— para cruzarlas después en C#.
+        return await unitOfWork.Employees.RunQueryAsync(q =>
+            q.Select(e => new EmployeeDto
+            {
+                Id = e.Id,
+                Dni = e.Dni,
+                FullName = e.FullName,
+                JoinedDate = e.HireDate,
+                IsActive = e.Assignments.Any(a => a.IsActive)
+            }).ToListAsync());
     }
 
     public async Task<Company?> GetCompanyByIdAsync(int id)
