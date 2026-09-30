@@ -43,7 +43,10 @@ public class ErrorHandlerMiddleware
           break;
       }
 
-      var result = JsonSerializer.Serialize(new { message = error?.Message });
+      // El mensaje interno NO se devuelve al cliente: un 500 provocado desde afuera (por ejemplo
+      // con un id inválido en un webhook) alcanzaba para leer detalles de la excepción —nombres de
+      // tablas y columnas, restricciones, mensajes de EF—. El detalle queda en el log del servidor.
+      var result = JsonSerializer.Serialize(new { message = "Ocurrió un error interno. Intente nuevamente y, si persiste, avise al administrador." });
       await response.WriteAsync(result);
     }
   }
