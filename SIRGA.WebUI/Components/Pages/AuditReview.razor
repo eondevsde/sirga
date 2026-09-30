@@ -1,8 +1,10 @@
 @page "/audit/review"
 @using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Sindicato,Admin")]
 @inject HttpClient Http
+@inject DeclarationService DeclarationService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -157,18 +159,16 @@
   {
     if (_selectedDeclaration == null) return;
         
-    var request = new AuditActionRequestDto { DeclarationId = _selectedDeclaration.Id, Observation = _observation };
-    var response = await Http.PostAsJsonAsync("api/declarations/approve", request);
-        
-    if (response.IsSuccessStatusCode)
+    try
     {
+      await DeclarationService.ApproveDeclarationAsync(_selectedDeclaration.Id, _observation);
       Snackbar.Add("Declaración Aprobada con éxito", Severity.Success);
       _detailsVisible = false;
       await LoadData();
     }
-    else
+    catch (Exception ex)
     {
-      Snackbar.Add("Error al aprobar", Severity.Error);
+      Snackbar.Add("Error al aprobar: " + ex.Message, Severity.Error);
     }
   }
 
@@ -182,18 +182,16 @@
       return;
     }
 
-    var request = new AuditActionRequestDto { DeclarationId = _selectedDeclaration.Id, Observation = _observation };
-    var response = await Http.PostAsJsonAsync("api/declarations/reject", request);
-        
-    if (response.IsSuccessStatusCode)
+    try
     {
+      await DeclarationService.RejectDeclarationAsync(_selectedDeclaration.Id, _observation);
       Snackbar.Add("Declaración Rechazada", Severity.Warning);
       _detailsVisible = false;
       await LoadData();
     }
-    else
+    catch (Exception ex)
     {
-      Snackbar.Add("Error al rechazar", Severity.Error);
+      Snackbar.Add("Error al rechazar: " + ex.Message, Severity.Error);
     }
   }
 

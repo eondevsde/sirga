@@ -11,7 +11,7 @@ namespace SIRGA.Application.Interfaces
 {
   public interface IReportService
   {
-    Task<byte[]> ExportEmployeesToExcelAsync(IEnumerable<Employee> employees, string title);
+    Task<byte[]> ExportEmployeesToExcelAsync(IEnumerable<Employee> employees, string title, int? companyId = null);
     Task<byte[]> ExportDebtorsToExcelAsync(IEnumerable<CompanyDebtDto> debtors, string title);
     Task<byte[]> ExportCollectionsToExcelAsync(IEnumerable<MonthlyCollectionDto> collections, string title);
   }
@@ -21,7 +21,7 @@ namespace SIRGA.Infrastructure.Services
 {
   public class ExcelReportService : SIRGA.Application.Interfaces.IReportService
   {
-    public Task<byte[]> ExportEmployeesToExcelAsync(IEnumerable<Employee> employees, string title)
+    public Task<byte[]> ExportEmployeesToExcelAsync(IEnumerable<Employee> employees, string title, int? companyId = null)
     {
       using var workbook = new XLWorkbook();
       var worksheet = workbook.Worksheets.Add("Afiliados");
@@ -41,7 +41,11 @@ namespace SIRGA.Infrastructure.Services
       int row = 4;
       foreach (var emp in employees)
       {
-        var mainAssignment = emp.Assignments?.FirstOrDefault();
+        // Con el padrón filtrado por empresa se muestra la asignación de ESA empresa:
+        // un empleado puede estar en varias y antes salía siempre la primera.
+        var mainAssignment = companyId.HasValue
+            ? emp.Assignments?.FirstOrDefault(a => a.CompanyId == companyId.Value) ?? emp.Assignments?.FirstOrDefault()
+            : emp.Assignments?.FirstOrDefault();
 
         worksheet.Cell(row, 1).Value = emp.Dni;
         worksheet.Cell(row, 2).Value = emp.FullName;

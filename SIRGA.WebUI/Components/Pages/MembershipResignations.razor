@@ -2,7 +2,7 @@
 @using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @using Microsoft.AspNetCore.Authorization
-@inject HttpClient Http
+@inject EmployeeService EmployeeService
 @inject UnionService UnionService
 @inject ISnackbar Snackbar
 @attribute [Authorize(Roles = "Sindicato,Admin")]
@@ -110,8 +110,7 @@ else
     StateHasChanged();
     try
     {
-      _requests = await Http.GetFromJsonAsync<List<MembershipResignationDto>>(
-          $"api/employees/membership/requests?unionId={_selectedUnionId}") ?? new();
+      _requests = (await EmployeeService.GetMembershipResignationRequestsAsync(_selectedUnionId)).ToList();
     }
     catch (Exception ex)
     {
@@ -130,17 +129,15 @@ else
         ? "Renuncia de socio aprobada por el Sindicato."
         : "Renuncia de socio rechazada. El empleado continúa siendo socio.";
 
-    var response = await Http.PostAsJsonAsync("api/employees/membership/resolve",
-        new { request.AssignmentId, Approve = approve, Comment = comment });
+    var (success, error) = await EmployeeService.ResolveMembershipResignationAsync(request.AssignmentId, approve, comment);
 
-    if (response.IsSuccessStatusCode)
+    if (success)
     {
       Snackbar.Add(approve ? "Renuncia aprobada. El empleado dejó de ser socio." : "Renuncia rechazada.", Severity.Success);
     }
     else
     {
-      var error = await response.Content.ReadAsStringAsync();
-      Snackbar.Add("Error: " + error, Severity.Error);
+      Snackbar.Add("Error: " + (error ?? "no se pudo resolver la solicitud"), Severity.Error);
     }
 
     await LoadRequests();

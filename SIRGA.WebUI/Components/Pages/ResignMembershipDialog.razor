@@ -1,4 +1,5 @@
-@inject HttpClient Http
+@using SIRGA.Application.Services
+@inject EmployeeService EmployeeService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -50,23 +51,21 @@
     _processing = true;
     try
     {
-      var response = await Http.PostAsJsonAsync("api/employees/membership/resign",
-          new { AssignmentId, Reason = _reason });
+      var (success, error) = await EmployeeService.RequestMembershipResignationAsync(AssignmentId, _reason);
 
-      if (response.IsSuccessStatusCode)
+      if (success)
       {
         Snackbar.Add("Solicitud de renuncia enviada. El sindicato debe aprobarla.", Severity.Success);
         MudDialog.Close(DialogResult.Ok(true));
       }
       else
       {
-        var error = await response.Content.ReadAsStringAsync();
-        Snackbar.Add("Error: " + error, Severity.Error);
+        Snackbar.Add("Error: " + (error ?? "no se pudo registrar la solicitud"), Severity.Error);
       }
     }
     catch (Exception ex)
     {
-      Snackbar.Add("Error de conexión: " + ex.Message, Severity.Error);
+      Snackbar.Add("Error al enviar la solicitud: " + ex.Message, Severity.Error);
     }
     finally
     {

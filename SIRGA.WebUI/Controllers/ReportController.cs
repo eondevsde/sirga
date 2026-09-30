@@ -48,21 +48,11 @@ public class ReportController(EmployeeService employeeService, IReportService re
   [HttpGet("padron")]
   public async Task<IActionResult> DownloadPadron([FromQuery] int? companyId, [FromQuery] string? city)
   {
-    var employees = await employeeService.GetAllEmployeesRawAsync();
-
-    // Aplicar filtros si existen
-    if (companyId.HasValue)
-    {
-      employees = employees.Where(e => e.Assignments.Any(a => a.CompanyId == companyId.Value)).ToList();
-    }
-
-    if (!string.IsNullOrEmpty(city))
-    {
-      employees = employees.Where(e => e.Assignments.Any(a => a.Company != null && a.Company.City != null && a.Company.City.Name.Contains(city, StringComparison.OrdinalIgnoreCase))).ToList();
-    }
+    // El filtro se resuelve en SQL, junto con la empresa de cada empleado.
+    var employees = await employeeService.GetEmployeesForPadronAsync(companyId, city);
 
     var title = "Padrón de Beneficiarios SIRGA - " + DateTime.Now.ToString("dd/MM/yyyy");
-    var fileBytes = await reportService.ExportEmployeesToExcelAsync(employees, title);
+    var fileBytes = await reportService.ExportEmployeesToExcelAsync(employees, title, companyId);
 
     return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Padron_SIRGA_{DateTime.Now:yyyyMMdd}.xlsx");
   }

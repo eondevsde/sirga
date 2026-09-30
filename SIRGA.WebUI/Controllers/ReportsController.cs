@@ -21,21 +21,14 @@ namespace SIRGA.WebUI.Controllers
     [HttpGet("employees-excel")]
     public async Task<IActionResult> ExportEmployeesExcel([FromQuery] int? companyId)
     {
-      var employees = await _employeeService.GetAllAsync();
-
-      if (companyId.HasValue)
-      {
-        // Filtrar empleados que tengan una asignación activa en esa empresa
-        employees = employees
-            .Where(e => e.Assignments.Any(a => a.CompanyId == companyId.Value))
-            .ToList();
-      }
+      // El filtro se resuelve en SQL, junto con la empresa de cada empleado.
+      var employees = await _employeeService.GetEmployeesForPadronAsync(companyId);
 
       var sampleEmp = employees.FirstOrDefault();
       string companyName = sampleEmp?.Assignments?.FirstOrDefault(a => a.CompanyId == companyId)?.Company?.BusinessName ?? "Empresa";
       string title = companyId.HasValue ? $"Padrón de Afiliados - {companyName}" : "Padrón General de Afiliados";
 
-      var content = await _reportService.ExportEmployeesToExcelAsync(employees, title);
+      var content = await _reportService.ExportEmployeesToExcelAsync(employees, title, companyId);
 
       return File(content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           $"Padron_{DateTime.Now:yyyyMMdd}.xlsx");

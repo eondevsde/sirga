@@ -439,35 +439,28 @@ new();
         }).ToList()
       };
 
-      var response = await Http.PostAsJsonAsync("api/declarations", request);
+      // Llamada directa al servicio. Antes se hacía por HTTP contra la propia API y, como el
+      // HttpClient del componente no lleva la cookie de sesión, el endpoint [Authorize]
+      // respondía 401: la DDJJ nunca se guardaba.
+      _lastResult = await DeclarationService.CreateDeclarationAsync(request);
+      Snackbar.Add("¡Declaración Jurada presentada con éxito!", Severity.Success);
 
-      if (response.IsSuccessStatusCode)
+      // Generar preferencia de pago si hay saldo positivo
+      if (_lastResult != null && _lastResult.BalanceAmount > 0)
       {
-        _lastResult = await response.Content.ReadFromJsonAsync<DeclarationResponseDto>();
-        Snackbar.Add("¡Declaración Jurada presentada con éxito!", Severity.Success);
-
-        // Generar preferencia de pago si hay saldo positivo
-        if (_lastResult != null && _lastResult.BalanceAmount > 0)
+        var payResponse = await Http.PostAsync($"api/payments/preferences/{_lastResult.Id}", null);
+        if (payResponse.IsSuccessStatusCode)
         {
-          var payResponse = await Http.PostAsync($"api/payments/preferences/{_lastResult.Id}", null);
-          if (payResponse.IsSuccessStatusCode)
-          {
-            var pref = await payResponse.Content.ReadFromJsonAsync<PaymentPreferenceResponseDto>();
-            _paymentUrl = pref?.SandboxInitPoint ?? "";
-            _showPaymentButton = true;
-            Snackbar.Add("Link de pago generado. Puede proceder a pagar.", Severity.Info);
-          }
+          var pref = await payResponse.Content.ReadFromJsonAsync<PaymentPreferenceResponseDto>();
+          _paymentUrl = pref?.SandboxInitPoint ?? "";
+          _showPaymentButton = true;
+          Snackbar.Add("Link de pago generado. Puede proceder a pagar.", Severity.Info);
         }
-      }
-      else
-      {
-        var error = await response.Content.ReadAsStringAsync();
-        Snackbar.Add($"Error al presentar DDJJ: {error}", Severity.Error);
       }
     }
     catch (Exception ex)
     {
-      Snackbar.Add("Error de conexión: " + ex.Message, Severity.Error);
+      Snackbar.Add("Error al presentar DDJJ: " + ex.Message, Severity.Error);
     }
     finally
     {

@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Sindicato,Admin")]
 @inject HttpClient Http
+@inject EmployeeService EmployeeService
 @inject AccountingStudioService StudioService
 @inject AssociationService AssociationService
 @inject NavigationManager Navigation
@@ -219,9 +220,8 @@
         var pendingAssoc = await AssociationService.GetRequestsForUnionAsync(_selectedUnionId);
         _pendingAssociationsCount = pendingAssoc.Count(r => r.Status == SIRGA.Domain.Entities.RequestStatus.Pending);
 
-        var resignations = await Http.GetFromJsonAsync<List<SIRGA.Application.DTOs.MembershipResignationDto>>(
-            $"api/employees/membership/requests?unionId={_selectedUnionId}");
-        _pendingResignationsCount = resignations?.Count ?? 0;
+        var resignations = await EmployeeService.GetMembershipResignationRequestsAsync(_selectedUnionId);
+        _pendingResignationsCount = resignations?.Count() ?? 0;
 
         var page = await Http.GetFromJsonAsync<PagedDeclarationsDto>($"api/declarations/by-union/{_selectedUnionId}/paged?page=1&pageSize=1");
         if (page != null)

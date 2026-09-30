@@ -2,6 +2,7 @@ using SIRGA.Application.Interfaces;
 using SIRGA.Domain.Entities;
 using SIRGA.Domain.Enums;
 using SIRGA.Application.DTOs;
+using Microsoft.EntityFrameworkCore;
 
 namespace SIRGA.Application.Services;
 
@@ -64,6 +65,36 @@ public class EmployeeService(IUnitOfWork unitOfWork)
     public async Task<IEnumerable<Employee>> GetAllEmployeesRawAsync()
     {
         return await unitOfWork.Employees.GetAllAsync();
+    }
+
+    /// <summary>
+    /// Empleados para el padrón exportable, con su empresa cargada y el filtro resuelto en SQL.
+    /// Antes se filtraba en memoria sobre <c>Assignments</c>, que nunca se cargaba (no hay lazy
+    /// loading ni Includes): el filtro por empresa o ciudad devolvía una lista vacía y la columna
+    /// Empresa del Excel salía siempre "N/A".
+    /// </summary>
+    public async Task<List<Employee>> GetEmployeesForPadronAsync(int? companyId = null, string? city = null)
+    {
+        var query = unitOfWork.Employees.Query()
+            .AsNoTracking()
+            .Include(e => e.Assignments)
+                .ThenInclude(a => a.Company)
+            .AsQueryable();
+
+        if (companyId.HasValue)
+        {
+            var empresaId = companyId.Value;
+            query = query.Where(e => e.Assignments.Any(a => a.CompanyId == empresaId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            var localidad = city.Trim();
+            query = query.Where(e => e.Assignments.Any(a =>
+                a.Company.City != null && a.Company.City.Name.Contains(localidad)));
+        }
+
+        return await query.ToListAsync();
     }
 
     public async Task<IEnumerable<EmployeeDto>> GetPadronAsync()
