@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SIRGA.Application.Interfaces;
 using SIRGA.Application.Services;
 
@@ -8,6 +9,7 @@ namespace SIRGA.WebUI.Controllers;
 [Route("api/[controller]")]
 public class ReportController(EmployeeService employeeService, IReportService reportService, AuditService auditService, DeclarationService declarationService, PdfReportService pdfService, InspectionService inspectionService) : ControllerBase
 {
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("inspection/{id}")]
   public async Task<IActionResult> DownloadInspectionAct(int id)
   {
@@ -18,6 +20,7 @@ public class ReportController(EmployeeService employeeService, IReportService re
     return File(pdfBytes, "application/pdf", $"Acta_Inspeccion_{act.ActNumber}.pdf");
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("payment-plan/{id}")]
   public async Task<IActionResult> DownloadPaymentPlan(int id)
   {
@@ -28,6 +31,7 @@ public class ReportController(EmployeeService employeeService, IReportService re
     return File(pdfBytes, "application/pdf", $"Plan_Pago_{plan.ActNumber}.pdf");
   }
 
+  [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
   [HttpGet("boleta/{id}")]
   public async Task<IActionResult> DownloadBoleta(int id)
   {
@@ -38,6 +42,7 @@ public class ReportController(EmployeeService employeeService, IReportService re
     return File(pdfBytes, "application/pdf", $"Boleta_SIRGA_{declaration.Period}_{declaration.CompanyCuit}.pdf");
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("visit/{id}")]
   public async Task<IActionResult> DownloadVisitNotice(int id)
   {
@@ -45,6 +50,7 @@ public class ReportController(EmployeeService employeeService, IReportService re
     return File(pdfBytes, "application/pdf", $"Constancia_Visita_{id}.pdf");
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("padron")]
   public async Task<IActionResult> DownloadPadron([FromQuery] int? companyId, [FromQuery] string? city)
   {
@@ -57,6 +63,7 @@ public class ReportController(EmployeeService employeeService, IReportService re
     return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Padron_SIRGA_{DateTime.Now:yyyyMMdd}.xlsx");
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("debtors-excel")]
   public async Task<IActionResult> DownloadDebtorsExcel()
   {
@@ -65,6 +72,7 @@ public class ReportController(EmployeeService employeeService, IReportService re
     return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Reporte_Deudores_{DateTime.Now:yyyyMMdd}.xlsx");
   }
 
+  [Authorize(Roles = "Sindicato,Auditor,Admin")]
   [HttpGet("collections-excel")]
   public async Task<IActionResult> DownloadCollectionsExcel()
   {

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SIRGA.Application.Interfaces;
 using SIRGA.Application.Services;
@@ -18,6 +19,7 @@ namespace SIRGA.WebUI.Controllers
       _employeeService = employeeService;
     }
 
+    [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
     [HttpGet("employees-excel")]
     public async Task<IActionResult> ExportEmployeesExcel([FromQuery] int? companyId)
     {

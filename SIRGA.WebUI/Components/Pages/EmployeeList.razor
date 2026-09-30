@@ -5,6 +5,7 @@
 @attribute [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
 @inject EmployeeService EmpService
 @inject CompanyService CompanyService
+@inject IReportService ReportService
 @inject HttpClient Http
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
@@ -204,18 +205,16 @@
     try
     {
       var fileName = $"Padron_Empresa_{CompanyId}_{DateTime.Now:yyyyMMdd}.xlsx";
-      var response = await Http.GetAsync($"api/reports/employees-excel?companyId={CompanyId}");
-      if (response.IsSuccessStatusCode)
-      {
-        var fileStream = await response.Content.ReadAsStreamAsync();
-        using var streamRef = new DotNetStreamReference(stream: fileStream);
-        await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
-        Snackbar.Add("Excel generado con éxito", Severity.Success);
-      }
-      else
-      {
-        Snackbar.Add("Error al generar Excel", Severity.Error);
-      }
+      // Llamada directa a los servicios: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      var employees = await EmpService.GetEmployeesForPadronAsync(CompanyId);
+      var companyName = employees.FirstOrDefault()?.Assignments?
+          .FirstOrDefault(a => a.CompanyId == CompanyId)?.Company?.BusinessName ?? "Empresa";
+      var content = await ReportService.ExportEmployeesToExcelAsync(
+          employees, $"Padrón de Afiliados - {companyName}", CompanyId);
+
+      using var streamRef = new DotNetStreamReference(stream: new MemoryStream(content));
+      await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+      Snackbar.Add("Excel generado con éxito", Severity.Success);
     }
     catch (Exception ex)
     {

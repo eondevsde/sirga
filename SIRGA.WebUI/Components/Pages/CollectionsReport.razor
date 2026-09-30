@@ -5,6 +5,7 @@
 @attribute [Authorize(Roles = "Sindicato,Admin")]
 @inject HttpClient Http
 @inject AuditService AuditService
+@inject IReportService ReportService
 @inject DebtNotificationService DebtNotificationService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
@@ -150,12 +151,11 @@
   {
     try
     {
-      var response = await Http.GetAsync("api/report/collections-excel");
-      if (response.IsSuccessStatusCode)
-      {
-        var bytes = await response.Content.ReadAsByteArrayAsync();
-        await DownloadFile($"Recaudacion_{DateTime.Now:yyyyMMdd}.xlsx", bytes);
-      }
+      // Llamada directa a los servicios: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      var stats = await AuditService.GetStatsAsync();
+      var bytes = await ReportService.ExportCollectionsToExcelAsync(
+          stats.MonthlyCollections, "Resumen de Recaudación Mensual");
+      await DownloadFile($"Recaudacion_{DateTime.Now:yyyyMMdd}.xlsx", bytes);
     }
     catch (Exception ex)
     {
