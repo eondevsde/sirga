@@ -31,10 +31,10 @@ SIRGA.Application     → 16 servicios con la lógica de negocio + DTOs.
 SIRGA.Infrastructure  → EF Core (persistencia), UnitOfWork + Repository, MercadoPago,
                         Email SMTP, Excel (ClosedXML), Migrations, DbInitializer.
 SIRGA.WebUI           → Blazor Server + MudBlazor + controladores API + middlewares.
-SIRGA.Tests           → xUnit (52 tests): cálculos financieros + reglas de dominio.
+SIRGA.Tests           → xUnit (89 tests): cálculos financieros + reglas de dominio.
 ```
 
-> ⚠️ El archivo `SIRGA.slnx` solo referencia Domain, Application e Infrastructure. **WebUI y Tests no están en la solución**; compilar/probar requiere apuntar al `.csproj` directamente.
+> ✅ `SIRGA.slnx` ya referencia los 6 proyectos (Domain, Application, Infrastructure, WebUI, Tests y Migration): `dotnet build SIRGA.slnx` compila todo.
 
 ### 2.2 Registro de dependencias (`SIRGA.WebUI/Program.cs`)
 
@@ -301,7 +301,10 @@ Modelo de cuenta corriente simple: `CompanyBalance.CreditAmount` por empresa.
 
 ## 6. Catálogo API
 
-**Nota transversal**: **ningún controlador tiene `[Authorize]`** → los endpoints responden sin autenticación. La protección real está en el frontend (cookies de Identity + `AuthorizeRouteView`).
+**Nota transversal**: la mayoría de los endpoints son anónimos, pero **6 exigen rol**: `POST /api/declarations` (crear DDJJ) y `/approve`, `/reject` (`DeclarationsController`), y `POST /api/employees/membership/resign`, `/resolve` y `GET /api/employees/membership/requests` (`EmployeesController`).
+⚠️ Como los componentes Blazor llamaban a esos endpoints con un `HttpClient` propio que **no lleva la cookie de sesión**, respondían 401 y la operación no se guardaba. Por eso esas pantallas ahora llaman a los servicios de aplicación directamente. Si se agrega `[Authorize]` a otro endpoint que consuma la UI, hay que hacer lo mismo o reenviar la cookie.
+
+Además, `GET /api/declarations` y `GET /api/employees` están **paginados** (parámetro `pageSize`, por defecto 200 y tope 500): antes devolvían las 248.151 DDJJ (115,68 MB, 40,5 s) y los 27.934 empleados (4,76 MB) completos.
 
 | Controlador | Endpoint | Descripción |
 |---|---|---|
@@ -479,3 +482,32 @@ dotnet test .\SIRGA.Tests\SIRGA.Tests.csproj
 ---
 
 _Nota: Este documento refleja el estado del repositorio al momento de su generación. El proyecto corre en una notebook DIEGOHP (Ryzen 7, 16GB) — se priorizaron consultas async/await y evitar leaks de memoria._
+
+---
+
+## 12. Sesión de optimización (sep 2026): qué se midió y qué queda
+
+Todo se midió contra la base real (`SIRGA_DB`: 248.151 DDJJ, 1.269.977 detalles, 27.934 empleados, 4.507 empresas).
+
+| Cambio | Antes | Después |
+|---|---|---|
+| `GET /api/audit/dashboard` | 103,7 s y 119 → 497 MB | **1,24 s** y 124 → 150 MB |
+| Revisión de DDJJ (`/audit/review`) | 40,5 s y 115,68 MB (las 248.151 filas al navegador) | **0,81 s y 12,7 KB** por página |
+| `GET /api/declarations` | 40,5 s y 115,68 MB | 0,85 s y 101,7 KB (paginado) |
+| `GET /api/employees` | 4,76 MB | 34 KB (paginado) |
+| Padrón de empleados | 1.658 lecturas lógicas y ~64.000 entidades rastreadas por render | 556 lecturas, sin rastreo |
+| CSS + JS de MudBlazor (primer load, publicado) | 854 KB sin comprimir y con `no-cache` | **163 KB** con Brotli y `immutable` (−81%) |
+| Índices nuevos en `Declarations`, `AuditLogs` y `BalanceHistories` | ~2.750 lecturas lógicas | **3** |
+| Escrituras de la UI (DDJJ, aprobaciones, renuncias) | 401 silencioso: no se guardaba nada | llamada directa al servicio |
+| Advertencias del build | 170 (con 1 vulnerabilidad alta) | **0** |
+
+También se corrigió un bug que hacía que `AporteLey`, `CuotaSocio` y `SeguroSepelio` fueran **0 en las 248.151 filas** (se sumaba la colección `Details` sin cargarla).
+
+### Pendiente, por orden sugerido
+
+1. **Aplicar la migración `AddPerformanceIndexes`** (generada y medida, sin aplicar):
+   `dotnet ef database update --project SIRGA.Infrastructure --startup-project SIRGA.WebUI`
+2. **Reemplazar el `SemaphoreSlim` por un contexto por operación**, que es el patrón recomendado en Blazor Server. Son 251 usos de `unitOfWork` en 104 métodos de 16 servicios: conviene hacerlo de a un servicio por vez. El arnés `.dsh-tools/Concurrency` (ignorado por git) reproduce la concurrencia y sirve de red: el choque Identity + repositorio ya está resuelto, pero **dos llamadas concurrentes de Identity sobre el mismo scope siguen fallando** (es inherente al `UserStore` scoped).
+3. **N+1 restantes**: `AssociationService` (3 consultas por fila), `InspectionService`, la importación de Excel de nómina y la conciliación bancaria (una consulta por fila del archivo).
+4. **Sacar del hilo del circuito** el envío masivo de mails ("notificar deudores" manda un SMTP por deudor y hay 4.352 deudores) y la generación de PDF/Excel.
+5. **Seguridad**: la política permite contraseñas de 5 caracteres, y `UnionsController.create-user` y `UnionSubscriptionService` crean usuarios con `12345` fija. Subir la política sin cambiar eso rompería el alta de usuarios de sindicato.
