@@ -1,4 +1,4 @@
-﻿@page "/declarations/new"
+@page "/declarations/new"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "EstudioContable,Auditor,Admin")]
 @using SIRGA.Domain.Entities
@@ -222,7 +222,7 @@ else
   [CascadingParameter]
   private Task<AuthenticationState> AuthStateTask { get; set; } = null!;
 
-  private MudStepper _stepper;
+  private MudStepper _stepper = null!; // Asignado por @ref en el marcado
   private int _year = DateTime.Now.Year;
   private int _month = DateTime.Now.Month;
   private int _selectedCompanyId;
@@ -352,7 +352,7 @@ new();
     var dialog = await DialogService.ShowAsync<AddEmployeeDialog>("Nuevo Empleado", parameters, options);
     var result = await dialog.Result;
 
-    if (!result.Canceled)
+    if (result is { Canceled: false })
     {
       await OnFiltersChanged(); // Recargar la lista de empleados con los filtros actuales
     }

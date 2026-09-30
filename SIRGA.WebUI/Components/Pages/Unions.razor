@@ -19,7 +19,7 @@
   </div>
 
   <MudTable Items="@_unions" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
-            Filter="new Func<UnionDto,bool>(FilterFunc1)" @bind-SelectedItem="_selectedItem">
+            Filter="new Func<UnionDto,bool>(FilterFunc1)">
     <ToolBarContent>
       <MudSpacer />
       <MudTextField @bind-Value="_searchString" Placeholder="Buscar" Adornment="Adornment.Start"
@@ -61,7 +61,6 @@
   private IEnumerable<UnionDto> _unions = new List<UnionDto>();
   private bool _loading = true;
   private string _searchString = "";
-  private UnionDto? _selectedItem;
 
   protected override async Task OnInitializedAsync()
   {
@@ -92,9 +91,8 @@
     var dialog = await DialogService.ShowAsync<AddUnionDialog>("Agregar Sindicato", parameters);
     var result = await dialog.Result;
 
-    if (!result.Canceled)
+    if (result is { Canceled: false } && result.Data is UnionDto newUnion)
     {
-      var newUnion = (UnionDto)result.Data;
       await UnionService.CreateAsync(newUnion);
       
       // Intentar crear el usuario automáticamente
@@ -110,7 +108,7 @@
           Snackbar.Add("Sindicato creado, pero hubo un error al crear el usuario.", Severity.Warning);
         }
       }
-      catch (Exception ex)
+      catch (Exception)
       {
         Snackbar.Add("Error al conectar para crear el usuario.", Severity.Error);
       }
@@ -138,9 +136,9 @@
     var dialog = await DialogService.ShowAsync<AddUnionDialog>("Editar Sindicato", parameters);
     var result = await dialog.Result;
 
-    if (!result.Canceled)
+    if (result is { Canceled: false } && result.Data is UnionDto editedUnion)
     {
-      await UnionService.UpdateAsync((UnionDto)result.Data);
+      await UnionService.UpdateAsync(editedUnion);
       Snackbar.Add("Sindicato actualizado con éxito", Severity.Success);
       await LoadUnions();
     }

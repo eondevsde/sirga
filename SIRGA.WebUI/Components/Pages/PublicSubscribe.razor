@@ -93,7 +93,7 @@
       Snackbar.Add("¡Solicitud enviada con éxito! Nos contactaremos pronto.", Severity.Success);
       Navigation.NavigateTo("/login");
     }
-    catch (Exception ex)
+    catch (Exception)
     {
       Snackbar.Add("Error al enviar la solicitud. Intente nuevamente.", Severity.Error);
     }

@@ -91,7 +91,7 @@ public class DeclarationService(
     foreach (var assign in assignments)
     {
       // Buscar remuneración básica en la escala para la categoría del empleado
-      var categoryId = categories.ContainsKey(assign.CategoryCode) ? categories[assign.CategoryCode].Id : 0;
+      var categoryId = assign.CategoryCode != null && categories.TryGetValue(assign.CategoryCode, out var category) ? category.Id : 0;
       var scale = scales.FirstOrDefault(s => s.EmployeeCategoryId == categoryId);
       if (scale == null) continue;
 
@@ -245,7 +245,7 @@ public class DeclarationService(
   {
     using var workbook = new XLWorkbook(fileStream);
     var worksheet = workbook.Worksheet(1);
-    var rows = worksheet.RangeUsed().RowsUsed().Skip(1); // Saltar encabezado
+    var rows = worksheet.RangeUsed()?.RowsUsed().Skip(1) ?? Enumerable.Empty<IXLRangeRow>(); // Saltar encabezado
 
     var resultList = new List<EmployeeSalaryDto>();
     foreach (var row in rows)

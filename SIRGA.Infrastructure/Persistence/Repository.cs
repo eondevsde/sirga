@@ -15,7 +15,7 @@ public class Repository<T> : IRepository<T> where T : class
     _dbLock = dbLock;
   }
 
-  private async Task<T> WithLockAsync(Func<Task<T>> action)
+  private async Task<T?> WithLockAsync(Func<Task<T?>> action)
   {
     await _dbLock.WaitAsync();
     try { return await action(); }

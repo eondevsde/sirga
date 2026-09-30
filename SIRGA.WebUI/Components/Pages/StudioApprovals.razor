@@ -128,7 +128,7 @@
     var dialog = await DialogService.ShowAsync<MudMessageBox>("Confirmación", parameters);
     var result = await dialog.Result;
 
-    if (!result.Canceled)
+    if (result is { Canceled: false })
     {
       await StudioService.RejectStudioAsync(studio.Id, "Datos insuficientes o incorrectos.");
       Snackbar.Add($"Estudio '{studio.Name}' rechazado.");

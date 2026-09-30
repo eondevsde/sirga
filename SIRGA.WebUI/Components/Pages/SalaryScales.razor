@@ -147,7 +147,7 @@ else
     var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
     var dialog = await DialogService.ShowAsync<AddScaleDialog>("Nueva Escala", parameters, options);
     var result = await dialog.Result;
-    if (!result.Canceled) await LoadData();
+    if (result is { Canceled: false }) await LoadData();
   }
 
   private async Task OpenEditDialog(SalaryScaleDto scale)
@@ -156,7 +156,7 @@ else
     var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
     var dialog = await DialogService.ShowAsync<AddScaleDialog>("Editar Escala", parameters, options);
     var result = await dialog.Result;
-    if (!result.Canceled) await LoadData();
+    if (result is { Canceled: false }) await LoadData();
   }
 
   private async Task DeleteScale(int id)

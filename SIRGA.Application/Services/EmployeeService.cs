@@ -1,4 +1,4 @@
-﻿using SIRGA.Application.Interfaces;
+using SIRGA.Application.Interfaces;
 using SIRGA.Domain.Entities;
 using SIRGA.Domain.Enums;
 using SIRGA.Application.DTOs;
@@ -105,6 +105,7 @@ public class EmployeeService(IUnitOfWork unitOfWork)
 
         var union = (await unitOfWork.Unions.FindAsync(u =>
             u.JurisdictionProvince.ToLower() == provinceName.ToLower() &&
+            u.JurisdictionCity != null &&
             u.JurisdictionCity.ToLower() == cityName.ToLower())).FirstOrDefault();
 
         // 2. Si no existe un sindicato local/filial para esa ciudad, 
@@ -264,6 +265,7 @@ public class EmployeeService(IUnitOfWork unitOfWork)
         // Buscar sindicato con jurisdicción en la nueva zona
         var union = (await unitOfWork.Unions.FindAsync(u =>
             u.JurisdictionProvince.ToLower() == provinceName.ToLower() &&
+            u.JurisdictionCity != null &&
             u.JurisdictionCity.ToLower() == cityName.ToLower())).FirstOrDefault();
 
         if (union == null)

@@ -14,7 +14,7 @@
 <MudGrid>
   <MudItem xs="12" md="5">
     <MudTable Items="@_studios" Hover="true" Dense="true" SelectedItem="@_selectedStudio"
-              OnRowClick="@((TableRowClickEventArgs<AccountingStudioDto> args) => OnStudioSelected(args.Item))"
+              OnRowClick="@((TableRowClickEventArgs<AccountingStudioDto> args) => args.Item is { } estudio ? OnStudioSelected(estudio) : Task.CompletedTask)"
               Loading="@_loadingStudios" T="AccountingStudioDto" Class="mb-4">
       <ToolBarContent>
         <MudText Typo="Typo.h6">Estudios</MudText>

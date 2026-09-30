@@ -152,7 +152,7 @@
     var dialog = await DialogService.ShowAsync<AddEmployeeDialog>("Nuevo Empleado", parameters, options);
     var result = await dialog.Result;
 
-    if (!result.Canceled)
+    if (result is { Canceled: false })
     {
       await LoadEmployees();
     }
@@ -171,7 +171,7 @@
     var dialog = await DialogService.ShowAsync<TransferEmployeeDialog>("Transferir Empleado", parameters, options);
     var result = await dialog.Result;
 
-    if (!result.Canceled)
+    if (result is { Canceled: false })
     {
       await LoadEmployees();
     }
@@ -191,7 +191,7 @@
     var dialog = await DialogService.ShowAsync<ResignMembershipDialog>("Solicitar Renuncia como Socio", parameters, options);
     var result = await dialog.Result;
 
-    if (!result.Canceled)
+    if (result is { Canceled: false })
     {
       await LoadEmployees();
     }

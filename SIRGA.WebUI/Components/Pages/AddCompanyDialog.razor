@@ -1,4 +1,4 @@
-﻿@using SIRGA.Domain.Entities
+@using SIRGA.Domain.Entities
 @using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @inject HttpClient Http
@@ -14,7 +14,7 @@
       <MudGrid>
         <MudItem xs="12" md="6">
           <MudTextField T="string" Label="CUIT" @bind-Value="_company.Cuit" Required="true" Variant="Variant.Outlined"
-                        Mask="@(new PatternMask("00-00000000-0"))" Validation="@ValidateCuitField" OnBlur="HandleCuitBlur" />
+                        Mask="@(new PatternMask("00-00000000-0"))" Validation="@(new Func<string, string?>(ValidateCuitField))" OnBlur="HandleCuitBlur" />
         </MudItem>
         <MudItem xs="12" md="6">
           <MudTextField T="string" Label="Razón Social" @bind-Value="_company.BusinessName" Required="true"
@@ -284,7 +284,7 @@
 
   private async Task Submit()
   {
-    await _form.Validate();
+    await _form.ValidateAsync();
     if (!_form.IsValid) return;
 
     _processing = true;

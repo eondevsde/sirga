@@ -373,22 +373,26 @@ public class PdfReportService
                     });
                   }
 
-                  x.Item().PaddingTop(30).Row(row =>
-                    {
-                      // QR Code
-                      row.ConstantItem(100).Column(col =>
-                    {
-                      col.Item().Image(GenerateQrCode(declaration.PresencialBarCode));
-                      col.Item().AlignCenter().Text("PAGO WEB").FontSize(8);
-                    });
+                  var codigoPresencial = declaration.PresencialBarCode;
+                  if (!string.IsNullOrWhiteSpace(codigoPresencial))
+                  {
+                    x.Item().PaddingTop(30).Row(row =>
+                      {
+                        // QR Code
+                        row.ConstantItem(100).Column(col =>
+                      {
+                        col.Item().Image(GenerateQrCode(codigoPresencial));
+                        col.Item().AlignCenter().Text("PAGO WEB").FontSize(8);
+                      });
 
-                      row.RelativeItem().PaddingLeft(20).Column(col =>
-                    {
-                      col.Item().Text("CÓDIGO PARA PAGO EN VENTANILLA").SemiBold();
-                      col.Item().PaddingTop(5).Image(GenerateBarcode(declaration.PresencialBarCode));
-                      col.Item().AlignCenter().Text(declaration.PresencialBarCode).FontSize(12).ExtraBold();
-                    });
-                    });
+                        row.RelativeItem().PaddingLeft(20).Column(col =>
+                      {
+                        col.Item().Text("CÓDIGO PARA PAGO EN VENTANILLA").SemiBold();
+                        col.Item().PaddingTop(5).Image(GenerateBarcode(codigoPresencial));
+                        col.Item().AlignCenter().Text(codigoPresencial).FontSize(12).ExtraBold();
+                      });
+                      });
+                  }
 
                   x.Item().PaddingTop(20).Text("Esta boleta es válida únicamente para pago en bancos habilitados y entidades de cobro (Rapipago/Pago Fácil).").FontSize(8).Italic();
                 });

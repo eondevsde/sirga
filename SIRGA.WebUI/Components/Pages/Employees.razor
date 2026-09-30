@@ -14,7 +14,7 @@
   <MudText Typo="Typo.h4" Class="mb-4">Gestión de Empleados</MudText>
 
   <MudTable Items="@_employees" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
-            Filter="new Func<EmployeeDto,bool>(FilterFunc1)" @bind-SelectedItem="_selectedEmployee">
+            Filter="new Func<EmployeeDto,bool>(FilterFunc1)">
     <ToolBarContent>
       <MudText Typo="Typo.h6">Padrón General de Empleados</MudText>
       <MudSpacer />
@@ -55,7 +55,6 @@
 @code {
   private bool _loading = true;
   private string _searchString = "";
-  private EmployeeDto? _selectedEmployee;
   private IEnumerable<EmployeeDto> _employees = new List<EmployeeDto>();
 
   protected override async Task OnInitializedAsync()

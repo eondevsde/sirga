@@ -1,4 +1,4 @@
-﻿@using SIRGA.Application.DTOs
+@using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @using SIRGA.Domain.Entities
 @using MudBlazor
@@ -70,7 +70,7 @@
 
     private async Task Submit()
     {
-        await form.Validate();
+        await form.ValidateAsync();
         if (form.IsValid)
         {
             try

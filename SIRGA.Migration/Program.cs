@@ -41,14 +41,14 @@ public static class Program
                 case "studios": Studios(); break;
                 case "declarations": Declarations(); break;
                 case "details": Details(); break;
-                case "finalize": Finalize(); break;
+                case "finalize": FinalizeTotals(); break;
                 case "reconcile": Reconcile(); break;
                 case "clean": Clean(); break;
                 case "all":
                     Clean();
                     Geo(); Union(); Interest(); Categories(); Scales();
                     Companies(); Employees(); Assignments(); Studios();
-                    Declarations(); Details(); Finalize();
+                    Declarations(); Details(); FinalizeTotals();
                     Reconcile();
                     break;
                 default:
@@ -567,7 +567,7 @@ public static class Program
     }
 
     // Alinea TotalAmount/BalanceAmount de cabeceras con la suma real de sus detalles
-    private static void Finalize()
+    private static void FinalizeTotals()
     {
         Log.Section("Finalize: TotalAmount y BalanceAmount = suma de detalles");
         Db.Run(Db.TargetCs, """

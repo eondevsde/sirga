@@ -35,7 +35,8 @@ public class CompanyDebtDto
 {
   public int CompanyId { get; set; }
   public string BusinessName { get; set; } = null!;
-  public string BranchName { get; set; } = null!;
+  // BranchName es opcional en la entidad Company: una empresa puede no tener sucursal.
+  public string? BranchName { get; set; }
   public string LastPeriodPresented { get; set; } = null!;
   public int EmployeeCount { get; set; }
   public decimal EstimatedDebt { get; set; }
