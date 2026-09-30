@@ -4,6 +4,8 @@
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject UnionService UnionService
+@inject CompanyService CompanyService
+@inject CompanyValidationService ValidationService
 
 <MudDialog>
   <TitleContent>
@@ -184,7 +186,8 @@
       _unions = await Http.GetFromJsonAsync<List<UnionDto>>("api/unions") ?? new();
       _provinces = await UnionService.GetProvincesAsync();
       
-      var allCompanies = await Http.GetFromJsonAsync<List<Company>>("api/companies") ?? new();
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      var allCompanies = (await CompanyService.GetAllOrderedAsync()).ToList();
       _parentCompanies = allCompanies.Where(c => c.ParentCompanyId == null).ToList();
     }
     catch (Exception ex)
@@ -254,8 +257,7 @@
     var norm = CompanyValidationService.NormalizeCuit(_company.Cuit);
     if (norm.Length != 11) return;
 
-    _lookup = await Http.GetFromJsonAsync<CompanyLookupDto>(
-        $"api/companies/lookup?cuit={Uri.EscapeDataString(norm)}&studioId={CurrentStudioId}");
+    _lookup = await ValidationService.LookupAsync(norm, CurrentStudioId);
     if (_lookup == null) return;
 
     // Pre-sugerir razón social: empresa existente sin dueño, o CUIT verificado en el legado

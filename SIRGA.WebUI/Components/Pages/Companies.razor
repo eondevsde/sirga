@@ -1,7 +1,9 @@
 @page "/companies"
 @using SIRGA.Domain.Entities
 @using SIRGA.Domain.Enums
+@using SIRGA.Application.Services
 @attribute [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
+@inject CompanyService CompanyService
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -200,14 +202,10 @@
       var authState = await AuthStateProvider.GetAuthenticationStateAsync();
       var user = authState.User;
       _username = user.Identity?.Name;
-      string url = "api/companies";
-
-      if (user.IsInRole("EstudioContable"))
-      {
-        url += $"?username={user.Identity?.Name}";
-      }
-
-      _companies = await Http.GetFromJsonAsync<List<Company>>(url) ?? new();
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      _companies = (user.IsInRole("EstudioContable")
+          ? await CompanyService.GetByStudioUsernameAsync(user.Identity?.Name ?? "")
+          : await CompanyService.GetAllOrderedAsync()).ToList();
     }
     catch (Exception ex)
     {

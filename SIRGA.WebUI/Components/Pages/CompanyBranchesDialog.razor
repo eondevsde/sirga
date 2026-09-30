@@ -1,5 +1,7 @@
 @using SIRGA.Domain.Entities
+@using SIRGA.Application.Services
 @inject HttpClient Http
+@inject CompanyService CompanyService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -65,7 +67,8 @@
     _loading = true;
     try
     {
-      var all = await Http.GetFromJsonAsync<List<Company>>("api/companies") ?? new();
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      var all = (await CompanyService.GetAllOrderedAsync()).ToList();
       _branches = all.Where(c => c.ParentCompanyId == MainCompany.Id).ToList();
     }
     catch (Exception ex)

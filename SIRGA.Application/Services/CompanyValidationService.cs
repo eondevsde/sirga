@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SIRGA.Application.DTOs;
 using SIRGA.Application.Interfaces;
 using SIRGA.Domain.Entities;
 
@@ -124,6 +125,43 @@ public class CompanyValidationService(IUnitOfWork unitOfWork, ILegacyCompanyLook
     var norm = NormalizeCuit(cuit);
     if (norm.Length != 11) return null;
     return await legacyLookup.FindAsync(norm);
+  }
+
+  /// <summary>
+  /// Datos para el asistente de alta de empresas a partir del CUIT: si ya existe, quién es el
+  /// dueño y si está activo, y si aparece en el sistema legado. Esta composición vivía en el
+  /// controlador; se movió acá para que la pantalla pueda pedirla sin pasar por HTTP.
+  /// </summary>
+  public async Task<CompanyLookupDto> LookupAsync(string? cuit, int? studioId)
+  {
+    var norm = NormalizeCuit(cuit);
+    if (norm.Length != 11) return new CompanyLookupDto { NormalizedCuit = norm };
+
+    var existing = await FindParentByCuitAsync(norm);
+    string? ownerName = null;
+    bool ownerActive = false;
+    if (existing?.AccountingStudioId is { } ownerId)
+    {
+      var owner = await unitOfWork.AccountingStudios.GetByIdAsync(ownerId);
+      ownerName = owner?.Name;
+      ownerActive = owner is { IsActive: true, IsApproved: true };
+    }
+
+    var legacy = await FindInLegacyAsync(norm);
+
+    return new CompanyLookupDto
+    {
+      NormalizedCuit = norm,
+      CuitExists = existing != null,
+      ExistingCompanyId = existing?.Id,
+      ExistingBusinessName = existing?.BusinessName,
+      OwnerStudioName = ownerName,
+      OwnerStudioActive = ownerActive,
+      AlreadyOwnedByCurrentStudio = existing?.AccountingStudioId == studioId,
+      LegacyFound = legacy != null,
+      LegacyBusinessName = legacy?.BusinessName,
+      LegacyHasRecords = legacy?.HasRecords ?? false
+    };
   }
 }
 

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SIRGA.Application.DTOs;
 using SIRGA.Application.Interfaces;
 using SIRGA.Domain.Entities;
@@ -15,95 +16,43 @@ public class CompaniesController : ControllerBase
   private readonly IUnitOfWork _unitOfWork;
   private readonly AssociationService _associationService;
   private readonly CompanyValidationService _validation;
+  private readonly CompanyService _companyService;
 
-  public CompaniesController(IUnitOfWork unitOfWork, AssociationService associationService, CompanyValidationService validation)
+  public CompaniesController(IUnitOfWork unitOfWork, AssociationService associationService, CompanyValidationService validation, CompanyService companyService)
   {
     _unitOfWork = unitOfWork;
     _associationService = associationService;
     _validation = validation;
+    _companyService = companyService;
   }
 
+  [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
   [HttpGet]
   public async Task<IActionResult> GetAll([FromQuery] string? username)
   {
-    try
-    {
-      if (!string.IsNullOrEmpty(username))
-      {
-        var studio = await _unitOfWork.AccountingStudios.FindAsync(s => s.ResponsibleUsername == username);
-        var studioInstance = studio.FirstOrDefault();
-        if (studioInstance != null)
-        {
-          // Buscamos todas las empresas (centrales y sucursales) que pertenecen a este estudio
-          var companies = await _unitOfWork.Companies.FindAsync(c => c.AccountingStudioId == studioInstance.Id);
-          return Ok(companies.OrderBy(c => c.BusinessName, StringComparer.OrdinalIgnoreCase));
-        }
-        else
-        {
-          // Si se pasó un username pero no se encontró el estudio, devolvemos vacío para no mostrar nada de otros
-          return Ok(new List<Company>());
-        }
-      }
+    // La composición se movió a CompanyService para que las pantallas puedan pedirla sin HTTP.
+    if (!string.IsNullOrEmpty(username))
+      return Ok(await _companyService.GetByStudioUsernameAsync(username));
 
-      // Si no hay username (ej. Admin), devolvemos todo
-      var allCompanies = await _unitOfWork.Companies.GetAllAsync();
-      return Ok(allCompanies.OrderBy(c => c.BusinessName, StringComparer.OrdinalIgnoreCase));
-    }
-    catch (Exception ex)
-    {
-      // Log simple a consola para diagnóstico
-      Console.WriteLine($"Error en GetAll Companies: {ex.Message}");
-      if (ex.InnerException != null) Console.WriteLine($"Inner: {ex.InnerException.Message}");
-      return StatusCode(500, $"Error interno: {ex.Message}");
-    }
+    return Ok(await _companyService.GetAllOrderedAsync());
   }
 
+  [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
   [HttpGet("{id}")]
   public async Task<IActionResult> GetById(int id)
   {
-    var company = await _unitOfWork.Companies.GetByIdAsync(id);
+    var company = await _companyService.GetByIdAsync(id);
     if (company == null) return NotFound();
     return Ok(company);
   }
 
+  [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
   [HttpGet("lookup")]
   public async Task<IActionResult> Lookup([FromQuery] string? cuit, [FromQuery] int? studioId)
   {
-    try
-    {
-      var norm = CompanyValidationService.NormalizeCuit(cuit);
-      if (norm.Length != 11) return Ok(new CompanyLookupDto { NormalizedCuit = norm });
-
-      var existing = await _validation.FindParentByCuitAsync(norm);
-      string? ownerName = null;
-      bool ownerActive = false;
-      if (existing?.AccountingStudioId is { } ownerId)
-      {
-        var owner = await _unitOfWork.AccountingStudios.GetByIdAsync(ownerId);
-        ownerName = owner?.Name;
-        ownerActive = owner is { IsActive: true, IsApproved: true };
-      }
-
-      var legacy = await _validation.FindInLegacyAsync(norm);
-
-      return Ok(new CompanyLookupDto
-      {
-        NormalizedCuit = norm,
-        CuitExists = existing != null,
-        ExistingCompanyId = existing?.Id,
-        ExistingBusinessName = existing?.BusinessName,
-        OwnerStudioName = ownerName,
-        OwnerStudioActive = ownerActive,
-        AlreadyOwnedByCurrentStudio = existing?.AccountingStudioId == studioId,
-        LegacyFound = legacy != null,
-        LegacyBusinessName = legacy?.BusinessName,
-        LegacyHasRecords = legacy?.HasRecords ?? false
-      });
-    }
-    catch (Exception ex)
-    {
-      return StatusCode(500, $"Error interno: {ex.Message}");
-    }
+    // La composición se movió a CompanyValidationService para que el diálogo de alta la use
+    // directamente, sin pasar por HTTP.
+    return Ok(await _validation.LookupAsync(cuit, studioId));
   }
 
   [HttpPost]

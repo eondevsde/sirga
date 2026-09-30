@@ -251,8 +251,10 @@ else
       var authState = await AuthStateTask;
       var username = authState.User.Identity?.Name;
       
-      var url = string.IsNullOrEmpty(username) ? "api/companies" : $"api/companies?username={username}";
-      var rawCompanies = await Http.GetFromJsonAsync<List<Company>>(url) ?? new();
+      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+      var rawCompanies = (string.IsNullOrEmpty(username)
+          ? await CompanyService.GetAllOrderedAsync()
+          : await CompanyService.GetByStudioUsernameAsync(username)).ToList();
       _companies = rawCompanies.Where(c => c.Status == SIRGA.Domain.Enums.CompanyStatus.Active).ToList();
       
       _parentCompanies = _companies.Where(c => c.ParentCompanyId == null).ToList();
