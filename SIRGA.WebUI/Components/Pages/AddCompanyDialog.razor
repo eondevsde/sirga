@@ -34,8 +34,17 @@
         }
         else if (AvisoCuit() is { } aviso)
         {
+          @* Con contraste y efecto neón (los estilos están en AddCompanyDialog.razor.css):
+             rojo cuando bloquea, cian cuando es informativo. *@
+          var tono = aviso.Severidad switch
+          {
+            Severity.Info => " tono-info",
+            Severity.Success => " tono-ok",
+            _ => ""
+          };
           <MudItem xs="12">
-            <MudAlert Severity="@aviso.Severidad" Dense="true" Class="mt-n2 mb-2">@aviso.Texto</MudAlert>
+            <MudAlert Severity="@aviso.Severidad" Dense="true"
+                      Class="@($"mt-n2 mb-2 alerta-cuit-neon{tono}")">@aviso.Texto</MudAlert>
           </MudItem>
         }
         <MudItem xs="12" md="6">
@@ -177,7 +186,7 @@
       !string.IsNullOrWhiteSpace(TituloPersonalizado) ? TituloPersonalizado!
       : IsEdit ? "Editar Empresa"
       : string.IsNullOrWhiteSpace(StudioName) ? "Registrar Nueva Empresa"
-      : $"Registrar Nueva Empresa para \"{StudioName}\"";
+      : $"Registrar Nueva Empresa para {StudioName}";
 
   /// <summary>
   /// Cuando el CUIT ya pertenece a otro estudio activo (o ya es cliente de este), no tiene sentido

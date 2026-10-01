@@ -152,7 +152,7 @@
         {
           { x => x.CurrentStudioId, studio.Id },
           { x => x.StudioName, studio.Name },
-          { x => x.TituloPersonalizado, $"Solicitar Nueva Vinculación de Empresa para \"{studio.Name}\"" }
+          { x => x.TituloPersonalizado, $"Solicitar Nueva Vinculación de Empresa para {studio.Name}" }
         };
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         var dialog = await DialogService.ShowAsync<AddCompanyDialog>("Solicitar Nueva Vinculación de Empresa",

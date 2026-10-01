@@ -1,0 +1,53 @@
+/* Avisos con contraste y efecto neón (alta de empresas).
+   Es una hoja global a propósito: el aviso lo dibuja el componente MudAlert, y el aislamiento de
+   estilos (scoped CSS) de Blazor no llega hasta ahí. */
+
+.alerta-cuit-neon {
+    --neon: #ff2d55;
+    --neon-suave: rgba(255, 45, 85, .65);
+    --neon-texto: #ffb3c1;
+    background-color: #1a0308 !important;
+    border: 2px solid var(--neon) !important;
+    border-radius: 10px;
+    animation: latido-neon 1.7s ease-in-out infinite;
+}
+
+/* Rojo cuando bloquea (no se puede seguir), cian cuando sólo informa, verde cuando confirma. */
+.alerta-cuit-neon.tono-info {
+    --neon: #00e5ff;
+    --neon-suave: rgba(0, 229, 255, .6);
+    --neon-texto: #b7f5ff;
+    background-color: #04141c !important;
+}
+
+.alerta-cuit-neon.tono-ok {
+    --neon: #39ff14;
+    --neon-suave: rgba(57, 255, 20, .6);
+    --neon-texto: #d2ffc4;
+    background-color: #071604 !important;
+}
+
+.alerta-cuit-neon .mud-alert-message,
+.alerta-cuit-neon .mud-alert-icon {
+    color: var(--neon-texto) !important;
+    font-weight: 700;
+    letter-spacing: .2px;
+    text-shadow: 0 0 4px var(--neon), 0 0 12px var(--neon-suave);
+}
+
+@keyframes latido-neon {
+    0%, 100% {
+        box-shadow: 0 0 6px var(--neon), 0 0 14px var(--neon-suave), inset 0 0 10px rgba(255, 255, 255, .06);
+    }
+    50% {
+        box-shadow: 0 0 14px var(--neon), 0 0 30px var(--neon), inset 0 0 20px var(--neon-suave);
+    }
+}
+
+/* Si el sistema pide menos movimiento, queda el neón fijo. */
+@media (prefers-reduced-motion: reduce) {
+    .alerta-cuit-neon {
+        animation: none;
+        box-shadow: 0 0 10px var(--neon), 0 0 22px var(--neon-suave);
+    }
+}

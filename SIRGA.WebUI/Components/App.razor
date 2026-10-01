@@ -9,6 +9,9 @@
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
   <link href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" rel="stylesheet" />
   <link href="@Assets["SIRGA.WebUI.styles.css"]" rel="stylesheet" />
+  @* Hoja global propia: los avisos con neón tienen que llegar al componente MudAlert, y el
+     aislamiento de estilos de Blazor no alcanza a los componentes de MudBlazor. *@
+  <link href="@Assets["css/sirga-alertas.css"]" rel="stylesheet" />
   <HeadOutlet />
 </head>
 
