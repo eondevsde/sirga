@@ -33,9 +33,10 @@ else
         <MudCardContent>
           <MudGrid>
             <MudItem xs="12" sm="5">
-              <MudSelect T="int" Label="Empresa (Casa Central)" Variant="Variant.Outlined"
+              @* T="int?" para que, sin empresa elegida, muestre la etiqueta en lugar de un "0". *@
+              <MudSelect T="int?" Label="Empresa (Casa Central)" Variant="Variant.Outlined"
                          AnchorOrigin="Origin.BottomCenter" Value="_selectedParentId"
-                         ValueChanged="@(async (int val) => await OnParentCompanyChanged(val))">
+                         ValueChanged="@(async (int? val) => await OnParentCompanyChanged(val))">
                 @foreach (var comp in _parentCompanies)
                 {
                   <MudSelectItem Value="@comp.Id">@comp.BusinessName (@comp.Cuit)</MudSelectItem>
@@ -239,7 +240,7 @@ else
   private List<Company> _companies = new();
   private List<Company> _parentCompanies = new();
   private List<Company> _branches = new();
-  private int _selectedParentId;
+  private int? _selectedParentId;
   private List<UnionDto> _unions = new();
   private List<SalaryScaleDto> _currentScales = new();
   private List<DeclarationDetailViewModel> _details = new();
@@ -288,7 +289,7 @@ else
     }
   }
 
-  private async Task OnParentCompanyChanged(int val)
+  private async Task OnParentCompanyChanged(int? val)
   {
     _selectedParentId = val;
     _branches = _companies.Where(c => c.ParentCompanyId == _selectedParentId).ToList();
@@ -296,7 +297,7 @@ else
     if (!_branches.Any())
     {
       // Caso común: No tiene sucursales, usamos la empresa madre como la sede a declarar
-      _selectedCompanyId = _selectedParentId;
+      _selectedCompanyId = _selectedParentId ?? 0;
     }
     else
     {

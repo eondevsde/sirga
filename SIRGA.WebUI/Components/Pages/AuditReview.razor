@@ -38,7 +38,7 @@
       <MudTd DataLabel="Fecha">@context.SubmissionDate.ToShortDateString()</MudTd>
       <MudTd DataLabel="Monto">$ @context.TotalAmount.ToString("N2")</MudTd>
       <MudTd DataLabel="Estado">
-        <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip>
+        <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">@GetStatusLabel(context.Status)</MudChip>
       </MudTd>
       <MudTd>
         <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" title="Ver Detalles"
@@ -229,5 +229,19 @@
     "Rejected" => Color.Error,
     "Paid" => Color.Primary,
     _ => Color.Default
+  };
+
+  /// <summary>
+  /// El estado viene en inglés desde el backend (es el valor del enum); en pantalla se muestra
+  /// en castellano como el resto de la interfaz.
+  /// </summary>
+  private static string GetStatusLabel(string status) => status switch
+  {
+    "Draft" => "Borrador",
+    "Submitted" => "Presentada",
+    "Approved" => "Aprobada",
+    "Rejected" => "Rechazada",
+    "Paid" => "Pagada",
+    _ => status
   };
 }

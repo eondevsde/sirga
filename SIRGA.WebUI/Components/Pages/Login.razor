@@ -23,9 +23,13 @@
                       InputType="InputType.Password" Class="mb-4" Adornment="Adornment.Start"
                       AdornmentIcon="@Icons.Material.Filled.Lock" Required="true" />
 
-        <div class="d-flex align-center justify-space-between mb-6">
+        @* En 1360x768 la tarjeta queda angosta: si van en la misma linea, "¿Olvidaste tu
+           contraseña?" se parte en dos renglones y queda pegado al check. *@
+        <div class="d-flex align-center mb-1">
           <MudCheckBox T="bool" @bind-Value="_model.RememberMe" name="rememberMe" Label="Recordarme"
                        Color="Color.Primary" Dense="true" />
+        </div>
+        <div class="d-flex justify-end mb-6">
           <MudLink href="/forgot-password" Color="Color.Primary" Typo="Typo.body2">¿Olvidaste tu contraseña?</MudLink>
         </div>
 
