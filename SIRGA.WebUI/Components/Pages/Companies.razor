@@ -4,6 +4,7 @@
 @using SIRGA.Application.Services
 @attribute [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
 @inject CompanyService CompanyService
+@inject UnionService UnionService
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -26,12 +27,15 @@
                   AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"
                   Style="min-width: 200px;" Immediate="true"></MudTextField>
         
-    <MudSelect T="string" Label="Provincia" @bind-Value="_provinceFilter" Class="ml-4" Style="min-width: 160px;"
-               Clearable="true">
-      <MudSelectItem Value="@("Buenos Aires")">Buenos Aires</MudSelectItem>
-      <MudSelectItem Value="@("Córdoba")">Córdoba</MudSelectItem>
-      <MudSelectItem Value="@("Santa Fe")">Santa Fe</MudSelectItem>
-      <MudSelectItem Value="@("Mendoza")">Mendoza</MudSelectItem>
+    @* Provincia real (antes eran 4 hardcodeadas) y con "Todas" para poder volver a ver todo
+       despues de elegir una. *@
+    <MudSelect T="int?" Label="Provincia" @bind-Value="_provinceFilterId" @bind-Value:after="StateHasChanged"
+               Class="ml-4" Style="min-width: 180px;" Clearable="true">
+      <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
+      @foreach (var provincia in _provinces)
+      {
+        <MudSelectItem T="int?" Value="@((int?)provincia.Id)">@provincia.Name</MudSelectItem>
+      }
     </MudSelect>
 
     <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged" Class="ml-4" Style="min-width: 130px;">
@@ -176,7 +180,10 @@
 @code {
   private bool _loading = true;
   private string _searchString = "";
-  private string _provinceFilter = "";
+  // null = "Todas": antes era un string con 4 provincias hardcodeadas y sin forma de volver a todas.
+  private int? _provinceFilterId;
+  private List<Province> _provinces = new();
+  private List<City> _cities = new();
   private string _activeFilter = "todas";
   private List<Company> _companies = new();
   private HashSet<int> _expandedRows = new();
@@ -187,6 +194,19 @@
     var query = Nav.ToAbsoluteUri(Nav.Uri).Query;
     if (query.Contains("estado=activas")) _activeFilter = "activas";
     else if (query.Contains("estado=inactivas")) _activeFilter = "inactivas";
+
+    // Provincias y ciudades para el filtro: la empresa guarda CityId y la ciudad sabe su provincia,
+    // así que el filtro por provincia se resuelve con este mapa.
+    try
+    {
+      _provinces = await UnionService.GetProvincesAsync();
+      _cities = await UnionService.GetCitiesAsync();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("No se pudieron cargar las provincias: " + ex.Message, Severity.Warning);
+    }
+
     await LoadCompanies();
   }
 
@@ -261,8 +281,15 @@
     if (element.ParentCompanyId != null)
       return false;
 
-    if (!string.IsNullOrWhiteSpace(_provinceFilter) && element.Address != _provinceFilter)
-      return false;
+    // Filtro por provincia: la empresa tiene CityId, la ciudad tiene ProvinceId. Si la empresa no
+    // tiene localidad cargada, no entra en ninguna provincia. (Antes comparaba la provincia contra
+    // el campo Address, así que elegir una provincia dejaba la lista siempre vacía.)
+    if (_provinceFilterId is { } provinceId)
+    {
+      var cityIdsOfProvince = _cities.Where(c => c.ProvinceId == provinceId).Select(c => c.Id).ToHashSet();
+      if (element.CityId is not { } cityId || !cityIdsOfProvince.Contains(cityId))
+        return false;
+    }
 
     if (_activeFilter == "activas" && !element.IsActive)
       return false;

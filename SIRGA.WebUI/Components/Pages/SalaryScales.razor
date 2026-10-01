@@ -66,7 +66,7 @@ else
     </HeaderContent>
     <RowTemplate>
       <MudTd DataLabel="Periodo">@context.Period.ToString("MM/yyyy")</MudTd>
-      <MudTd DataLabel="Categoría">@context.CategoryCode</MudTd>
+      <MudTd DataLabel="Categoría">@context.CategoryName</MudTd>
       <MudTd DataLabel="Básico">@context.BasicAmount.ToString("C")</MudTd>
       <MudTd DataLabel="Antig">@context.AntiguedadPercentage%</MudTd>
       <MudTd DataLabel="NR1">@context.AgreementNR1.ToString("C")</MudTd>
@@ -130,7 +130,9 @@ else
   private bool FilterFunc(SalaryScaleDto element)
   {
     if (string.IsNullOrWhiteSpace(_searchString)) return true;
-    return element.CategoryCode.Contains(_searchString, StringComparison.OrdinalIgnoreCase);
+    // El listado muestra el nombre de la categoría, pero se puede buscar también por código.
+    return element.CategoryName.Contains(_searchString, StringComparison.OrdinalIgnoreCase)
+        || element.CategoryCode.Contains(_searchString, StringComparison.OrdinalIgnoreCase);
   }
 
   private async Task OpenCategoriesDialog()
