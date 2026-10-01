@@ -5,6 +5,7 @@
 @attribute [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
 @inject CompanyService CompanyService
 @inject UnionService UnionService
+@inject AccountingStudioService StudioService
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -202,6 +203,10 @@
   private List<Company> _companies = new();
   private HashSet<int> _expandedRows = new();
   private string? _username;
+  // Para el estudio que está operando: se usa en el título del alta y para que la empresa quede
+  // pendiente de autorización y con solicitud de vinculación (y no como alta directa).
+  private int? _studioId;
+  private string? _studioName;
 
   protected override async Task OnInitializedAsync()
   {
@@ -258,6 +263,14 @@
       var authState = await AuthStateProvider.GetAuthenticationStateAsync();
       var user = authState.User;
       _username = user.Identity?.Name;
+
+      if (user.IsInRole("EstudioContable"))
+      {
+        var studio = await StudioService.GetByUsernameAsync(_username ?? "");
+        _studioId = studio?.Id;
+        _studioName = studio?.Name;
+      }
+
       // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
       _companies = (user.IsInRole("EstudioContable")
           ? await CompanyService.GetByStudioUsernameAsync(user.Identity?.Name ?? "")
@@ -349,7 +362,18 @@
   private async Task OpenCreateDialog()
   {
     var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small };
-    var dialog = await DialogService.ShowAsync<AddCompanyDialog>("Nueva Empresa", options);
+
+    // El título lo arma el propio diálogo con el nombre del estudio (StudioName).
+    // Al estudio se le pasa su id para que el alta quede pendiente de autorización y genere la
+    // solicitud de vinculación; el Admin (sin estudio) mantiene el alta directa.
+    var parameters = new DialogParameters<AddCompanyDialog>
+    {
+      { x => x.CurrentStudioId, _studioId },
+      { x => x.CurrentUsername, _username },
+      { x => x.StudioName, _studioName }
+    };
+
+    var dialog = await DialogService.ShowAsync<AddCompanyDialog>("Registrar Nueva Empresa", parameters, options);
     var result = await dialog.Result;
 
     if (result != null && !result.Canceled)

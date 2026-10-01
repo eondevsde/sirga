@@ -1,4 +1,4 @@
-﻿@page "/register"
+@page "/register"
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Antiforgery
 @using SIRGA.Application.Services
@@ -48,11 +48,12 @@
         <MudTextField Label="Celular de Referencia" Variant="Variant.Outlined" @bind-Value="_model.ReferencePhone"
                       name="referencePhone" Class="mb-4" Required="true" />
 
-        <MudSelect T="int" Label="Provincia" Variant="Variant.Outlined" @bind-Value="_selectedProvinceId" Class="mb-4"
+        @* T="int?" para que, sin provincia elegida, muestre la etiqueta en lugar de un "0". *@
+        <MudSelect T="int?" Label="Provincia" Variant="Variant.Outlined" @bind-Value="_selectedProvinceId" Class="mb-4"
                    Required="true" SelectedValuesChanged="OnProvinceChanged">
           @foreach (var prov in _provinces)
           {
-            <MudSelectItem Value="@prov.Id">@prov.Name</MudSelectItem>
+            <MudSelectItem Value="@((int?)prov.Id)">@prov.Name</MudSelectItem>
           }
         </MudSelect>
 
@@ -101,7 +102,7 @@
   private bool _loading = false;
   private List<Province> _provinces = new();
   private List<City> _cities = new();
-  private int _selectedProvinceId;
+  private int? _selectedProvinceId;
 
   [SupplyParameterFromQuery]
   public string? Error { get; set; }
@@ -126,7 +127,9 @@
 
   private async Task OnProvinceChanged()
   {
-    _cities = await UnionService.GetCitiesByProvinceAsync(_selectedProvinceId);
+    _cities = _selectedProvinceId is { } provinceId
+        ? await UnionService.GetCitiesByProvinceAsync(provinceId)
+        : new List<City>();
     _model.CityId = null;
     StateHasChanged();
   }

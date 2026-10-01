@@ -132,7 +132,7 @@ public class CompanyValidationService(IUnitOfWork unitOfWork, ILegacyCompanyLook
   /// dueño y si está activo, y si aparece en el sistema legado. Esta composición vivía en el
   /// controlador; se movió acá para que la pantalla pueda pedirla sin pasar por HTTP.
   /// </summary>
-  public async Task<CompanyLookupDto> LookupAsync(string? cuit, int? studioId)
+  public async Task<CompanyLookupDto> LookupAsync(string? cuit, int? studioId, bool incluirLegado = true)
   {
     var norm = NormalizeCuit(cuit);
     if (norm.Length != 11) return new CompanyLookupDto { NormalizedCuit = norm };
@@ -147,7 +147,9 @@ public class CompanyValidationService(IUnitOfWork unitOfWork, ILegacyCompanyLook
       ownerActive = owner is { IsActive: true, IsApproved: true };
     }
 
-    var legacy = await FindInLegacyAsync(norm);
+    // La consulta al sistema anterior es la lenta (decenas de segundos): se puede pedir sin ella
+    // para mostrar al instante lo que depende sólo de esta base (por ejemplo, de quién es la empresa).
+    var legacy = incluirLegado ? await FindInLegacyAsync(norm) : null;
 
     return new CompanyLookupDto
     {

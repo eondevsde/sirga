@@ -8,16 +8,36 @@
 @inject CompanyValidationService ValidationService
 
 <MudDialog>
+  @* El título lo define el propio diálogo (el que se pasa al abrirlo queda tapado por este
+     bloque). Si viene el nombre del estudio, se aclara para qué estudio se registra la empresa. *@
   <TitleContent>
-    <MudText Typo="Typo.h6">@(IsEdit ? "Editar Empresa" : "Registrar Nueva Empresa")</MudText>
+    <MudText Typo="Typo.h6">@Titulo</MudText>
   </TitleContent>
   <DialogContent>
     <MudForm @ref="_form" @bind-IsValid="@_success">
+      @* Si el CUIT ya pertenece a otro estudio, se bloquea todo el formulario y queda activo sólo
+         Cancelar (el botón de guardar ya viene deshabilitado). *@
+      <div @attributes="BloqueoFormulario" style="@(_blockSubmit ? "opacity: .55; pointer-events: none;" : null)">
       <MudGrid>
         <MudItem xs="12" md="6">
           <MudTextField T="string" Label="CUIT" @bind-Value="_company.Cuit" Required="true" Variant="Variant.Outlined"
                         Mask="@(new PatternMask("00-00000000-0"))" Validation="@(new Func<string, string?>(ValidateCuitField))" OnBlur="HandleCuitBlur" />
         </MudItem>
+
+        @* El aviso sale apenas se completa el CUIT, sin esperar a cargar todo el formulario:
+           antes el usuario se enteraba recién al guardar, con todos los datos ya cargados. *@
+        @if (_lookingUpCuit)
+        {
+          <MudItem xs="12">
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-n2 mb-2" />
+          </MudItem>
+        }
+        else if (AvisoCuit() is { } aviso)
+        {
+          <MudItem xs="12">
+            <MudAlert Severity="@aviso.Severidad" Dense="true" Class="mt-n2 mb-2">@aviso.Texto</MudAlert>
+          </MudItem>
+        }
         <MudItem xs="12" md="6">
           <MudTextField T="string" Label="Razón Social" @bind-Value="_company.BusinessName" Required="true"
                         Variant="Variant.Outlined" />
@@ -37,11 +57,12 @@
         </MudItem>
 
         <MudItem xs="12" md="6">
-          <MudSelect T="int" Label="Provincia" Variant="Variant.Outlined" @bind-Value="_selectedProvinceId"
+          @* T="int?" para que, sin provincia elegida, muestre la etiqueta en lugar de un "0". *@
+          <MudSelect T="int?" Label="Provincia" Variant="Variant.Outlined" @bind-Value="_selectedProvinceId"
                      Required="true" SelectedValuesChanged="OnProvinceChanged">
             @foreach (var prov in _provinces)
             {
-              <MudSelectItem Value="@prov.Id">@prov.Name</MudSelectItem>
+              <MudSelectItem Value="@((int?)prov.Id)">@prov.Name</MudSelectItem>
             }
           </MudSelect>
         </MudItem>
@@ -93,39 +114,8 @@
         @if (!IsEdit)
         {
           <MudItem xs="12">
-            @if (_lookup != null)
-            {
-              @if (_lookup.AlreadyOwnedByCurrentStudio)
-              {
-                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">
-                  Ya tienes esta empresa a cargo. No se puede volver a solicitar.
-                </MudAlert>
-              }
-              else if (_lookup.CuitExists && _lookup.OwnerStudioActive)
-              {
-                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">
-                  Esta empresa ya pertenece al estudio contable '@(_lookup.OwnerStudioName)'. No puede darse de alta.
-                </MudAlert>
-              }
-              else if (_lookup.CuitExists)
-              {
-                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
-                  El CUIT ya está registrado (sin estudio a cargo). La solicitud se generará contra la empresa existente.
-                </MudAlert>
-              }
-              else if (_lookup.LegacyFound)
-              {
-                <MudAlert Severity="Severity.Success" Dense="true" Class="mb-2">
-                  CUIT verificado en los registros históricos del sindicato.
-                </MudAlert>
-              }
-              else
-              {
-                <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-2">
-                  Este CUIT no aparece en los registros históricos del sindicato. Verificá los datos antes de continuar.
-                </MudAlert>
-              }
-            }
+            @* Los avisos del CUIT se muestran arriba, apenas se completa el campo: acá abajo
+               quedaban fuera de la vista hasta terminar de cargar todo el formulario. *@
             <MudSelect T="int?" Label="Sindicato a Asociar" @bind-Value="_selectedUnionId" Required="true"
                        Variant="Variant.Outlined">
               @foreach (var u in _unions)
@@ -136,6 +126,7 @@
           </MudItem>
         }
       </MudGrid>
+      </div>
     </MudForm>
   </DialogContent>
   <DialogActions>
@@ -170,14 +161,67 @@
   
   private List<Province> _provinces = new();
   private List<City> _cities = new();
-  private int _selectedProvinceId;
+  private int? _selectedProvinceId;
   private CompanyLookupDto? _lookup;
 
   [Parameter] public int? CurrentStudioId { get; set; }
   [Parameter] public string? CurrentUsername { get; set; }
 
+  /// <summary>Nombre del estudio para el que se registra la empresa (se muestra en el título).</summary>
+  [Parameter] public string? StudioName { get; set; }
+
+  /// <summary>Título a medida para flujos con otro texto (por ejemplo, desde el portal del estudio).</summary>
+  [Parameter] public string? TituloPersonalizado { get; set; }
+
+  private string Titulo =>
+      !string.IsNullOrWhiteSpace(TituloPersonalizado) ? TituloPersonalizado!
+      : IsEdit ? "Editar Empresa"
+      : string.IsNullOrWhiteSpace(StudioName) ? "Registrar Nueva Empresa"
+      : $"Registrar Nueva Empresa para \"{StudioName}\"";
+
+  /// <summary>
+  /// Cuando el CUIT ya pertenece a otro estudio activo (o ya es cliente de este), no tiene sentido
+  /// cargar el resto del formulario: se inhabilita entero y queda activo sólo Cancelar. El aviso de
+  /// arriba explica el motivo. `inert` corta también el teclado; `pointer-events` cubre navegadores
+  /// viejos donde `inert` no existe.
+  /// </summary>
+  private Dictionary<string, object> BloqueoFormulario =>
+      _blockSubmit ? new Dictionary<string, object> { ["inert"] = true } : new Dictionary<string, object>();
+
   private bool _blockSubmit =>
       _lookup is { AlreadyOwnedByCurrentStudio: true } or { CuitExists: true, OwnerStudioActive: true };
+
+  private bool _lookingUpCuit;
+
+  /// <summary>
+  /// Aviso que se muestra apenas se completa el CUIT, sin esperar al final del formulario: si ya
+  /// pertenece a otro estudio activo, si ya es cliente de este estudio, si existe sin dueño (al
+  /// guardar se envía una solicitud de vinculación) o si aparece en el sistema anterior.
+  /// </summary>
+  private (Severity Severidad, string Texto)? AvisoCuit()
+  {
+    if (_lookup is null) return null;
+
+    if (_lookup.AlreadyOwnedByCurrentStudio)
+      return (Severity.Info, "Este CUIT ya está a tu cargo en este estudio.");
+
+    if (_lookup.CuitExists && _lookup.OwnerStudioActive)
+      return (Severity.Warning,
+          $"Este CUIT ya pertenece al estudio contable '{_lookup.OwnerStudioName}', que está activo. " +
+          "Para tomar estas liquidaciones, ese estudio primero tiene que liberar la empresa.");
+
+    if (_lookup.CuitExists)
+      return (Severity.Info,
+          $"La empresa ya existe ({_lookup.ExistingBusinessName}) y no tiene un estudio activo: " +
+          "al guardar se envía una solicitud de vinculación al sindicato.");
+
+    if (_lookup.LegacyFound)
+      return (Severity.Info,
+          $"Este CUIT figura en el sistema anterior como '{_lookup.LegacyBusinessName}'. Se dará de alta como empresa nueva.");
+
+    return (Severity.Warning,
+        "Este CUIT no aparece en los registros históricos del sindicato. Verificá los datos antes de continuar.");
+  }
 
   protected override async Task OnInitializedAsync()
   {
@@ -224,7 +268,7 @@
         if (city != null)
         {
           _selectedProvinceId = city.ProvinceId;
-          _cities = await UnionService.GetCitiesByProvinceAsync(_selectedProvinceId);
+          _cities = await UnionService.GetCitiesByProvinceAsync(city.ProvinceId);
         }
       }
     }
@@ -256,29 +300,70 @@
     if (IsEdit) return;
 
     var norm = CompanyValidationService.NormalizeCuit(_company.Cuit);
-    if (norm.Length != 11) return;
+    if (norm.Length != 11)
+    {
+      // Si el CUIT queda incompleto, no dejar colgado el aviso del CUIT anterior.
+      _lookup = null;
+      StateHasChanged();
+      return;
+    }
 
-    _lookup = await ValidationService.LookupAsync(norm, CurrentStudioId);
-    if (_lookup == null) return;
+    _lookingUpCuit = true;
+    StateHasChanged();
 
-    // Pre-sugerir razón social: empresa existente sin dueño, o CUIT verificado en el legado
+    // 1) Primero SÓLO la base propia: es instantánea y alcanza para avisar de quién es la empresa
+    //    (el aviso de "ya pertenece a otro estudio" tiene que salir en el momento).
+    try
+    {
+      _lookup = await ValidationService.LookupAsync(norm, CurrentStudioId, incluirLegado: false);
+    }
+    finally
+    {
+      _lookingUpCuit = false;
+    }
+
+    if (_lookup == null) { StateHasChanged(); return; }
+    SugerirRazonSocial();
+    StateHasChanged();
+
+    // 2) Después el sistema anterior, que es el lento (decenas de segundos): sólo tiene sentido
+    //    consultarlo si la empresa no existe en SIRGA, para sugerir la razón social histórica.
+    if (!_lookup.CuitExists)
+    {
+      var conLegado = await ValidationService.LookupAsync(norm, CurrentStudioId);
+      if (conLegado != null)
+      {
+        _lookup = conLegado;
+        SugerirRazonSocial();
+        StateHasChanged();
+      }
+    }
+  }
+
+  /// <summary>
+  /// Completa la razón social con lo que se conoce: empresa existente sin dueño, o el nombre con el
+  /// que figura en el sistema anterior. Nunca pisa lo que ya escribió el usuario.
+  /// </summary>
+  private void SugerirRazonSocial()
+  {
+    if (_lookup == null || !string.IsNullOrWhiteSpace(_company.BusinessName)) return;
+
     if (_lookup.CuitExists && !_lookup.OwnerStudioActive && !_lookup.AlreadyOwnedByCurrentStudio
-        && !string.IsNullOrEmpty(_lookup.ExistingBusinessName) && string.IsNullOrWhiteSpace(_company.BusinessName))
+        && !string.IsNullOrEmpty(_lookup.ExistingBusinessName))
     {
       _company.BusinessName = _lookup.ExistingBusinessName;
     }
-    else if (!_lookup.CuitExists && _lookup.LegacyFound
-        && !string.IsNullOrEmpty(_lookup.LegacyBusinessName) && string.IsNullOrWhiteSpace(_company.BusinessName))
+    else if (!_lookup.CuitExists && _lookup.LegacyFound && !string.IsNullOrEmpty(_lookup.LegacyBusinessName))
     {
       _company.BusinessName = _lookup.LegacyBusinessName;
     }
-
-    StateHasChanged();
   }
 
   private async Task OnProvinceChanged()
   {
-    _cities = await UnionService.GetCitiesByProvinceAsync(_selectedProvinceId);
+    _cities = _selectedProvinceId is { } provinceId
+        ? await UnionService.GetCitiesByProvinceAsync(provinceId)
+        : new List<City>();
     _company.CityId = null;
     StateHasChanged();
   }

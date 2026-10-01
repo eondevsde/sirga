@@ -148,10 +148,15 @@
       var studio = await StudioService.GetByUsernameAsync(user.Identity.Name!);
       if (studio != null)
       {
-        var parameters = new DialogParameters<AddCompanyDialog> { { x => x.CurrentStudioId, studio.Id } };
+        var parameters = new DialogParameters<AddCompanyDialog>
+        {
+          { x => x.CurrentStudioId, studio.Id },
+          { x => x.StudioName, studio.Name },
+          { x => x.TituloPersonalizado, $"Solicitar Nueva Vinculación de Empresa para \"{studio.Name}\"" }
+        };
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dialog = await DialogService.ShowAsync<AddCompanyDialog>("Solicitar Nueva Vinculación de Empresa", parameters,
-options);
+        var dialog = await DialogService.ShowAsync<AddCompanyDialog>("Solicitar Nueva Vinculación de Empresa",
+            parameters, options);
         var result = await dialog.Result;
 
         if (result is { Canceled: false })
