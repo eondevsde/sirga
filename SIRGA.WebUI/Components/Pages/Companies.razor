@@ -19,33 +19,46 @@
 <MudTable Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
           Filter="new Func<Company,bool>(FilterFunc1)" Elevation="2">
   <ToolBarContent>
-    <MudText Typo="Typo.h6">Clientes / Empresas</MudText>
-    <MudSpacer />
-    @* A 1360x768 la barra queda justa: el placeholder largo se cortaba y los selects se
-       apretaban. Se acortan los textos y los anchos minimos para que todo entre sin cortarse. *@
-    <MudTextField @bind-Value="_searchString" Placeholder="Buscar empresa" Adornment="Adornment.Start"
-                  AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"
-                  Style="min-width: 200px;" Immediate="true"></MudTextField>
-        
-    @* Provincia real (antes eran 4 hardcodeadas) y con "Todas" para poder volver a ver todo
-       despues de elegir una. *@
-    <MudSelect T="int?" Label="Provincia" @bind-Value="_provinceFilterId" @bind-Value:after="StateHasChanged"
-               Class="ml-4" Style="min-width: 180px;" Clearable="true">
-      <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
-      @foreach (var provincia in _provinces)
-      {
-        <MudSelectItem T="int?" Value="@((int?)provincia.Id)">@provincia.Name</MudSelectItem>
-      }
-    </MudSelect>
+    @* A 1360x768 el titulo, el boton y cuatro filtros no entran en una sola linea (se partian en
+       dos renglones): titulo y boton arriba, filtros en su propia linea. *@
+    <div class="d-flex flex-wrap align-center w-100">
+      <MudText Typo="Typo.h6" Class="mr-auto">Clientes / Empresas</MudText>
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                 OnClick="OpenCreateDialog">Nueva Empresa</MudButton>
 
-    <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged" Class="ml-4" Style="min-width: 130px;">
-      <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
-      <MudSelectItem Value="@("activas")">Activas</MudSelectItem>
-      <MudSelectItem Value="@("inactivas")">Inactivas</MudSelectItem>
-    </MudSelect>
+      <div class="d-flex flex-wrap align-center w-100 mt-2">
+        <MudTextField @bind-Value="_searchString" Placeholder="Buscar empresa" Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"
+                      Style="min-width: 200px;" Immediate="true"></MudTextField>
 
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Class="ml-4"
-               OnClick="OpenCreateDialog">Nueva Empresa</MudButton>
+        @* Provincia y Localidad salen de las tablas Provinces y Cities. La localidad se llena con
+           las ciudades de la provincia elegida, y al cambiar de provincia se limpia si no pertenece. *@
+        <MudSelect T="int?" Label="Provincia" @bind-Value="_provinceFilterId" @bind-Value:after="OnProvinceChanged"
+                   Class="ml-4" Style="min-width: 180px;" Clearable="true">
+          <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
+          @foreach (var provincia in _provinces)
+          {
+            <MudSelectItem T="int?" Value="@((int?)provincia.Id)">@provincia.Name</MudSelectItem>
+          }
+        </MudSelect>
+
+        <MudSelect T="int?" Label="Localidad" @bind-Value="_cityFilterId" @bind-Value:after="StateHasChanged"
+                   Class="ml-4" Style="min-width: 200px;" Clearable="true"
+                   Disabled="@(_provinceFilterId is null)">
+          <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
+          @foreach (var localidad in LocalidadesDeLaProvincia)
+          {
+            <MudSelectItem T="int?" Value="@((int?)localidad.Id)">@localidad.Name</MudSelectItem>
+          }
+        </MudSelect>
+
+        <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged" Class="ml-4" Style="min-width: 130px;">
+          <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
+          <MudSelectItem Value="@("activas")">Activas</MudSelectItem>
+          <MudSelectItem Value="@("inactivas")">Inactivas</MudSelectItem>
+        </MudSelect>
+      </div>
+    </div>
   </ToolBarContent>
   <HeaderContent>
     <MudTh>CUIT</MudTh>
@@ -182,6 +195,7 @@
   private string _searchString = "";
   // null = "Todas": antes era un string con 4 provincias hardcodeadas y sin forma de volver a todas.
   private int? _provinceFilterId;
+  private int? _cityFilterId;
   private List<Province> _provinces = new();
   private List<City> _cities = new();
   private string _activeFilter = "todas";
@@ -215,6 +229,25 @@
     var value = _activeFilter;
     var url = value == "todas" ? "/companies" : $"/companies?estado={value}";
     _ = JS.InvokeVoidAsync("history.replaceState", null, "", url);
+  }
+
+  /// <summary>Localidades de la provincia elegida (tabla Cities), ordenadas por nombre.</summary>
+  private IEnumerable<City> LocalidadesDeLaProvincia =>
+      _provinceFilterId is { } provinceId
+          ? _cities.Where(c => c.ProvinceId == provinceId)
+                   .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+          : Enumerable.Empty<City>();
+
+  /// <summary>
+  /// Al cambiar la provincia, la localidad elegida puede no pertenecer a la nueva: en ese caso se
+  /// limpia, para no quedar filtrando por una localidad de otra provincia.
+  /// </summary>
+  private void OnProvinceChanged()
+  {
+    if (_cityFilterId is { } cityId && !_cities.Any(c => c.Id == cityId && c.ProvinceId == _provinceFilterId))
+      _cityFilterId = null;
+
+    StateHasChanged();
   }
 
   private async Task LoadCompanies()
@@ -290,6 +323,10 @@
       if (element.CityId is not { } cityId || !cityIdsOfProvince.Contains(cityId))
         return false;
     }
+
+    // Filtro por localidad (la lista se llena según la provincia elegida).
+    if (_cityFilterId is { } cityFilterId && element.CityId != cityFilterId)
+      return false;
 
     if (_activeFilter == "activas" && !element.IsActive)
       return false;
