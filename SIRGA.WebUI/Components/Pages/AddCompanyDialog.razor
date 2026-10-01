@@ -15,9 +15,6 @@
   </TitleContent>
   <DialogContent>
     <MudForm @ref="_form" @bind-IsValid="@_success">
-      @* Si el CUIT ya pertenece a otro estudio, se bloquea todo el formulario y queda activo sólo
-         Cancelar (el botón de guardar ya viene deshabilitado). *@
-      <div @attributes="BloqueoFormulario" style="@(_blockSubmit ? "opacity: .55; pointer-events: none;" : null)">
       <MudGrid>
         <MudItem xs="12" md="6">
           <MudTextField T="string" Label="CUIT" @bind-Value="_company.Cuit" Required="true" Variant="Variant.Outlined"
@@ -47,6 +44,13 @@
                       Class="@($"mt-n2 mb-2 alerta-cuit-neon{tono}")">@aviso.Texto</MudAlert>
           </MudItem>
         }
+      </MudGrid>
+
+      @* El bloqueo (inert + atenuado) arranca recién acá: el CUIT tiene que seguir editable para
+         poder corregirlo, y el aviso de arriba queda fuera del área atenuada (si no, se opaca y no
+         se lee). El botón de guardar ya viene deshabilitado. *@
+      <div @attributes="BloqueoFormulario" style="@(_blockSubmit ? "opacity: .55; pointer-events: none;" : null)">
+      <MudGrid>
         <MudItem xs="12" md="6">
           <MudTextField T="string" Label="Razón Social" @bind-Value="_company.BusinessName" Required="true"
                         Variant="Variant.Outlined" />
@@ -211,17 +215,22 @@
   {
     if (_lookup is null) return null;
 
+    // El nombre de la empresa: el actual si existe, o el histórico. Nunca dejar el hueco vacío.
+    var empresa = !string.IsNullOrWhiteSpace(_lookup.ExistingBusinessName) ? _lookup.ExistingBusinessName
+                : !string.IsNullOrWhiteSpace(_lookup.LegacyBusinessName) ? _lookup.LegacyBusinessName
+                : "una empresa ya registrada";
+
     if (_lookup.AlreadyOwnedByCurrentStudio)
-      return (Severity.Info, "Este CUIT ya está a tu cargo en este estudio.");
+      return (Severity.Info, $"Este CUIT ya está a tu cargo en este estudio: {empresa}.");
 
     if (_lookup.CuitExists && _lookup.OwnerStudioActive)
       return (Severity.Warning,
-          $"Este CUIT ya pertenece al estudio contable '{_lookup.OwnerStudioName}', que está activo. " +
+          $"Este CUIT pertenece a {empresa}, del estudio contable '{_lookup.OwnerStudioName}', que está activo. " +
           "Para tomar estas liquidaciones, ese estudio primero tiene que liberar la empresa.");
 
     if (_lookup.CuitExists)
       return (Severity.Info,
-          $"La empresa ya existe ({_lookup.ExistingBusinessName}) y no tiene un estudio activo: " +
+          $"La empresa ya existe ({empresa}) y no tiene un estudio activo: " +
           "al guardar se envía una solicitud de vinculación al sindicato.");
 
     if (_lookup.LegacyFound)
