@@ -1268,6 +1268,34 @@ namespace SIRGA.Infrastructure.Migrations
                     b.ToTable("Unions");
                 });
 
+            modelBuilder.Entity("SIRGA.Domain.Entities.UnionAuditor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AssignedByUsername")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("UnionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UnionId");
+
+                    b.ToTable("UnionAuditors");
+                });
+
             modelBuilder.Entity("SIRGA.Domain.Entities.UnionSubscription", b =>
                 {
                     b.Property<int>("Id")
@@ -1750,6 +1778,17 @@ namespace SIRGA.Infrastructure.Migrations
                     b.Navigation("Company");
 
                     b.Navigation("Employee");
+
+                    b.Navigation("Union");
+                });
+
+            modelBuilder.Entity("SIRGA.Domain.Entities.UnionAuditor", b =>
+                {
+                    b.HasOne("SIRGA.Domain.Entities.Union", "Union")
+                        .WithMany()
+                        .HasForeignKey("UnionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Union");
                 });
