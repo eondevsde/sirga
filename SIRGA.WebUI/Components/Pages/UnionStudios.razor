@@ -67,10 +67,15 @@
           </MudTd>
           <MudTd DataLabel="Últ. DDJJ">@companyContext.LastPeriodDeclared</MudTd>
           <MudTd DataLabel="Acciones">
-            @* El traspaso lo decide el sindicato: el estudio no puede pedirlo. *@
-            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.SwapHoriz"
-                       OnClick="@(() => AbrirTraspaso(companyContext))">Transferir</MudButton>
+            @* El traspaso lo decide y ejecuta el admin del SINDICATO: al auditor no se le ofrece la
+               acción (probando desde la pantalla se descubrió que podía apretarla y que, al no tener
+               sindicato propio, rompía el guardado). El servicio además exige el sindicato que la
+               autoriza, así que tampoco puede ejecutarla el Admin. *@
+            <AuthorizeView Roles="Sindicato">
+              <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                         StartIcon="@Icons.Material.Filled.SwapHoriz"
+                         OnClick="@(() => AbrirTraspaso(companyContext))">Transferir</MudButton>
+            </AuthorizeView>
           </MudTd>
         </RowTemplate>
         <NoRecordsContent>
