@@ -127,4 +127,50 @@ public class AssociationService(IUnitOfWork unitOfWork)
     var ok = await unitOfWork.CompleteAsync() > 0;
     return (ok, ok ? null : "No se pudo registrar la solicitud.");
   }
+
+  /// <summary>
+  /// Traspasa una empresa de un estudio a otro (A -> B). Lo decide y ejecuta el admin del sindicato,
+  /// no el estudio: por eso no nace de una solicitud, sino de esta acción directa.
+  /// Cierra la fila vigente del historial del estudio anterior, abre la del nuevo y cambia el dueño.
+  /// Todo va en el mismo SaveChanges, así que no puede quedar a medias: o se traspasa, o no pasa nada.
+  /// </summary>
+  public async Task<(bool Success, string? Error)> TransferCompanyAsync(
+      int companyId, int toStudioId, int unionId, string? authorizedBy, string? reason)
+  {
+    var company = await unitOfWork.Companies.GetByIdAsync(companyId);
+    if (company == null) return (false, "No se encontró la empresa.");
+
+    if (company.AccountingStudioId == toStudioId)
+      return (false, "La empresa ya pertenece a ese estudio.");
+
+    var destino = await unitOfWork.AccountingStudios.GetByIdAsync(toStudioId);
+    if (destino == null) return (false, "No se encontró el estudio de destino.");
+
+    var ahora = DateTime.UtcNow;
+
+    // Cerrar la fila vigente (la que tiene To vacío) del estudio que la tenía hasta ahora.
+    var vigentes = await unitOfWork.CompanyStudioHistories.FindAsync(
+        h => h.CompanyId == companyId && h.To == null);
+    foreach (var fila in vigentes)
+    {
+      fila.To = ahora;
+      await unitOfWork.CompanyStudioHistories.UpdateAsync(fila);
+    }
+
+    await unitOfWork.CompanyStudioHistories.AddAsync(new CompanyStudioHistory
+    {
+      CompanyId = companyId,
+      AccountingStudioId = toStudioId,
+      UnionId = unionId,
+      From = ahora,
+      AuthorizedByUsername = authorizedBy,
+      Reason = reason
+    });
+
+    company.AccountingStudioId = toStudioId;
+    await unitOfWork.Companies.UpdateAsync(company);
+
+    var ok = await unitOfWork.CompleteAsync() > 0;
+    return (ok, ok ? null : "No se pudo registrar el traspaso.");
+  }
 }
