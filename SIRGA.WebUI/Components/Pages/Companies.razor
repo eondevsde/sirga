@@ -7,6 +7,7 @@
 @inject UnionService UnionService
 @inject AccountingStudioService StudioService
 @inject AssociationService AssociationService
+@inject AlcanceAuditor Alcance
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -306,10 +307,23 @@
             : new List<CompanyLeftDto>();
       }
 
-      // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
-      _companies = (user.IsInRole("EstudioContable")
-          ? await CompanyService.GetByStudioUsernameAsync(user.Identity?.Name ?? "")
-          : await CompanyService.GetAllOrderedAsync()).ToList();
+      // Alcance del rol Auditor: si el sindicato lo asignó, ve SÓLO las empresas de su sindicato; si
+      // todavía no está asignado, no ve ninguna (antes veía las 4.507 de todos los sindicatos).
+      var (esAuditor, unionId) = await Alcance.ResolverAsync(user);
+
+      if (esAuditor)
+      {
+        _companies = unionId is { } sindicatoId
+            ? (await CompanyService.GetByUnionAsync(sindicatoId)).ToList()
+            : new List<Company>();
+      }
+      else
+      {
+        // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
+        _companies = (user.IsInRole("EstudioContable")
+            ? await CompanyService.GetByStudioUsernameAsync(user.Identity?.Name ?? "")
+            : await CompanyService.GetAllOrderedAsync()).ToList();
+      }
     }
     catch (Exception ex)
     {
