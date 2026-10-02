@@ -2,7 +2,10 @@
 @using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @using SIRGA.Domain.Entities
+@using SIRGA.WebUI.Services
 @inject EmployeeService EmployeeService
+@inject AlcanceAuditor Alcance
+@inject AuthenticationStateProvider AuthStateProvider
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
@@ -67,7 +70,33 @@
     _loading = true;
     try
     {
-      _employees = (await EmployeeService.GetPadronAsync()).ToList();
+      // Alcance del rol Auditor: ve SÓLO los empleados de su sindicato; si todavía no se lo
+      // asignaron, no ve ninguno (antes veía los 27.934 de todos los sindicatos).
+      var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+      var (esAuditor, unionId) = await Alcance.ResolverAsync(authState.User);
+
+      if (esAuditor)
+      {
+        if (unionId is { } sindicatoId)
+        {
+          var permitidos = await EmployeeService.GetEmployeeIdsByUnionAsync(sindicatoId);
+          _employees = (await EmployeeService.GetPadronAsync())
+              .Where(e => permitidos.Contains(e.Id))
+              .ToList();
+        }
+        else
+        {
+          _employees = new List<EmployeeDto>();
+          Snackbar.Add(
+              "Todavía no te asignaron a un sindicato, por eso no ves empleados. " +
+              "Pedile al sindicato que te habilite desde \"Auditores del sindicato\".",
+              Severity.Warning, config => config.VisibleStateDuration = 10000);
+        }
+      }
+      else
+      {
+        _employees = (await EmployeeService.GetPadronAsync()).ToList();
+      }
     }
     catch (Exception ex)
     {
