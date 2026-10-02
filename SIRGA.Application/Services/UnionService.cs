@@ -1,4 +1,4 @@
-﻿using SIRGA.Application.DTOs;
+using SIRGA.Application.DTOs;
 using SIRGA.Application.Interfaces;
 using SIRGA.Domain.Entities;
 
@@ -11,6 +11,19 @@ public class UnionService
   public UnionService(IUnitOfWork unitOfWork)
   {
     _unitOfWork = unitOfWork;
+  }
+
+  /// <summary>
+  /// Sindicato al que le asignaron este auditor. Devuelve null si todavía no se lo asignaron, que es
+  /// el caso en el que el auditor NO debe ver datos de ningún sindicato (antes veía todo).
+  /// Si estuviera asignado a más de uno, se toma el primero por fecha de asignación.
+  /// </summary>
+  public async Task<int?> GetUnionIdForAuditorAsync(string username)
+  {
+    if (string.IsNullOrWhiteSpace(username)) return null;
+
+    var asignaciones = await _unitOfWork.UnionAuditors.FindAsync(a => a.Username == username);
+    return asignaciones.OrderBy(a => a.AssignedAt).Select(a => (int?)a.UnionId).FirstOrDefault();
   }
 
   public async Task<IEnumerable<UnionDto>> GetAllAsync()
