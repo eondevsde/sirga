@@ -1,0 +1,178 @@
+@page "/union/auditors"
+@using Microsoft.AspNetCore.Identity
+@using SIRGA.Application.Services
+@attribute [Authorize(Roles = "Sindicato,Admin")]
+@inject UnionService UnionService
+@inject UserManager<IdentityUser> UserManager
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>SIRGA - Auditores del sindicato</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">Auditores del sindicato</MudText>
+<MudText Typo="Typo.body2" Class="mb-6">
+  Cada auditor ve únicamente los datos del sindicato al que lo asignes, en todas las pantallas.
+  Si no está asignado a ninguno, no ve datos de ningún sindicato.
+</MudText>
+
+@if (_cargando)
+{
+  <MudProgressLinear Indeterminate="true" />
+}
+else if (_sindicato is null)
+{
+  <MudAlert Severity="Severity.Warning">
+    No se pudo resolver el sindicato de tu usuario. Solo el usuario del sindicato (o un Admin) puede asignar auditores.
+  </MudAlert>
+}
+else
+{
+  <MudGrid>
+    <MudItem xs="12" md="6">
+      <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h6" Class="mb-3">Asignados a @_sindicato.Name</MudText>
+
+        @if (!_asignados.Any())
+        {
+          <MudAlert Severity="Severity.Info" Dense="true">
+            Todavía no hay auditores asignados a este sindicato.
+          </MudAlert>
+        }
+        else
+        {
+          <MudTable Items="@_asignados" Dense="true" Hover="true" T="UnionService.UnionAuditorDto">
+            <HeaderContent>
+              <MudTh>Usuario</MudTh>
+              <MudTh>Asignado</MudTh>
+              <MudTh>Por</MudTh>
+              <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate Context="auditor">
+              <MudTd DataLabel="Usuario">@auditor.Username</MudTd>
+              <MudTd DataLabel="Asignado">@auditor.AssignedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</MudTd>
+              <MudTd DataLabel="Por">@(auditor.AssignedByUsername ?? "-")</MudTd>
+              <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.PersonRemove"
+                           OnClick="@(() => Quitar(auditor))">Quitar</MudButton>
+              </MudTd>
+            </RowTemplate>
+          </MudTable>
+        }
+      </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+      <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h6" Class="mb-3">Agregar un auditor</MudText>
+
+        @if (!_candidatos.Any())
+        {
+          <MudAlert Severity="Severity.Info" Dense="true">
+            No hay usuarios con rol Auditor disponibles: o no existen, o ya están asignados a este sindicato.
+          </MudAlert>
+        }
+        else
+        {
+          <MudSelect T="string" Label="Usuario con rol Auditor" Variant="Variant.Outlined"
+                     @bind-Value="_seleccionado" Class="mb-4">
+            @foreach (var candidato in _candidatos)
+            {
+              <MudSelectItem Value="@candidato">@candidato</MudSelectItem>
+            }
+          </MudSelect>
+
+          <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                     Disabled="@(string.IsNullOrEmpty(_seleccionado) || _guardando)"
+                     OnClick="Asignar">
+            @(_guardando ? "Asignando..." : "Asignar al sindicato")
+          </MudButton>
+        }
+      </MudPaper>
+    </MudItem>
+  </MudGrid>
+}
+
+@code {
+  private UnionDto? _sindicato;
+  private List<UnionService.UnionAuditorDto> _asignados = new();
+  private List<string> _candidatos = new();
+  private string? _seleccionado;
+  private string? _usuario;
+  private bool _cargando = true;
+  private bool _guardando;
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+      _usuario = authState.User.Identity?.Name;
+
+      // El Admin no tiene sindicato propio: se le pide elegir uno de la lista.
+      if (authState.User.IsInRole("Sindicato"))
+        _sindicato = await UnionService.GetByUsernameAsync(_usuario ?? string.Empty);
+      else
+      {
+        var todos = (await UnionService.GetAllAsync()).ToList();
+        _sindicato = todos.FirstOrDefault();
+      }
+
+      if (_sindicato != null) await Cargar();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar los auditores: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _cargando = false;
+    }
+  }
+
+  private async Task Cargar()
+  {
+    if (_sindicato is null) return;
+
+    _asignados = (await UnionService.GetAuditorsAsync(_sindicato.Id)).ToList();
+
+    var yaAsignados = _asignados.Select(a => a.Username).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var auditores = await UserManager.GetUsersInRoleAsync("Auditor");
+    _candidatos = auditores
+        .Select(u => u.UserName ?? string.Empty)
+        .Where(u => u.Length > 0 && !yaAsignados.Contains(u))
+        .OrderBy(u => u)
+        .ToList();
+  }
+
+  private async Task Asignar()
+  {
+    if (_sindicato is null || string.IsNullOrWhiteSpace(_seleccionado)) return;
+
+    _guardando = true;
+    try
+    {
+      var (ok, error) = await UnionService.AssignAuditorAsync(_sindicato.Id, _seleccionado, _usuario);
+      if (!ok) { Snackbar.Add(error ?? "No se pudo asignar.", Severity.Error); return; }
+
+      Snackbar.Add($"{_seleccionado} ahora ve solo los datos de {_sindicato.Name}.", Severity.Success);
+      _seleccionado = null;
+      await Cargar();
+    }
+    finally
+    {
+      _guardando = false;
+    }
+  }
+
+  private async Task Quitar(UnionService.UnionAuditorDto auditor)
+  {
+    if (_sindicato is null) return;
+
+    var (ok, error) = await UnionService.RemoveAuditorAsync(_sindicato.Id, auditor.Username);
+    if (!ok) { Snackbar.Add(error ?? "No se pudo quitar.", Severity.Error); return; }
+
+    Snackbar.Add($"{auditor.Username} ya no está asignado a este sindicato: no verá datos de ninguno.", Severity.Warning);
+    await Cargar();
+  }
+}

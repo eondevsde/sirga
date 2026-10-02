@@ -26,6 +26,55 @@ public class UnionService
     return asignaciones.OrderBy(a => a.AssignedAt).Select(a => (int?)a.UnionId).FirstOrDefault();
   }
 
+  /// <summary>Auditores asignados a un sindicato, para la pantalla de asignación.</summary>
+  public async Task<IEnumerable<UnionAuditorDto>> GetAuditorsAsync(int unionId)
+  {
+    var asignaciones = await _unitOfWork.UnionAuditors.FindAsync(a => a.UnionId == unionId);
+    return asignaciones
+        .OrderBy(a => a.Username)
+        .Select(a => new UnionAuditorDto(a.Id, a.UnionId, a.Username, a.AssignedAt, a.AssignedByUsername));
+  }
+
+  /// <summary>
+  /// Asigna un auditor a un sindicato. Es idempotente a propósito: si ya estaba asignado no duplica
+  /// la fila ni devuelve error, así el botón se puede apretar dos veces sin ensuciar la tabla.
+  /// </summary>
+  public async Task<(bool Ok, string? Error)> AssignAuditorAsync(int unionId, string username, string? assignedBy)
+  {
+    if (string.IsNullOrWhiteSpace(username)) return (false, "Falta el usuario.");
+
+    var yaEstaba = await _unitOfWork.UnionAuditors.FindAsync(
+        a => a.UnionId == unionId && a.Username == username);
+    if (yaEstaba.Any()) return (true, null);
+
+    await _unitOfWork.UnionAuditors.AddAsync(new UnionAuditor
+    {
+      UnionId = unionId,
+      Username = username.Trim(),
+      AssignedAt = DateTime.UtcNow,
+      AssignedByUsername = assignedBy
+    });
+
+    var ok = await _unitOfWork.CompleteAsync() > 0;
+    return (ok, ok ? null : "No se pudo guardar la asignación.");
+  }
+
+  /// <summary>Quita la asignación de un auditor a un sindicato.</summary>
+  public async Task<(bool Ok, string? Error)> RemoveAuditorAsync(int unionId, string username)
+  {
+    var asignaciones = await _unitOfWork.UnionAuditors.FindAsync(
+        a => a.UnionId == unionId && a.Username == username);
+
+    foreach (var asignacion in asignaciones)
+      await _unitOfWork.UnionAuditors.RemoveAsync(asignacion);
+
+    var ok = await _unitOfWork.CompleteAsync() > 0;
+    return (ok, ok ? null : "No se pudo quitar la asignación.");
+  }
+
+  /// <summary>Un auditor asignado a un sindicato.</summary>
+  public record UnionAuditorDto(int Id, int UnionId, string Username, DateTime AssignedAt, string? AssignedByUsername);
+
   public async Task<IEnumerable<UnionDto>> GetAllAsync()
   {
     var unions = await _unitOfWork.Unions.GetAllAsync();
