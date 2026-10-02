@@ -47,15 +47,22 @@ BEGIN
   FROM CompanyStudioHistories WHERE CompanyId = @companyId AND [To] IS NULL;
 
   -- Es la consulta de GetCompaniesLeftAsync: lo que ve el estudio que perdio la empresa.
+  -- Quien autorizo es el de la fila SIGUIENTE (la que se abrio al salir), no el de la que perdio.
   SELECT 'AVISO AL ESTUDIO ANTERIOR -> ' + c.BusinessName
        + ' | desde ' + CONVERT(varchar(10), h.[From], 103)
        + ' hasta ' + CONVERT(varchar(10), h.[To], 103)
        + ' | hoy en ' + ISNULL(destino.Name, '-')
-       + ' | autorizo ' + ISNULL(h.AuthorizedByUsername, '-')
-       + ' | motivo: ' + ISNULL(h.Reason, '-') AS aviso
+       + ' | autorizo ' + ISNULL(sig.AuthorizedByUsername, '-')
+       + ' | motivo: ' + ISNULL(sig.Reason, '-') AS aviso
   FROM CompanyStudioHistories h
   INNER JOIN Companies c ON c.Id = h.CompanyId
   LEFT JOIN AccountingStudios destino ON destino.Id = c.AccountingStudioId
+  OUTER APPLY (
+      SELECT TOP 1 s.AuthorizedByUsername, s.Reason
+      FROM CompanyStudioHistories s
+      WHERE s.CompanyId = h.CompanyId AND s.Id <> h.Id AND s.[From] > h.[From]
+      ORDER BY s.[From]
+  ) sig
   WHERE h.AccountingStudioId = @origen AND h.[To] IS NOT NULL;
 
   -- El indice unico filtrado tiene que impedir que queden dos estudios vigentes a la vez.

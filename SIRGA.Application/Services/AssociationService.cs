@@ -195,6 +195,14 @@ public class AssociationService(IUnitOfWork unitOfWork)
       if (empresa?.AccountingStudioId is { } actualId)
         actual = await unitOfWork.AccountingStudios.GetByIdAsync(actualId);
 
+      // Quién autorizó el TRASPASO y por qué es el de la fila siguiente de esa empresa (la que se
+      // abrió al salir), no el de la fila que perdió, que corresponde a cuando la obtuvo.
+      var filasDeLaEmpresa = await unitOfWork.CompanyStudioHistories.FindAsync(h => h.CompanyId == fila.CompanyId);
+      var traspaso = filasDeLaEmpresa
+          .Where(h => h.Id != fila.Id && h.From > fila.From)
+          .OrderBy(h => h.From)
+          .FirstOrDefault();
+
       resultado.Add(new CompanyLeftDto(
           fila.CompanyId,
           empresa?.BusinessName ?? "(empresa eliminada)",
@@ -202,8 +210,8 @@ public class AssociationService(IUnitOfWork unitOfWork)
           fila.From,
           fila.To,
           actual?.Name,
-          fila.AuthorizedByUsername,
-          fila.Reason));
+          traspaso?.AuthorizedByUsername,
+          traspaso?.Reason));
     }
 
     return resultado;
