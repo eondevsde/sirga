@@ -6,6 +6,7 @@
 @inject CompanyService CompanyService
 @inject UnionService UnionService
 @inject AccountingStudioService StudioService
+@inject AssociationService AssociationService
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -16,6 +17,31 @@
 <PageTitle>SIRGA - Gestión de Empresas</PageTitle>
 
 <MudText Typo="Typo.h4" Class="mb-4">Gestión de Empresas</MudText>
+
+@* Aviso al estudio: empresas que salieron de su cartera por un traspaso que decidió el sindicato. *@
+@if (_empresasQueSalieron.Any())
+{
+  <MudAlert Severity="Severity.Warning" Class="mb-4 alerta-cuit-neon">
+    <MudText Typo="Typo.subtitle2" Class="mb-2">
+      El sindicato traspasó @(_empresasQueSalieron.Count == 1 ? "una empresa" : $"{_empresasQueSalieron.Count} empresas") a otro estudio contable:
+    </MudText>
+    @foreach (var salida in _empresasQueSalieron)
+    {
+      <MudText Typo="Typo.body2">
+        • <b>@salida.BusinessName</b> (@salida.Cuit) — la tenías desde @salida.From.ToLocalTime().ToString("dd/MM/yyyy")
+        hasta @(salida.To?.ToLocalTime().ToString("dd/MM/yyyy") ?? "-")
+        @if (!string.IsNullOrWhiteSpace(salida.CurrentStudioName))
+        {
+          <text>, hoy a cargo de @salida.CurrentStudioName</text>
+        }
+        @if (!string.IsNullOrWhiteSpace(salida.AuthorizedByUsername))
+        {
+          <text>. Autorizó @salida.AuthorizedByUsername</text>
+        }
+      </MudText>
+    }
+  </MudAlert>
+}
 
 <MudTable Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
           Filter="new Func<Company,bool>(FilterFunc1)" Elevation="2">
@@ -208,6 +234,10 @@
   private int? _studioId;
   private string? _studioName;
 
+  // Empresas que salieron de este estudio por un traspaso que decidió el sindicato: se avisa acá,
+  // porque el estudio no se entera por ningún otro lado.
+  private List<CompanyLeftDto> _empresasQueSalieron = new();
+
   protected override async Task OnInitializedAsync()
   {
     var query = Nav.ToAbsoluteUri(Nav.Uri).Query;
@@ -269,6 +299,11 @@
         var studio = await StudioService.GetByUsernameAsync(_username ?? "");
         _studioId = studio?.Id;
         _studioName = studio?.Name;
+
+        // Aviso por las empresas que el sindicato traspasó a otro estudio (sale del historial).
+        _empresasQueSalieron = _studioId is { } studioId
+            ? (await AssociationService.GetCompaniesLeftAsync(studioId)).ToList()
+            : new List<CompanyLeftDto>();
       }
 
       // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
