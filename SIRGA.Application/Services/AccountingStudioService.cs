@@ -7,6 +7,20 @@ namespace SIRGA.Application.Services;
 
 public class AccountingStudioService(IUnitOfWork unitOfWork)
 {
+  /// <summary>
+  /// Ids de los estudios que trabajan con un sindicato: los que tienen alguna empresa con empleados
+  /// asignados a ese sindicato. La pantalla del sindicato traía TODOS los estudios del sistema (853)
+  /// en lugar de los suyos. Se devuelven sólo los ids para no duplicar el armado del DTO.
+  /// </summary>
+  public async Task<IEnumerable<int>> GetStudioIdsForUnionAsync(int unionId)
+  {
+    return await unitOfWork.Assignments.RunQueryAsync(q => q
+        .Where(a => a.UnionId == unionId && a.Company.AccountingStudioId != null)
+        .Select(a => a.Company.AccountingStudioId!.Value)
+        .Distinct()
+        .ToListAsync());
+  }
+
   public async Task<IEnumerable<AccountingStudioDto>> GetAllAsync()
   {
     var studios = await unitOfWork.AccountingStudios.GetAllAsync();
