@@ -8,6 +8,20 @@ namespace SIRGA.Application.Services;
 
 public class EmployeeService(IUnitOfWork unitOfWork)
 {
+    /// <summary>
+    /// Ids de los empleados con asignación activa a un sindicato. Es lo que acota lo que puede ver un
+    /// auditor. Devuelve sólo ids a propósito: la pantalla filtra lo que ya tiene cargado, así no se
+    /// duplica el mapeo del DTO (que está escrito a mano y con muchos campos) ni se traen 27.934
+    /// empleados de más.
+    /// </summary>
+    public async Task<IReadOnlyCollection<int>> GetEmployeeIdsByUnionAsync(int unionId)
+    {
+        return await unitOfWork.Assignments.RunQueryAsync(q => q
+            .Where(a => a.UnionId == unionId && a.IsActive)
+            .Select(a => a.EmployeeId)
+            .Distinct()
+            .ToListAsync());
+    }
     public async Task<IEnumerable<EmployeeDto>> GetEmployeesByAssignmentAsync(int companyId, int unionId)
     {
         var assignments = await unitOfWork.Assignments.FindAsync(a =>
