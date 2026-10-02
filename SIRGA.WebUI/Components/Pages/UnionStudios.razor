@@ -7,6 +7,7 @@
 @inject AccountingStudioService StudioService
 @inject UnionService UnionService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
@@ -54,6 +55,7 @@
           <MudTh>CUIT</MudTh>
           <MudTh>Estado</MudTh>
           <MudTh>Últ. DDJJ</MudTh>
+          <MudTh>Acciones</MudTh>
         </HeaderContent>
         <RowTemplate Context="companyContext">
           <MudTd DataLabel="Razón Social">@companyContext.BusinessName</MudTd>
@@ -64,6 +66,12 @@
             </MudChip>
           </MudTd>
           <MudTd DataLabel="Últ. DDJJ">@companyContext.LastPeriodDeclared</MudTd>
+          <MudTd DataLabel="Acciones">
+            @* El traspaso lo decide el sindicato: el estudio no puede pedirlo. *@
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.SwapHoriz"
+                       OnClick="@(() => AbrirTraspaso(companyContext))">Transferir</MudButton>
+          </MudTd>
         </RowTemplate>
         <NoRecordsContent>
           <MudText>Este estudio no tiene empresas aprobadas a su cargo.</MudText>
@@ -141,6 +149,47 @@
     finally
     {
       _loadingCompanies = false;
+    }
+  }
+
+  /// <summary>
+  /// Abre el traspaso de una empresa a otro estudio. Lo ejecuta el admin del sindicato: el estudio no
+  /// puede pedirlo. Los destinos posibles son los otros estudios que trabajan con este sindicato, que
+  /// es la misma lista que ya se ve a la izquierda.
+  /// </summary>
+  private async Task AbrirTraspaso(CompanyDashboardDto company)
+  {
+    if (_selectedStudio is not { } origen) return;
+
+    var destinos = _studios.Where(e => e.Id != origen.Id).ToList();
+    if (destinos.Count == 0)
+    {
+      Snackbar.Add("No hay otro estudio que trabaje con este sindicato para transferirla.", Severity.Warning);
+      return;
+    }
+
+    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+    var user = authState.User;
+    var union = await UnionService.GetByUsernameAsync(user.Identity?.Name ?? string.Empty);
+
+    var parametros = new DialogParameters<TransferCompanyDialog>
+    {
+      { x => x.CompanyId, company.Id },
+      { x => x.CompanyName, company.BusinessName },
+      { x => x.CurrentStudioName, origen.Name },
+      { x => x.UnionId, union?.Id ?? 0 },
+      { x => x.AuthorizedBy, user.Identity?.Name },
+      { x => x.EstudiosDestino, destinos }
+    };
+
+    var dialogo = await DialogService.ShowAsync<TransferCompanyDialog>("Transferir empresa", parametros,
+        new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small });
+
+    if (await dialogo.Result is { Canceled: false })
+    {
+      // Refrescar: la empresa pudo haber salido de este estudio y el historial cambió.
+      await LoadCompanies(origen.Id);
+      await LoadStudios();
     }
   }
 
