@@ -42,5 +42,6 @@ public interface IUnitOfWork : IDisposable
   IRepository<UnionSubscriptionPayment> UnionSubscriptionPayments { get; }
   IRepository<UnionSubscriptionRequest> UnionSubscriptionRequests { get; }
   IRepository<CompanyStudioHistory> CompanyStudioHistories { get; }
+  IRepository<UnionAuditor> UnionAuditors { get; }
   Task<int> CompleteAsync();
 }

@@ -39,6 +39,7 @@ public class SIRG_DbContext : IdentityDbContext
     public DbSet<UnionSubscriptionPayment> UnionSubscriptionPayments => Set<UnionSubscriptionPayment>();
     public DbSet<UnionSubscriptionRequest> UnionSubscriptionRequests => Set<UnionSubscriptionRequest>();
     public DbSet<CompanyStudioHistory> CompanyStudioHistories => Set<CompanyStudioHistory>();
+    public DbSet<UnionAuditor> UnionAuditors => Set<UnionAuditor>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

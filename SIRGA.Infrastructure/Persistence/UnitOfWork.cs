@@ -37,6 +37,7 @@ public class UnitOfWork : IUnitOfWork
     UnionSubscriptionPayments = new Repository<UnionSubscriptionPayment>(_context, dbLock);
     UnionSubscriptionRequests = new Repository<UnionSubscriptionRequest>(_context, dbLock);
     CompanyStudioHistories = new Repository<CompanyStudioHistory>(_context, dbLock);
+    UnionAuditors = new Repository<UnionAuditor>(_context, dbLock);
   }
 
   public IRepository<Employee> Employees { get; }
@@ -64,6 +65,7 @@ public class UnitOfWork : IUnitOfWork
   public IRepository<UnionSubscriptionPayment> UnionSubscriptionPayments { get; }
   public IRepository<UnionSubscriptionRequest> UnionSubscriptionRequests { get; }
   public IRepository<CompanyStudioHistory> CompanyStudioHistories { get; }
+  public IRepository<UnionAuditor> UnionAuditors { get; }
 
   public async Task<int> CompleteAsync()
   {
