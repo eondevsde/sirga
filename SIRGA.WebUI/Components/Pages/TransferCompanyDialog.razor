@@ -1,0 +1,94 @@
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+@inject AssociationService AssociationService
+@inject ISnackbar Snackbar
+
+@* Traspaso de una empresa de un estudio a otro. Lo ejecuta el admin del sindicato: el estudio no
+   puede pedirlo. La confirmación dice explícitamente a quién se le saca y a quién se le da, porque
+   el sindicato tiene que decidir sabiendo de quién es hoy. *@
+
+<MudDialog>
+  <TitleContent>
+    <MudText Typo="Typo.h6">Transferir empresa a otro estudio</MudText>
+  </TitleContent>
+  <DialogContent>
+    <MudText Class="mb-4">
+      La empresa <b>@CompanyName</b> pertenece hoy al estudio <b>@CurrentStudioName</b>.
+      El traspaso lo decide el sindicato y queda registrado en el historial.
+    </MudText>
+
+    <MudSelect T="int?" Label="Transferir al estudio" Variant="Variant.Outlined" @bind-Value="_destinoId">
+      @foreach (var estudio in EstudiosDestino)
+      {
+        <MudSelectItem Value="@((int?)estudio.Id)">@estudio.Name</MudSelectItem>
+      }
+    </MudSelect>
+
+    <MudTextField T="string" Label="Motivo (queda en el historial)" Variant="Variant.Outlined"
+                  @bind-Value="_motivo" Class="mt-4" Lines="2" />
+
+    @if (EstudioElegido is { } elegido)
+    {
+      <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-4 alerta-cuit-neon">
+        ¿Confirmás transferir @CompanyName de @CurrentStudioName a @elegido.Name?
+        A partir de ahí, el estudio nuevo es el que liquida sus DDJJ.
+      </MudAlert>
+    }
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancelar">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" Disabled="@(_procesando || EstudioElegido is null)"
+               OnClick="Confirmar">
+      @(_procesando ? "Transfiriendo..." : "Transferir")
+    </MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+  [Parameter] public int CompanyId { get; set; }
+  [Parameter] public string CompanyName { get; set; } = string.Empty;
+  [Parameter] public string CurrentStudioName { get; set; } = string.Empty;
+  [Parameter] public int UnionId { get; set; }
+  [Parameter] public string? AuthorizedBy { get; set; }
+
+  /// <summary>Estudios a los que se puede transferir (los que trabajan con este sindicato).</summary>
+  [Parameter] public List<AccountingStudioDto> EstudiosDestino { get; set; } = new();
+
+  private int? _destinoId;
+  private string? _motivo;
+  private bool _procesando;
+
+  private AccountingStudioDto? EstudioElegido =>
+      _destinoId is { } id ? EstudiosDestino.FirstOrDefault(e => e.Id == id) : null;
+
+  private void Cancelar() => MudDialog.Cancel();
+
+  private async Task Confirmar()
+  {
+    if (EstudioElegido is not { } destino) return;
+
+    _procesando = true;
+    try
+    {
+      var (ok, error) = await AssociationService.TransferCompanyAsync(
+          CompanyId, destino.Id, UnionId, AuthorizedBy,
+          string.IsNullOrWhiteSpace(_motivo) ? null : _motivo);
+
+      if (!ok)
+      {
+        Snackbar.Add(error ?? "No se pudo transferir la empresa.", Severity.Error);
+        return;
+      }
+
+      Snackbar.Add($"La empresa quedó a cargo de {destino.Name}. El traspaso quedó en el historial.",
+                   Severity.Success);
+      MudDialog.Close(DialogResult.Ok(true));
+    }
+    finally
+    {
+      _procesando = false;
+    }
+  }
+}
