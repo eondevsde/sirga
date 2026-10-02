@@ -32,6 +32,8 @@
       <Authorized>
         <AuthorizeView Roles="Sindicato" Context="sindicatoContext">
           <MudNavLink Href="/sindicato/dashboard" Icon="@Icons.Material.Filled.Dashboard">Panel Sindicato</MudNavLink>
+          @* Sólo el sindicato ve esta entrada: es el que asigna los auditores. El auditor no asigna. *@
+          <MudNavLink Href="/union/auditors" Icon="@Icons.Material.Filled.PersonSearch">Auditores del sindicato</MudNavLink>
         </AuthorizeView>
         
         <MudNavLink Href="/audit/dashboard" Icon="@Icons.Material.Filled.Security">Panel Fiscalización</MudNavLink>
