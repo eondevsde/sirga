@@ -54,6 +54,13 @@ public class ReportController(EmployeeService employeeService, IReportService re
   [HttpGet("padron")]
   public async Task<IActionResult> DownloadPadron([FromQuery] int? companyId, [FromQuery] string? city)
   {
+    // Este endpoint exporta el padrón de TODOS los sindicatos, así que un auditor no puede bajarlo:
+    // por acá se llevaba entero aunque la pantalla ya esté filtrada. Su padrón acotado lo ve en
+    // /employees. (Una exportación acotada a su sindicato queda como mejora, no como agujero.)
+    if (User.IsInRole("Auditor"))
+      return StatusCode(StatusCodes.Status403Forbidden,
+          "El padrón completo es de todos los sindicatos. Como auditor, tu padrón está acotado en la pantalla de Empleados.");
+
     // El filtro se resuelve en SQL, junto con la empresa de cada empleado.
     var employees = await employeeService.GetEmployeesForPadronAsync(companyId, city);
 
