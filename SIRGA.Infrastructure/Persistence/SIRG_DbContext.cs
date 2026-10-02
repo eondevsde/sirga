@@ -70,6 +70,26 @@ public class SIRG_DbContext : IdentityDbContext
             .HasForeignKey(c => c.UnionId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // Traspaso de empresas entre estudios: el historial es la fuente del dueño actual (la fila
+        // con To vacío). El índice único filtrado garantiza en la base que una empresa no pueda
+        // quedar con dos estudios a cargo a la vez, aunque dos traspasos corran juntos.
+        modelBuilder.Entity<CompanyStudioHistory>()
+            .HasOne(h => h.Company)
+            .WithMany()
+            .HasForeignKey(h => h.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CompanyStudioHistory>()
+            .HasOne(h => h.AccountingStudio)
+            .WithMany()
+            .HasForeignKey(h => h.AccountingStudioId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<CompanyStudioHistory>()
+            .HasIndex(h => h.CompanyId)
+            .HasFilter("[To] IS NULL")
+            .IsUnique();
+
         // Aplicar configuraciones automáticas de este ensamblado
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(SIRG_DbContext).Assembly);
 

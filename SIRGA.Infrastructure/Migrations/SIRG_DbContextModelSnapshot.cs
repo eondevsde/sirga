@@ -538,6 +538,48 @@ namespace SIRGA.Infrastructure.Migrations
                     b.ToTable("CompanyBalances");
                 });
 
+            modelBuilder.Entity("SIRGA.Domain.Entities.CompanyStudioHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AccountingStudioId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("AuthorizedByUsername")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("From")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("To")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UnionId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountingStudioId");
+
+                    b.HasIndex("CompanyId")
+                        .IsUnique()
+                        .HasFilter("[To] IS NULL");
+
+                    b.HasIndex("UnionId");
+
+                    b.ToTable("CompanyStudioHistories");
+                });
+
             modelBuilder.Entity("SIRGA.Domain.Entities.DeclarationDetail", b =>
                 {
                     b.Property<int>("Id")
@@ -1492,6 +1534,31 @@ namespace SIRGA.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("SIRGA.Domain.Entities.CompanyStudioHistory", b =>
+                {
+                    b.HasOne("SIRGA.Domain.Entities.AccountingStudio", "AccountingStudio")
+                        .WithMany()
+                        .HasForeignKey("AccountingStudioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SIRGA.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SIRGA.Domain.Entities.Union", "Union")
+                        .WithMany()
+                        .HasForeignKey("UnionId");
+
+                    b.Navigation("AccountingStudio");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Union");
                 });
 
             modelBuilder.Entity("SIRGA.Domain.Entities.DeclarationDetail", b =>
