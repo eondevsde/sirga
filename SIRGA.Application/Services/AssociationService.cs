@@ -173,4 +173,50 @@ public class AssociationService(IUnitOfWork unitOfWork)
     var ok = await unitOfWork.CompleteAsync() > 0;
     return (ok, ok ? null : "No se pudo registrar el traspaso.");
   }
+
+  /// <summary>
+  /// Empresas que salieron de un estudio por un traspaso, para poder avisarle. Se lee del historial:
+  /// cada fila cerrada (con To) es una empresa que ese estudio tuvo a cargo y ya no tiene.
+  /// El volumen es chico (un traspaso es un hecho excepcional), así que se resuelven los nombres acá.
+  /// </summary>
+  public async Task<IEnumerable<CompanyLeftDto>> GetCompaniesLeftAsync(int studioId)
+  {
+    var filas = await unitOfWork.CompanyStudioHistories.FindAsync(
+        h => h.AccountingStudioId == studioId && h.To != null);
+
+    if (!filas.Any()) return Enumerable.Empty<CompanyLeftDto>();
+
+    var resultado = new List<CompanyLeftDto>();
+    foreach (var fila in filas.OrderByDescending(h => h.To))
+    {
+      var empresa = await unitOfWork.Companies.GetByIdAsync(fila.CompanyId);
+
+      AccountingStudio? actual = null;
+      if (empresa?.AccountingStudioId is { } actualId)
+        actual = await unitOfWork.AccountingStudios.GetByIdAsync(actualId);
+
+      resultado.Add(new CompanyLeftDto(
+          fila.CompanyId,
+          empresa?.BusinessName ?? "(empresa eliminada)",
+          empresa?.Cuit,
+          fila.From,
+          fila.To,
+          actual?.Name,
+          fila.AuthorizedByUsername,
+          fila.Reason));
+    }
+
+    return resultado;
+  }
 }
+
+/// <summary>Una empresa que salió de un estudio por un traspaso: es el aviso al estudio que la perdió.</summary>
+public record CompanyLeftDto(
+    int CompanyId,
+    string BusinessName,
+    string? Cuit,
+    DateTime From,
+    DateTime? To,
+    string? CurrentStudioName,
+    string? AuthorizedByUsername,
+    string? Reason);
