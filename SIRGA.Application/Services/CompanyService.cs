@@ -21,6 +21,27 @@ public class CompanyService
 
   public async Task<IEnumerable<Company>> GetAllAsync() => await _unitOfWork.Companies.GetAllAsync();
 
+  /// <summary>
+  /// Empresas de un sindicato: las que tienen algún empleado asignado a ese sindicato. Es lo que
+  /// limita al rol Auditor cuando el sindicato lo asignó. Se consulta proyectado y distinto (bajo el
+  /// lock del contexto) para no traer las asignaciones ni las 4.507 empresas a memoria.
+  /// </summary>
+  public async Task<IEnumerable<Company>> GetByUnionAsync(int unionId)
+  {
+    var ids = await _unitOfWork.Assignments.RunQueryAsync(q => q
+        .Where(a => a.UnionId == unionId)
+        .Select(a => a.CompanyId)
+        .Distinct()
+        .ToListAsync());
+
+    if (ids.Count == 0) return Enumerable.Empty<Company>();
+
+    var empresas = await _unitOfWork.Companies.GetAllAsync();
+    return empresas
+        .Where(c => c.ParentCompanyId == null && ids.Contains(c.Id))
+        .OrderBy(c => c.BusinessName, StringComparer.OrdinalIgnoreCase);
+  }
+
   /// <summary>Todas las empresas ordenadas por razón social (como las devolvía GET /api/companies).</summary>
   public async Task<IEnumerable<Company>> GetAllOrderedAsync()
   {
