@@ -314,9 +314,20 @@
 
       if (esAuditor)
       {
-        _companies = unionId is { } sindicatoId
-            ? (await CompanyService.GetByUnionAsync(sindicatoId)).ToList()
-            : new List<Company>();
+        if (unionId is { } sindicatoId)
+        {
+          _companies = (await CompanyService.GetByUnionAsync(sindicatoId)).ToList();
+        }
+        else
+        {
+          _companies = new List<Company>();
+          // Aviso explícito: no es que no haya empresas, es que todavía no le asignaron un sindicato.
+          // Sin esto el auditor veía una tabla vacía sin entender por qué.
+          Snackbar.Add(
+              "Todavía no te asignaron a un sindicato, por eso no ves empresas. " +
+              "Pedile al sindicato que te habilite desde \"Auditores del sindicato\".",
+              Severity.Warning, config => config.VisibleStateDuration = 10000);
+        }
       }
       else
       {
