@@ -94,6 +94,10 @@ builder.Services.AddScoped<DebtNotificationService>();
 builder.Services.AddScoped<PaymentService>();
 builder.Services.AddScoped<BalanceService>();
 builder.Services.AddScoped<AssociationService>();
+
+// Alcance del usuario en el área sindicato: resuelve qué sindicato puede ver un auditor (y "ninguno"
+// si todavía no se lo asignaron). Lo usan las pantallas para filtrar.
+builder.Services.AddScoped<SIRGA.WebUI.Services.AlcanceAuditor>();
 builder.Services.AddScoped<CompanyValidationService>();
 builder.Services.AddScoped<ILegacyCompanyLookup, LegacyCompanyLookup>();
 builder.Services.AddScoped<EmployeeCategoryService>();
