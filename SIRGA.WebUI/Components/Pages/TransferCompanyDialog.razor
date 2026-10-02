@@ -86,9 +86,16 @@
                    Severity.Success);
       MudDialog.Close(DialogResult.Ok(true));
     }
+    catch (Exception ex)
+    {
+      // Nunca dejar el diálogo colgado en "Transfiriendo...": si algo falla del lado de los datos,
+      // se avisa y se libera el botón. Antes una excepción se llevaba puesto el circuito de Blazor.
+      Snackbar.Add("No se pudo transferir la empresa: " + ex.Message, Severity.Error);
+    }
     finally
     {
       _procesando = false;
+      StateHasChanged();
     }
   }
 }

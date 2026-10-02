@@ -146,6 +146,15 @@ public class AssociationService(IUnitOfWork unitOfWork)
     var destino = await unitOfWork.AccountingStudios.GetByIdAsync(toStudioId);
     if (destino == null) return (false, "No se encontró el estudio de destino.");
 
+    // El traspaso lo autoriza un sindicato concreto y el historial lo referencia: si no viene, se
+    // devuelve un error claro en vez de dejar que la clave foránea falle al guardar (que era lo que
+    // pasaba: se insertaba UnionId 0 y la base lo rechazaba, matando el circuito de la pantalla).
+    if (unionId <= 0)
+      return (false, "Falta el sindicato que autoriza el traspaso. Entrá con el usuario del sindicato para transferir empresas.");
+
+    if (await unitOfWork.Unions.GetByIdAsync(unionId) == null)
+      return (false, "El sindicato que autoriza el traspaso no existe.");
+
     var ahora = DateTime.UtcNow;
 
     // Cerrar la fila vigente (la que tiene To vacío) del estudio que la tenía hasta ahora.
