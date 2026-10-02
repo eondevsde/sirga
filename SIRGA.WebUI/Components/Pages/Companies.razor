@@ -1,6 +1,7 @@
 @page "/companies"
 @using SIRGA.Domain.Entities
 @using SIRGA.Domain.Enums
+@using SIRGA.WebUI.Services
 @using SIRGA.Application.Services
 @attribute [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
 @inject CompanyService CompanyService
