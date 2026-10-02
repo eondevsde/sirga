@@ -46,6 +46,12 @@ public class CompanyTransferTests
     studiosRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>()))
         .ReturnsAsync((int id) => new AccountingStudio { Id = id, Name = $"Estudio {id}" });
 
+    // El sindicato que autoriza tiene que existir: el servicio ahora lo valida (antes la clave
+    // foránea fallaba al guardar y se caía el circuito de la pantalla).
+    var unionsRepo = new Mock<IRepository<Union>>();
+    unionsRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>()))
+        .ReturnsAsync((int id) => new Union { Id = id, Name = $"Sindicato {id}" });
+
     var historyRepo = new Mock<IRepository<CompanyStudioHistory>>();
     historyRepo
         .Setup(r => r.FindAsync(It.IsAny<Expression<Func<CompanyStudioHistory, bool>>>()))
@@ -58,6 +64,7 @@ public class CompanyTransferTests
     var uow = new Mock<IUnitOfWork>();
     uow.SetupGet(u => u.Companies).Returns(companiesRepo.Object);
     uow.SetupGet(u => u.AccountingStudios).Returns(studiosRepo.Object);
+    uow.SetupGet(u => u.Unions).Returns(unionsRepo.Object);
     uow.SetupGet(u => u.CompanyStudioHistories).Returns(historyRepo.Object);
     uow.Setup(u => u.CompleteAsync()).ReturnsAsync(1);
 
