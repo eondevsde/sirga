@@ -68,10 +68,19 @@
     {
       // Llamada directa al servicio: el endpoint de empresas ahora exige rol y el HttpClient de
       // los componentes no lleva la cookie de sesión.
-      var allCompanies = (await CompanyService.GetAllAsync()).ToList();
-      // Mostrar todas las empresas activas excepto la actual
-      _availableCompanies = allCompanies
-          .Where(c => c.Id != CurrentCompanyId && c.Status == SIRGA.Domain.Enums.CompanyStatus.Active)
+      var todas = (await CompanyService.GetAllAsync()).ToList();
+
+      // Regla de negocio: el traspaso mueve al empleado entre SUCURSALES DE LA MISMA EMPRESA.
+      // Se resuelve la casa central (la raíz) de la empresa actual y sólo se ofrecen sus sucursales
+      // activas, sin incluir la actual. Antes se ofrecían TODAS las empresas activas del sistema,
+      // incluidas las de otros estudios contables: eso permitía mover un empleado a una empresa ajena.
+      var actual = todas.FirstOrDefault(c => c.Id == CurrentCompanyId);
+      var casaCentralId = actual?.ParentCompanyId ?? CurrentCompanyId;
+
+      _availableCompanies = todas
+          .Where(c => c.Id != CurrentCompanyId
+                   && c.Status == SIRGA.Domain.Enums.CompanyStatus.Active
+                   && (c.Id == casaCentralId || c.ParentCompanyId == casaCentralId))
           .ToList();
     }
     catch (Exception ex)
