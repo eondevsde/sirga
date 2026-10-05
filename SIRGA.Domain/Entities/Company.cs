@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using SIRGA.Domain.Enums;
 
 namespace SIRGA.Domain.Entities;
@@ -13,6 +13,13 @@ public class Company
   [Required]
   [MaxLength(200)]
   public string BusinessName { get; set; } = null!; // Razon Social
+
+  /// <summary>
+  /// Nombre de fantasía: como el estudio reconoce a la empresa en el día a día ("Supermat") a
+  /// diferencia de la razón social ("SUPERMERCADOS TUCUMAN S.A."). Es opcional y se usa para buscar.
+  /// </summary>
+  [MaxLength(200)]
+  public string? TradeName { get; set; }
 
   [Required]
   [MaxLength(20)]
