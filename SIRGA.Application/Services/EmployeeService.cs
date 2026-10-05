@@ -85,6 +85,44 @@ public class EmployeeService(IUnitOfWork unitOfWork)
     }
 
     /// <summary>
+    /// Otras empresas donde el mismo empleado tiene asignación ACTIVA, para detectar pluriempleo.
+    /// La cuota socio se aporta por empresa (definido por el usuario), así que el doble aporte es
+    /// correcto: esto NO corrige importes, sirve para dejar constancia (legajo de pluriempleo) y
+    /// para marcar la DDJJ. Puede excluir la empresa actual para no listarla como "la otra".
+    /// </summary>
+    public async Task<IReadOnlyCollection<PluriempleoDto>> GetPluriempleoAsync(int employeeId, int? excluirCompanyId = null)
+    {
+        var asignaciones = await unitOfWork.Assignments.FindAsync(
+            a => a.EmployeeId == employeeId && a.IsActive && a.CompanyId != (excluirCompanyId ?? 0));
+
+        if (!asignaciones.Any()) return Array.Empty<PluriempleoDto>();
+
+        var resultado = new List<PluriempleoDto>();
+        foreach (var asignacion in asignaciones)
+        {
+            var empresa = await unitOfWork.Companies.GetByIdAsync(asignacion.CompanyId);
+
+            AccountingStudio? estudio = null;
+            if (empresa?.AccountingStudioId is { } estudioId)
+                estudio = await unitOfWork.AccountingStudios.GetByIdAsync(estudioId);
+
+            resultado.Add(new PluriempleoDto(
+                asignacion.Id,
+                asignacion.CompanyId,
+                empresa?.BusinessName ?? "(empresa eliminada)",
+                empresa?.Cuit,
+                estudio?.Id,
+                estudio?.Name));
+        }
+
+        return resultado;
+    }
+
+    /// <summary>Otra empresa donde el mismo empleado está declarado (pluriempleo).</summary>
+    public record PluriempleoDto(
+        int AssignmentId, int CompanyId, string CompanyName, string? Cuit, int? StudioId, string? StudioName);
+
+    /// <summary>
     /// Empleados para el padrón exportable, con su empresa cargada y el filtro resuelto en SQL.
     /// Antes se filtraba en memoria sobre <c>Assignments</c>, que nunca se cargaba (no hay lazy
     /// loading ni Includes): el filtro por empresa o ciudad devolvía una lista vacía y la columna
