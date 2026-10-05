@@ -39,7 +39,9 @@ else
                          ValueChanged="@(async (int? val) => await OnParentCompanyChanged(val))">
                 @foreach (var comp in _parentCompanies)
                 {
-                  <MudSelectItem Value="@comp.Id">@comp.BusinessName (@comp.Cuit)</MudSelectItem>
+                  @* El Value tiene que ser int? para que coincida con el T del MudSelect: si el ítem
+                     queda en int, MudBlazor no puede convertir el padre y el render explota. *@
+                  <MudSelectItem Value="@((int?)comp.Id)">@comp.BusinessName (@comp.Cuit)</MudSelectItem>
                 }
               </MudSelect>
             </MudItem>
