@@ -99,6 +99,19 @@ else
       }
       else
       {
+        @if (_pluriempleos.Any())
+        {
+          @* Aviso de pluriempleo. No bloquea: la cuota socio es por empresa, así que el doble aporte
+             es correcto y la DDJJ se puede presentar. Queda marcada como documentación pendiente. *@
+          <MudAlert Severity="Severity.Warning" Class="mb-4 alerta-cuit-neon">
+            <b>Pluriempleo:</b> @_pluriempleos.Count empleado(s) de esta declaración están declarados también en
+            otra empresa: @string.Join(", ", _details.Where(d => _pluriempleos.ContainsKey(d.EmployeeId)).Select(d => d.EmployeeName).Take(6)).
+            <br />
+            Podés presentar la DDJJ igual: queda marcada como <b>documentación pendiente</b> hasta que el
+            sindicato apruebe el legajo de pluriempleo (nota firmada y, si la tenés, el certificado de alta ante ARCA).
+          </MudAlert>
+        }
+
         <MudStack Row="true" Class="mb-4" AlignItems="AlignItems.Center">
           <MudAlert Severity="Severity.Info" Class="flex-grow-1">Ingrese las remuneraciones brutas para cada empleado
             activo.</MudAlert>
