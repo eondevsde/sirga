@@ -22,6 +22,67 @@ public class CompanyService
   public async Task<IEnumerable<Company>> GetAllAsync() => await _unitOfWork.Companies.GetAllAsync();
 
   /// <summary>
+  /// Busca empresas por CUIT (con o sin guiones), razón social o nombre de fantasía, para la pantalla
+  /// de búsqueda del sindicato. Devuelve el estudio que la tiene hoy. Pide al menos 3 caracteres para
+  /// no listar las 4.507 de una; el CUIT se compara sólo con los dígitos, así "20-33136753-3" y
+  /// "20331367533" encuentran lo mismo.
+  /// </summary>
+  public async Task<IReadOnlyCollection<EmpresaBuscada>> BuscarAsync(string? termino, int limite = 25)
+  {
+    var t = (termino ?? string.Empty).Trim();
+    if (t.Length < 3) return Array.Empty<EmpresaBuscada>();
+
+    var soloDigitos = new string(t.Where(char.IsDigit).ToArray());
+
+    return await _unitOfWork.Companies.RunQueryAsync(q => q
+        .AsNoTracking()
+        .Where(c => c.BusinessName.Contains(t)
+                 || (c.TradeName != null && c.TradeName.Contains(t))
+                 || (soloDigitos.Length >= 6 && c.NormalizedCuit.Contains(soloDigitos)))
+        .OrderBy(c => c.BusinessName)
+        .Take(limite)
+        .Select(c => new EmpresaBuscada(
+            c.Id,
+            c.BusinessName,
+            c.TradeName,
+            c.Cuit,
+            c.AccountingStudio != null ? c.AccountingStudio.Name : null,
+            c.Status,
+            c.Branches.Count))
+        .ToListAsync());
+  }
+
+  /// <summary>
+  /// Historial de estudios que pasaron por una empresa, del más reciente al más viejo. La fila con
+  /// "hasta" vacío es el estudio que la tiene hoy.
+  /// </summary>
+  public async Task<IReadOnlyCollection<EstudioDeEmpresa>> HistorialAsync(int companyId)
+  {
+    return await _unitOfWork.CompanyStudioHistories.RunQueryAsync(q => q
+        .AsNoTracking()
+        .Where(h => h.CompanyId == companyId)
+        .OrderByDescending(h => h.From)
+        .Select(h => new EstudioDeEmpresa(
+            h.Id,
+            h.AccountingStudio != null ? h.AccountingStudio.Name : "(estudio eliminado)",
+            h.From,
+            h.To,
+            h.AuthorizedByUsername,
+            h.Reason))
+        .ToListAsync());
+  }
+
+  /// <summary>Empresa encontrada en la búsqueda, con el estudio que la tiene hoy.</summary>
+  public record EmpresaBuscada(
+      int Id, string BusinessName, string? TradeName, string Cuit,
+      string? StudioName, CompanyStatus Status, int Branches);
+
+  /// <summary>Un estudio que tuvo a cargo la empresa, con su tramo de tiempo.</summary>
+  public record EstudioDeEmpresa(
+      int Id, string StudioName, DateTime From, DateTime? To,
+      string? AuthorizedByUsername, string? Reason);
+
+  /// <summary>
   /// Empresas de un sindicato: las que tienen algún empleado asignado a ese sindicato. Es lo que
   /// limita al rol Auditor cuando el sindicato lo asignó. Se consulta proyectado y distinto (bajo el
   /// lock del contexto) para no traer las asignaciones ni las 4.507 empresas a memoria.
