@@ -20,7 +20,11 @@
   <MudTextField T="string" @bind-Value="_termino" Label="CUIT, razón social o nombre de fantasía"
                 Variant="Variant.Outlined" Class="mr-2" style="min-width: 380px;"
                 Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                OnKeyUp="@((KeyboardEventArgs e) => { if (e.Key == "Enter") _ = Buscar(); })" />
+                @* El Enter tiene que ESPERAR la búsqueda (async), no dispararla y olvidarse: con
+                   "_ = Buscar()" el método se quedaba con el semáforo del contexto de datos mientras
+                   el circuito esperaba para continuar, y la pantalla quedaba en "buscando" para
+                   siempre. Además se ignora si ya hay una búsqueda en curso. *@
+                OnKeyUp="@(async (KeyboardEventArgs e) => { if (e.Key == "Enter" && !_buscando) await Buscar(); })" />
   <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
              Disabled="@(_buscando || _sinSindicato)" OnClick="Buscar">Buscar</MudButton>
 </div>
