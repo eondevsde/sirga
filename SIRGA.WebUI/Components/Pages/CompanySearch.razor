@@ -1,0 +1,207 @@
+@page "/union/company-search"
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Enums
+@using SIRGA.WebUI.Services
+@attribute [Authorize(Roles = "Sindicato,Auditor,Admin")]
+@inject CompanyService CompanyService
+@inject AlcanceAuditor Alcance
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>SIRGA - Buscar empresa</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">Buscar empresa</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">
+  Por CUIT (con o sin guiones), razón social o nombre de fantasía. Muestra a qué estudio pertenece hoy
+  y el historial de estudios que pasaron por ella.
+</MudText>
+
+<div class="d-flex flex-wrap align-center mb-4">
+  <MudTextField T="string" @bind-Value="_termino" Label="CUIT, razón social o nombre de fantasía"
+                Variant="Variant.Outlined" Class="mr-2" style="min-width: 380px;"
+                Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                OnKeyUp="@((KeyboardEventArgs e) => { if (e.Key == "Enter") _ = Buscar(); })" />
+  <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+             Disabled="@(_buscando || _sinSindicato)" OnClick="Buscar">Buscar</MudButton>
+</div>
+
+@if (_sinSindicato)
+{
+  <MudAlert Severity="Severity.Warning">
+    Todavía no te asignaron a un sindicato, así que no podés buscar empresas. Pedile al sindicato que
+    te habilite desde "Auditores del sindicato".
+  </MudAlert>
+}
+else
+{
+  @if (_buscando)
+  {
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+  }
+
+  @if (_resultados.Any())
+  {
+    <MudText Typo="Typo.subtitle2" Class="mb-2">@_resultados.Count resultado(s). Hacé clic en una para ver su historial.</MudText>
+    <MudTable Items="@_resultados" Hover="true" Dense="true" Elevation="2" T="CompanyService.EmpresaBuscada"
+              OnRowClick="@((TableRowClickEventArgs<CompanyService.EmpresaBuscada> args) => VerHistorial(args.Item))">
+      <HeaderContent>
+        <MudTh>Razón social</MudTh>
+        <MudTh>Nombre de fantasía</MudTh>
+        <MudTh>CUIT</MudTh>
+        <MudTh>Estudio actual</MudTh>
+        <MudTh>Estado</MudTh>
+        <MudTh>Sucursales</MudTh>
+      </HeaderContent>
+      <RowTemplate Context="empresa">
+        <MudTd DataLabel="Razón social">@empresa.BusinessName</MudTd>
+        <MudTd DataLabel="Nombre de fantasía">@(string.IsNullOrWhiteSpace(empresa.TradeName) ? "-" : empresa.TradeName)</MudTd>
+        <MudTd DataLabel="CUIT">@empresa.Cuit</MudTd>
+        <MudTd DataLabel="Estudio actual">@(empresa.StudioName ?? "(sin estudio)")</MudTd>
+        <MudTd DataLabel="Estado">@EstadoLegible(empresa.Status)</MudTd>
+        <MudTd DataLabel="Sucursales">@empresa.Branches</MudTd>
+      </RowTemplate>
+    </MudTable>
+  }
+  else if (_termino.Trim().Length >= 3 && _buscado)
+  {
+    <MudAlert Severity="Severity.Info">No se encontraron empresas con ese criterio.</MudAlert>
+  }
+  else if (!_buscado)
+  {
+    <MudAlert Severity="Severity.Info">Escribí al menos 3 caracteres (una razón social, un nombre de fantasía o un CUIT) y apretá Buscar.</MudAlert>
+  }
+}
+
+@if (_seleccionada is { } sel)
+{
+  <MudPaper Class="pa-4 mt-6" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-1">Historial de estudios — @sel.BusinessName</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4">
+      CUIT @sel.Cuit · Hoy pertenece a <b>@(sel.StudioName ?? "(sin estudio)")</b>
+    </MudText>
+
+    @if (!_historial.Any())
+    {
+      <MudAlert Severity="Severity.Info" Dense="true">
+        Sin traspasos registrados. El historial empieza a registrarse desde el primer traspaso: si la
+        empresa nunca cambió de estudio, es correcto que no haya filas.
+      </MudAlert>
+    }
+    else
+    {
+      <MudSimpleTable Dense="true" Hover="true" Elevation="0">
+        <thead>
+          <tr>
+            <th>Estudio</th>
+            <th>Desde</th>
+            <th>Hasta</th>
+            <th>Autorizó</th>
+            <th>Motivo</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach (var fila in _historial)
+          {
+            <tr>
+              <td>@fila.StudioName</td>
+              <td>@fila.From.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+              <td>@(fila.To is { } hasta ? hasta.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "VIGENTE")</td>
+              <td>@(fila.AuthorizedByUsername ?? "-")</td>
+              <td>@(fila.Reason ?? "-")</td>
+            </tr>
+          }
+        </tbody>
+      </MudSimpleTable>
+    }
+  </MudPaper>
+}
+
+@code {
+  private string _termino = string.Empty;
+  private List<CompanyService.EmpresaBuscada> _resultados = new();
+  private List<CompanyService.EstudioDeEmpresa> _historial = new();
+  private CompanyService.EmpresaBuscada? _seleccionada;
+
+  /// <summary>Para el auditor: sólo las empresas de su sindicato. Null = sin límite (sindicato/admin).</summary>
+  private HashSet<int>? _permitidas;
+
+  private bool _sinSindicato;
+  private bool _buscando;
+  private bool _buscado;
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+      var (esAuditor, unionId) = await Alcance.ResolverAsync(authState.User);
+      if (!esAuditor) return;   // sindicato y admin ven todo
+
+      if (unionId is not { } sindicatoId)
+      {
+        _sinSindicato = true;
+        return;
+      }
+
+      _permitidas = (await CompanyService.GetByUnionAsync(sindicatoId)).Select(c => c.Id).ToHashSet();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al preparar la búsqueda: " + ex.Message, Severity.Error);
+    }
+  }
+
+  private async Task Buscar()
+  {
+    _seleccionada = null;
+    _historial.Clear();
+
+    if (_sinSindicato) return;
+
+    if (_termino.Trim().Length < 3)
+    {
+      _resultados.Clear();
+      _buscado = true;
+      return;
+    }
+
+    _buscando = true;
+    try
+    {
+      var encontradas = await CompanyService.BuscarAsync(_termino);
+      // El auditor sólo ve lo de su sindicato (misma regla que el resto de las pantallas).
+      _resultados = (_permitidas is null
+          ? encontradas
+          : encontradas.Where(e => _permitidas.Contains(e.Id))).ToList();
+      _buscado = true;
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al buscar empresas: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _buscando = false;
+    }
+  }
+
+  private async Task VerHistorial(CompanyService.EmpresaBuscada empresa)
+  {
+    _seleccionada = empresa;
+    try
+    {
+      _historial = (await CompanyService.HistorialAsync(empresa.Id)).ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al traer el historial: " + ex.Message, Severity.Error);
+    }
+  }
+
+  private static string EstadoLegible(CompanyStatus estado) => estado switch
+  {
+    CompanyStatus.PendingAuthorization => "Pendiente de autorización",
+    CompanyStatus.Active => "Activa",
+    _ => estado.ToString()
+  };
+}
