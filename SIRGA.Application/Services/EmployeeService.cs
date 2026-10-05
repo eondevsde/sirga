@@ -69,7 +69,10 @@ public class EmployeeService(IUnitOfWork unitOfWork)
                     LeftDate = assign.TerminationDate,
                     IsActive = assign.IsActive,
                     IsVoluntaryMember = assign.IsVoluntaryMember,
-                    MembershipResignationRequested = assign.MembershipResignationRequested == true
+                    MembershipResignationRequested = assign.MembershipResignationRequested == true,
+                    // Sin esto el Id de la asignación quedaba en 0 y el botón "Solicitar renuncia
+                    // como socio" se cortaba en silencio: el diálogo nunca se abría.
+                    AssignmentId = assign.Id
                 });
             }
         }

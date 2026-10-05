@@ -84,7 +84,11 @@
             }
           </AuthorizeView>
           <MudTooltip Text="Editar Empleado">
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small" />
+            @* Este botón estaba SIN OnClick: no hacía nada nunca. La edición de empleados todavía no
+             está implementada (no hay diálogo de edición), así que ahora lo dice en pantalla en vez
+             de quedarse mudo, que es lo que hacía pensar que la pantalla estaba rota. *@
+          <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small"
+                         OnClick="@(() => Snackbar.Add("La edición de empleados todavía no está implementada.", Severity.Info))" />
           </MudTooltip>
         </MudTd>
       </RowTemplate>
@@ -182,7 +186,13 @@
 
   private async Task OpenResignDialog(EmployeeDto employee)
   {
-    if (employee.AssignmentId == 0) return;
+    // Nunca cortar en silencio: si falta la asignación, se dice por qué en vez de no hacer nada.
+    if (employee.AssignmentId == 0)
+    {
+      Snackbar.Add("No se puede pedir la renuncia: este empleado no tiene una asignación en la empresa.",
+                   Severity.Warning);
+      return;
+    }
 
     var parameters = new DialogParameters
     {
