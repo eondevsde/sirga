@@ -138,8 +138,21 @@ public class EmployeeService(IUnitOfWork unitOfWork)
         var empleados = deLaEmpresa.Select(a => a.EmployeeId).Distinct().ToList();
         var todas = await unitOfWork.Assignments.FindAsync(a => empleados.Contains(a.EmployeeId) && a.IsActive);
 
-        var empresas = (await unitOfWork.Companies.GetAllAsync()).ToDictionary(c => c.Id);
-        var estudios = (await unitOfWork.AccountingStudios.GetAllAsync()).ToDictionary(e => e.Id);
+        // Se traen SÓLO las empresas y estudios que hacen falta (los de las otras asignaciones), no las
+        // 4.507 empresas y 853 estudios enteros: cargar todo eso con seguimiento de EF era lo que hacía
+        // lenta esta consulta (medido: la consulta SQL equivalente tarda 58 ms).
+        var idsEmpresas = todas.Where(a => a.CompanyId != companyId)
+                               .Select(a => a.CompanyId).Distinct().ToList();
+        var empresas = idsEmpresas.Count == 0
+            ? new Dictionary<int, Company>()
+            : (await unitOfWork.Companies.FindAsync(c => idsEmpresas.Contains(c.Id))).ToDictionary(c => c.Id);
+
+        var idsEstudios = empresas.Values
+            .Where(c => c.AccountingStudioId.HasValue)
+            .Select(c => c.AccountingStudioId!.Value).Distinct().ToList();
+        var estudios = idsEstudios.Count == 0
+            ? new Dictionary<int, AccountingStudio>()
+            : (await unitOfWork.AccountingStudios.FindAsync(e => idsEstudios.Contains(e.Id))).ToDictionary(e => e.Id);
 
         var resultado = new Dictionary<int, IReadOnlyList<PluriempleoDto>>();
         foreach (var empleadoId in empleados)

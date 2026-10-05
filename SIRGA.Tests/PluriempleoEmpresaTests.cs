@@ -25,11 +25,17 @@ public class PluriempleoEmpresaTests
         .Setup(r => r.FindAsync(It.IsAny<Expression<Func<SindicataryAssignment, bool>>>()))
         .ReturnsAsync((Expression<Func<SindicataryAssignment, bool>> p) => asignacionesList.Where(p.Compile()).ToList());
 
+    // El servicio ahora pide SÓLO las empresas/estudios que necesita, por id (antes traía las 4.507 y
+    // las 853 enteras, que era lo que hacía lenta la consulta). Los mocks aplican el predicado.
     var companiesRepo = new Mock<IRepository<Company>>();
-    companiesRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(empresas.ToList());
+    companiesRepo
+        .Setup(r => r.FindAsync(It.IsAny<Expression<Func<Company, bool>>>()))
+        .ReturnsAsync((Expression<Func<Company, bool>> p) => empresas.Where(p.Compile()).ToList());
 
     var studiosRepo = new Mock<IRepository<AccountingStudio>>();
-    studiosRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(estudios.ToList());
+    studiosRepo
+        .Setup(r => r.FindAsync(It.IsAny<Expression<Func<AccountingStudio, bool>>>()))
+        .ReturnsAsync((Expression<Func<AccountingStudio, bool>> p) => estudios.Where(p.Compile()).ToList());
 
     var uow = new Mock<IUnitOfWork>();
     uow.SetupGet(u => u.Assignments).Returns(assignmentsRepo.Object);
