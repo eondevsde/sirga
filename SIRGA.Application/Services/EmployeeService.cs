@@ -123,6 +123,51 @@ public class EmployeeService(IUnitOfWork unitOfWork)
         int AssignmentId, int CompanyId, string CompanyName, string? Cuit, int? StudioId, string? StudioName);
 
     /// <summary>
+    /// Pluriempleo de TODA una empresa en pocas consultas: para cada empleado con asignación activa
+    /// acá, las otras empresas donde también está activo. Se hace así (y no una consulta por empleado)
+    /// porque una empresa puede tener cientos de empleados y la pantalla de DDJJ los lista a todos.
+    /// Devuelve sólo los empleados que están en más de una empresa.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<int, IReadOnlyList<PluriempleoDto>>> GetPluriempleoDeEmpresaAsync(int companyId)
+    {
+        var vacio = new Dictionary<int, IReadOnlyList<PluriempleoDto>>();
+
+        var deLaEmpresa = await unitOfWork.Assignments.FindAsync(a => a.CompanyId == companyId && a.IsActive);
+        if (!deLaEmpresa.Any()) return vacio;
+
+        var empleados = deLaEmpresa.Select(a => a.EmployeeId).Distinct().ToList();
+        var todas = await unitOfWork.Assignments.FindAsync(a => empleados.Contains(a.EmployeeId) && a.IsActive);
+
+        var empresas = (await unitOfWork.Companies.GetAllAsync()).ToDictionary(c => c.Id);
+        var estudios = (await unitOfWork.AccountingStudios.GetAllAsync()).ToDictionary(e => e.Id);
+
+        var resultado = new Dictionary<int, IReadOnlyList<PluriempleoDto>>();
+        foreach (var empleadoId in empleados)
+        {
+            var otras = todas
+                .Where(a => a.EmployeeId == empleadoId && a.CompanyId != companyId)
+                .Select(a =>
+                {
+                    empresas.TryGetValue(a.CompanyId, out var empresa);
+
+                    AccountingStudio? estudio = null;
+                    if (empresa?.AccountingStudioId is { } estudioId)
+                        estudios.TryGetValue(estudioId, out estudio);
+
+                    return new PluriempleoDto(
+                        a.Id, a.CompanyId,
+                        empresa?.BusinessName ?? "(empresa eliminada)",
+                        empresa?.Cuit, estudio?.Id, estudio?.Name);
+                })
+                .ToList();
+
+            if (otras.Count > 0) resultado[empleadoId] = otras;
+        }
+
+        return resultado;
+    }
+
+    /// <summary>
     /// Empleados para el padrón exportable, con su empresa cargada y el filtro resuelto en SQL.
     /// Antes se filtraba en memoria sobre <c>Assignments</c>, que nunca se cargaba (no hay lazy
     /// loading ni Includes): el filtro por empresa o ciudad devolvía una lista vacía y la columna
