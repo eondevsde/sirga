@@ -49,6 +49,7 @@ else
         <MudTh>Nombre de fantasía</MudTh>
         <MudTh>CUIT</MudTh>
         <MudTh>Estudio actual</MudTh>
+        <MudTh>Usuario del estudio</MudTh>
         <MudTh>Estado</MudTh>
         <MudTh>Sucursales</MudTh>
       </HeaderContent>
@@ -57,6 +58,8 @@ else
         <MudTd DataLabel="Nombre de fantasía">@(string.IsNullOrWhiteSpace(empresa.TradeName) ? "-" : empresa.TradeName)</MudTd>
         <MudTd DataLabel="CUIT">@empresa.Cuit</MudTd>
         <MudTd DataLabel="Estudio actual">@(empresa.StudioName ?? "(sin estudio)")</MudTd>
+        @* El usuario (correo) del estudio: es a quien el sindicato le escribe o le pide el trámite. *@
+        <MudTd DataLabel="Usuario del estudio">@(empresa.StudioUsername ?? "-")</MudTd>
         <MudTd DataLabel="Estado">@EstadoLegible(empresa.Status)</MudTd>
         <MudTd DataLabel="Sucursales">@empresa.Branches</MudTd>
       </RowTemplate>

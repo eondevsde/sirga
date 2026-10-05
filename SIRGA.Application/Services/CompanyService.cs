@@ -47,6 +47,8 @@ public class CompanyService
             c.TradeName,
             c.Cuit,
             c.AccountingStudio != null ? c.AccountingStudio.Name : null,
+            // El usuario (correo) con el que el estudio inicia sesión: es a quien el sindicato contacta.
+            c.AccountingStudio != null ? c.AccountingStudio.ResponsibleUsername : null,
             c.Status,
             c.Branches.Count))
         .ToListAsync());
@@ -72,10 +74,10 @@ public class CompanyService
         .ToListAsync());
   }
 
-  /// <summary>Empresa encontrada en la búsqueda, con el estudio que la tiene hoy.</summary>
+  /// <summary>Empresa encontrada en la búsqueda, con el estudio que la tiene hoy y su usuario.</summary>
   public record EmpresaBuscada(
       int Id, string BusinessName, string? TradeName, string Cuit,
-      string? StudioName, CompanyStatus Status, int Branches);
+      string? StudioName, string? StudioUsername, CompanyStatus Status, int Branches);
 
   /// <summary>Un estudio que tuvo a cargo la empresa, con su tramo de tiempo.</summary>
   public record EstudioDeEmpresa(
