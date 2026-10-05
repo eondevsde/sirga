@@ -129,7 +129,15 @@ else
               <MudTh>Total</MudTh>
             </HeaderContent>
             <RowTemplate>
-              <MudTd DataLabel="Empleado">@context.EmployeeName</MudTd>
+              <MudTd DataLabel="Empleado">
+                @context.EmployeeName
+                @* Pluriempleo: se puede declarar igual (la cuota socio es por empresa), pero queda
+                   marcado para que no pase desapercibido y para pedir el legajo. *@
+                @if (_pluriempleos.ContainsKey(context.EmployeeId))
+                {
+                  <MudChip T="string" Size="Size.Small" Color="Color.Warning" Class="ml-2">Pluriempleo</MudChip>
+                }
+              </MudTd>
               <MudTd DataLabel="Categoría">
                 <MudSelect T="string" Value="@context.CategoryCode"
                            ValueChanged="@((v) => { context.CategoryCode = v; Recalculate(context); })" Margin="Margin.Dense">
@@ -245,6 +253,11 @@ else
   private List<SalaryScaleDto> _currentScales = new();
   private List<DeclarationDetailViewModel> _details = new();
 
+  // Empleados de esta empresa que también están declarados en otra (pluriempleo). Se carga de UNA
+  // consulta para toda la empresa (no una por empleado) y sirve para marcarlos y para el aviso.
+  private IReadOnlyDictionary<int, IReadOnlyList<EmployeeService.PluriempleoDto>> _pluriempleos =
+      new Dictionary<int, IReadOnlyList<EmployeeService.PluriempleoDto>>();
+
   protected override async Task OnInitializedAsync()
   {
     try
@@ -322,6 +335,10 @@ else
 
       // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
       var employees = (await EmployeeService.GetEmployeesByAssignmentAsync(_selectedCompanyId, _selectedUnionId)).ToList();
+
+      // Pluriempleo: quiénes de esta empresa están también declarados en otra. Se consulta por la
+      // empresa completa en una sola operación, no empleado por empleado.
+      _pluriempleos = await EmployeeService.GetPluriempleoDeEmpresaAsync(_selectedCompanyId);
       _details = employees.Select(e => new DeclarationDetailViewModel
       {
         EmployeeId = e.Id,
