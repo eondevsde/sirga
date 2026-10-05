@@ -50,7 +50,11 @@ public class DeclarationService(
     var existingDeclarations = await unitOfWork.Declarations.FindAsync(d =>
         d.CompanyId == request.CompanyId && d.Period == request.Period);
 
-    // Bloquear duplicados en borrador: debe finalizarse la existente
+    // Bloquear duplicados en borrador: debe finalizarse la existente.
+    // OJO: hoy esto es un callejón sin salida, porque la aplicación no tiene ninguna pantalla para
+    // finalizar ni para borrar un borrador. Para descartarlo hace falta un repositorio de
+    // DeclarationDetail en IUnitOfWork (no existe) y borrar los detalles ANTES que la cabecera,
+    // porque la clave foránea está en Restrict y no arrastra.
     var existingDraft = existingDeclarations.FirstOrDefault(d => d.Status == DeclarationStatus.Draft);
     if (existingDraft != null)
     {
