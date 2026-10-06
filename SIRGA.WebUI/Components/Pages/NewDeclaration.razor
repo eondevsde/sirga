@@ -137,10 +137,11 @@ else
             <HeaderContent>
               <MudTh>Empleado</MudTh>
               <MudTh>Categoría</MudTh>
+              <MudTh>Jornada</MudTh>
               <MudTh>Remuneración</MudTh>
               <MudTh>Mínimo Escala</MudTh>
-              <MudTh>Aporte Ley (2%)</MudTh>
-              <MudTh>Aporte Vol. (2%)</MudTh>
+              <MudTh>@($"Aporte Ley ({LawPercent:0.##}%)")</MudTh>
+              <MudTh>@($"Aporte Vol. ({MemberPercent:0.##}%)")</MudTh>
               <MudTh>Total</MudTh>
             </HeaderContent>
             <RowTemplate>
@@ -154,32 +155,66 @@ else
                 }
               </MudTd>
               <MudTd DataLabel="Categoría">
+                @* El cambio se PERSISTE en la asignación: el servicio que guarda la DDJJ lee la
+                   categoría de la base, así que si sólo cambiara la pantalla, el mínimo calculado y
+                   el guardado serían distintos. *@
                 <MudSelect T="string" Value="@context.CategoryCode"
-                           ValueChanged="@((v) => { context.CategoryCode = v; Recalculate(context); })" Margin="Margin.Dense">
+                           ValueChanged="@(async (string v) => await OnCategoryChanged(context, v))" Margin="Margin.Dense">
                   @foreach (var scale in _currentScales)
                   {
-                    <MudSelectItem Value="@scale.CategoryCode">@scale.CategoryName</MudSelectItem>
+                    <MudSelectItem T="string" Value="@scale.CategoryCode">@scale.CategoryName</MudSelectItem>
                   }
                 </MudSelect>
               </MudTd>
+              <MudTd DataLabel="Jornada">
+                @* MudSelect y MudSelectItem comparten el tipo (JornadaType) a propósito: si no
+                   coinciden, MudBlazor no puede convertir el padre y mata el circuito. *@
+                <MudSelect T="JornadaType" Value="@context.Jornada"
+                           ValueChanged="@(async (JornadaType v) => await OnJornadaChanged(context, v))" Margin="Margin.Dense">
+                  <MudSelectItem T="JornadaType" Value="@JornadaType.Completa">Completa</MudSelectItem>
+                  <MudSelectItem T="JornadaType" Value="@JornadaType.Parcial">Parcial (50%)</MudSelectItem>
+                </MudSelect>
+              </MudTd>
               <MudTd DataLabel="Remuneración">
+                @* Es el importe del recibo de sueldo, lo carga el estudio a mano. No se prellena. *@
                 <MudNumericField Value="context.GrossSalary" Format="G" Variant="Variant.Text" Margin="Margin.Dense"
                                  T="decimal" ValueChanged="@((v) => { context.GrossSalary = v; Recalculate(context); })"
                                  Error="@context.IsUnderScale" ErrorText="Debajo de escala" />
               </MudTd>
               <MudTd DataLabel="Mínimo Escala">
-                <MudText Typo="Typo.body2" Color="@(context.IsUnderScale? Color.Error: Color.Default)">
-                  @context.MinSalary.ToString("C")
-                </MudText>
+                @if (context.MinSalary <= 0)
+                {
+                  @* Un cero acá NO significa que el sueldo esté bien: significa que no hay escala
+                     para esa categoría. Se dice explícitamente para que nadie lo lea al revés. *@
+                  <MudText Typo="Typo.body2" Color="Color.Warning">Sin escala para la categoría</MudText>
+                }
+                else
+                {
+                  <MudText Typo="Typo.body2">@context.MinSalary.ToString("C")</MudText>
+                  <MudChip T="string" Size="Size.Small" Color="@ColorComparacion(context.Comparacion)">
+                    @TextoComparacion(context.Comparacion)
+                  </MudChip>
+                  <MudText Typo="Typo.caption">
+                    Básico @context.Basico.ToString("C")
+                    + antig. @context.AniosAntiguedad año(s) @context.AntiguedadImporte.ToString("C")
+                    + NR @context.NoRemunerativo.ToString("C")
+                  </MudText>
+                  @if (context.AntiguedadPercentage <= 0)
+                  {
+                    @* La escala no tiene cargado el % de antigüedad, así que la antigüedad suma
+                       cero y el mínimo queda por debajo del real. No se calla. *@
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning">Escala sin % de antigüedad</MudChip>
+                  }
+                }
               </MudTd>
-              <MudTd DataLabel="Aporte Ley (2%)">@context.LawContribution.ToString("C")</MudTd>
-              <MudTd DataLabel="Aporte Vol. (2%)">@context.VoluntaryContribution.ToString("C")</MudTd>
+              <MudTd DataLabel="Aporte Ley">@context.LawContribution.ToString("C")</MudTd>
+              <MudTd DataLabel="Aporte Vol.">@context.VoluntaryContribution.ToString("C")</MudTd>
               <MudTd DataLabel="Total"><b>@((context.LawContribution + context.VoluntaryContribution).ToString("C"))</b>
               </MudTd>
             </RowTemplate>
             <FooterContent>
               <MudTFootRow>
-                <MudTd colspan="5" Style="text-align:right">Total General:</MudTd>
+                <MudTd colspan="6" Style="text-align:right">Total General:</MudTd>
                 <MudTd><b>@_details.Sum(x => x.LawContribution + x.VoluntaryContribution).ToString("C")</b></MudTd>
               </MudTFootRow>
             </FooterContent>
@@ -360,7 +395,12 @@ else
         AssignmentId = e.AssignmentId,
         EmployeeName = e.FullName,
         Dni = e.Dni,
-        IsVoluntaryMember = e.IsVoluntaryMember
+        IsVoluntaryMember = e.IsVoluntaryMember,
+        // Estos tres datos son los que faltaban para poder calcular el mínimo de escala: sin la
+        // categoría real y la fecha de ingreso a la empresa, el mínimo daba cero o un valor falso.
+        CategoryCode = e.CategoryCode,
+        EntryDate = e.AssignmentEntryDate,
+        Jornada = e.Jornada
       }).ToList();
 
       foreach (var detail in _details) Recalculate(detail);
@@ -441,23 +481,90 @@ else
     }
   }
 
+  /// <summary>Porcentajes del sindicato elegido, leídos de su configuración (no hardcodeados): la
+  /// pantalla tiene que mostrar el mismo porcentaje que el servicio aplica al guardar.</summary>
+  private UnionDto? SelectedUnion => _unions.FirstOrDefault(u => u.Id == _selectedUnionId);
+  private decimal LawPercent => SelectedUnion?.LawContributionPercentage ?? 2m;
+  private decimal MemberPercent => SelectedUnion?.UnionMemberPercentage ?? 2m;
+
+  private static decimal Redondear(decimal valor) => Math.Round(valor, 2, MidpointRounding.AwayFromZero);
+
   private void UpdateMinSalary(DeclarationDetailViewModel detail)
   {
-    if (_currentScales == null || !_currentScales.Any())
+    var scale = _currentScales?.FirstOrDefault(s => s.CategoryCode == detail.CategoryCode);
+    if (scale == null)
     {
+      // Sin escala para la categoría el mínimo es 0 y la comparación queda en "Sin datos": no se
+      // puede decir que el sueldo está bien cuando en realidad falta la escala.
       detail.MinSalary = 0;
+      detail.Basico = 0;
+      detail.AntiguedadPercentage = 0;
+      detail.AniosAntiguedad = 0;
+      detail.AntiguedadImporte = 0;
+      detail.NoRemunerativo = 0;
+      detail.Comparacion = EscalaComparacion.SinDatos;
       return;
     }
-    var scale = _currentScales.FirstOrDefault(s => s.CategoryCode == detail.CategoryCode);
-    detail.MinSalary = scale?.BasicAmount ?? 0;
+
+    var fechaCorte = new DateTime(_year, _month, 1);
+    detail.Basico = scale.BasicAmount;
+    detail.AntiguedadPercentage = scale.AntiguedadPercentage;
+    detail.AniosAntiguedad = SalaryMinimumCalculator.AniosAntiguedad(detail.EntryDate, fechaCorte);
+    detail.AntiguedadImporte = SalaryMinimumCalculator.Antiguedad(
+        scale.BasicAmount, scale.AntiguedadPercentage, detail.AniosAntiguedad);
+    detail.NoRemunerativo = scale.AgreementNR1 + scale.AgreementNR2;
+    detail.MinSalary = SalaryMinimumCalculator.Minimo(scale, detail.EntryDate, fechaCorte, detail.Jornada);
   }
 
   private void Recalculate(DeclarationDetailViewModel detail)
   {
     UpdateMinSalary(detail);
-    detail.LawContribution = detail.GrossSalary * 0.02m; // Corregido a 2%
-    detail.VoluntaryContribution = detail.IsVoluntaryMember ? detail.GrossSalary * 0.02m : 0;
+    // Se redondea con el mismo criterio que el servicio, para que el total que ve el estudio sea
+    // exactamente el que se guarda.
+    detail.LawContribution = Redondear(detail.GrossSalary * (LawPercent / 100m));
+    detail.VoluntaryContribution = detail.IsVoluntaryMember
+        ? Redondear(detail.GrossSalary * (MemberPercent / 100m))
+        : 0;
+    detail.Comparacion = SalaryMinimumCalculator.Comparar(detail.GrossSalary, detail.MinSalary);
   }
+
+  /// <summary>
+  /// Cambio de categoría desde la fila de la DDJJ. Se persiste en la asignación: el servicio que
+  /// guarda la declaración lee la categoría de la base, así que si sólo cambiara la pantalla el
+  /// mínimo mostrado y el guardado serían distintos.
+  /// </summary>
+  private async Task OnCategoryChanged(DeclarationDetailViewModel detail, string? categoryCode)
+  {
+    detail.CategoryCode = categoryCode;
+    var (ok, error) = await EmployeeService.UpdateAssignmentAsync(detail.AssignmentId, categoryCode, detail.Jornada);
+    if (!ok) Snackbar.Add(error ?? "No se pudo guardar la categoría.", Severity.Error);
+    Recalculate(detail);
+  }
+
+  /// <summary>Cambio de jornada. Prorratea el mínimo (Parcial = 50%) y se guarda en la asignación.</summary>
+  private async Task OnJornadaChanged(DeclarationDetailViewModel detail, JornadaType jornada)
+  {
+    detail.Jornada = jornada;
+    var (ok, error) = await EmployeeService.UpdateAssignmentAsync(detail.AssignmentId, detail.CategoryCode, jornada);
+    if (!ok) Snackbar.Add(error ?? "No se pudo guardar la jornada.", Severity.Error);
+    Recalculate(detail);
+  }
+
+  private static Color ColorComparacion(EscalaComparacion comparacion) => comparacion switch
+  {
+    EscalaComparacion.Debajo => Color.Error,
+    EscalaComparacion.Igual => Color.Success,
+    EscalaComparacion.Superior => Color.Info,
+    _ => Color.Default
+  };
+
+  private static string TextoComparacion(EscalaComparacion comparacion) => comparacion switch
+  {
+    EscalaComparacion.Debajo => "Debajo de escala",
+    EscalaComparacion.Igual => "Igual a escala",
+    EscalaComparacion.Superior => "Superior a escala",
+    _ => "Sin escala"
+  };
 
   private async Task SubmitDeclaration()
   {
@@ -567,10 +674,37 @@ else
     public int AssignmentId { get; set; }
     public string EmployeeName { get; set; } = "";
     public string Dni { get; set; } = "";
-    public string CategoryCode { get; set; } = "MAESTRANZA-A"; // Default para prototipo
+
+    /// <summary>
+    /// Código real de la categoría del empleado (asignación). Antes tenía el valor fijo
+    /// "MAESTRANZA-A" —con guion— puesto "para prototipo", que no coincide con ningún código del
+    /// sistema (los reales son "13", "2", ...), así que el mínimo de escala daba siempre cero.
+    /// </summary>
+    public string? CategoryCode { get; set; }
+
+    /// <summary>Fecha de ingreso del empleado a esta empresa: desde acá se cuenta la antigüedad.</summary>
+    public DateTime EntryDate { get; set; }
+
+    public JornadaType Jornada { get; set; } = JornadaType.Completa;
+
+    /// <summary>Importe del recibo de sueldo, cargado a mano por el estudio. No se prellena.</summary>
     public decimal GrossSalary { get; set; }
+
+    /// <summary>
+    /// Mínimo de escala: el sueldo que correspondería según escala + antigüedad + jornada (+ NR).
+    /// Es sólo un valor de referencia para comparar, no reemplaza a <see cref="GrossSalary"/>.
+    /// </summary>
     public decimal MinSalary { get; set; }
-    public bool IsUnderScale => GrossSalary < MinSalary && MinSalary > 0;
+
+    public decimal Basico { get; set; }
+    public decimal AntiguedadPercentage { get; set; }
+    public int AniosAntiguedad { get; set; }
+    public decimal AntiguedadImporte { get; set; }
+    public decimal NoRemunerativo { get; set; }
+
+    public EscalaComparacion Comparacion { get; set; } = EscalaComparacion.SinDatos;
+    public bool IsUnderScale => Comparacion == EscalaComparacion.Debajo;
+
     public decimal LawContribution { get; set; }
     public decimal VoluntaryContribution { get; set; }
     public bool IsVoluntaryMember { get; set; }

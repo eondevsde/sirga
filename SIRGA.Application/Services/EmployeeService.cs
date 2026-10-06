@@ -43,7 +43,12 @@ public class EmployeeService(IUnitOfWork unitOfWork)
                     IsActive = assign.IsActive,
                     IsVoluntaryMember = assign.IsVoluntaryMember,
                     AssignmentId = assign.Id, // Agregamos el Id del Assignment para la DDJJ
-                    MembershipResignationRequested = assign.MembershipResignationRequested == true
+                    MembershipResignationRequested = assign.MembershipResignationRequested == true,
+                    // La categoría, la fecha de ingreso a la empresa y la jornada son imprescindibles
+                    // para calcular el mínimo de escala en la pantalla de DDJJ.
+                    CategoryCode = assign.CategoryCode,
+                    AssignmentEntryDate = assign.CreatedAt,
+                    Jornada = assign.Jornada
                 });
             }
         }
@@ -72,7 +77,10 @@ public class EmployeeService(IUnitOfWork unitOfWork)
                     MembershipResignationRequested = assign.MembershipResignationRequested == true,
                     // Sin esto el Id de la asignación quedaba en 0 y el botón "Solicitar renuncia
                     // como socio" se cortaba en silencio: el diálogo nunca se abría.
-                    AssignmentId = assign.Id
+                    AssignmentId = assign.Id,
+                    CategoryCode = assign.CategoryCode,
+                    AssignmentEntryDate = assign.CreatedAt,
+                    Jornada = assign.Jornada
                 });
             }
         }
@@ -320,6 +328,33 @@ public class EmployeeService(IUnitOfWork unitOfWork)
     {
         var result = await unitOfWork.Employees.FindAsync(e => e.Dni == dni);
         return result.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Actualiza la categoría y la jornada de una asignación desde la pantalla de DDJJ.
+    ///
+    /// Se persiste a propósito: el servicio que guarda la declaración (DeclarationService) lee la
+    /// categoría de la ASIGNACIÓN, no de la pantalla. Si la pantalla cambiara la categoría sólo en
+    /// memoria, el mínimo de escala que ve el estudio se calcularía con una categoría y la DDJJ se
+    /// guardaría con otra, sin ningún aviso.
+    ///
+    /// La jornada se guarda contra la asignación y no contra el empleado: el mismo empleado puede
+    /// estar a jornada completa en una empresa y parcial en otra.
+    /// </summary>
+    public async Task<(bool Success, string? Error)> UpdateAssignmentAsync(int assignmentId, string? categoryCode, JornadaType jornada)
+    {
+        var assignment = await unitOfWork.Assignments.GetByIdAsync(assignmentId);
+        if (assignment == null) return (false, "La asignación no existe.");
+
+        bool changed = assignment.CategoryCode != categoryCode || assignment.Jornada != jornada;
+        if (!changed) return (true, null);
+
+        assignment.CategoryCode = categoryCode;
+        assignment.Jornada = jornada;
+
+        await unitOfWork.Assignments.UpdateAsync(assignment);
+        var ok = await unitOfWork.CompleteAsync() > 0;
+        return (ok, ok ? null : "No se pudo guardar la categoría o la jornada.");
     }
 
     public async Task<(bool Success, string? Error)> RequestMembershipResignationAsync(int assignmentId, string reason)

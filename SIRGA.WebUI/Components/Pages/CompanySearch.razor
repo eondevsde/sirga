@@ -188,8 +188,12 @@ else
     }
   }
 
-  private async Task VerHistorial(CompanyService.EmpresaBuscada empresa)
+  // El argumento puede venir nulo (TableRowClickEventArgs.Item es nullable): se contempla en vez de
+  // silenciar el aviso, para que un clic sin empresa no rompa la pantalla.
+  private async Task VerHistorial(CompanyService.EmpresaBuscada? empresa)
   {
+    if (empresa is null) return;
+
     _seleccionada = empresa;
     try
     {

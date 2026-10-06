@@ -13,8 +13,8 @@
   cliente, código de ente del código de barras y días de vencimiento.
 </MudText>
 
-<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
-  <MudTabPanel Text="Bancos">
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
+  <MudTabPanel Text="Bancos" Class="pa-4">
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
                OnClick="NuevoBanco" Class="mb-4">Nuevo banco</MudButton>
 
@@ -73,7 +73,7 @@
     </MudTable>
   </MudTabPanel>
 
-  <MudTabPanel Text="Configuración por sindicato">
+  <MudTabPanel Text="Configuración por sindicato" Class="pa-4">
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
                OnClick="NuevaConfiguracion" Class="mb-4" Disabled="@(!_bancos.Any())">
       Nueva configuración

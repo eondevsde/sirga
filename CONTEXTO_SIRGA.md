@@ -4,7 +4,7 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 102 commits en `main` · 119/119 tests · build 0 avisos.
+Última actualización: **2026-10-06** · 108 commits en `main` · 136/136 tests · build 0 avisos.
 
 ---
 
@@ -50,6 +50,19 @@ estudios. Stack: **.NET 10 Blazor Server** (Interactive Server, prerender ON) + 
 **Para compilar hay que matar la app primero** (bloquea los DLL): buscar el proceso que **escucha el
 puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por nombre.
 
+**Ojo con el sandbox de las sesiones de agente** (verificado el 2026-10-06):
+
+- Con el sandbox en modo restringido (`workspace-write`), **`Get-NetTCPConnection` devuelve vacío aunque
+  la app esté escuchando**: da un falso "puerto libre". Usar **`netstat -ano | Select-String ":5122"`**,
+  que sí lo ve. Con ese falso negativo se puede llegar a creer que la app está caída cuando está andando.
+- En ese mismo modo, **ningún cliente SQL conecta** (ni `sqlcmd`, ni ODBC, ni SqlClient): fallan con
+  *"Proveedor de SSL: No hay credenciales disponibles en el paquete de seguridad"*, porque el sandbox le
+  bloquea Schannel/SSPI al proceso. **No es la base ni el código.** El servidor es `MSSQL16.DIEGONBHP`
+  con `ForceEncryption = 0`. Con el sandbox abierto, conecta sin problema.
+- Si un arranque anterior falló al bindear el puerto, puede **quedar un `dotnet` vivo reteniendo los
+  DLL** (`error MSB3021/MSB3027: el archivo está bloqueado por ".NET Host"`). Buscar el PID en la línea
+  del error y matarlo: matar sólo el que escucha no alcanza.
+
 ---
 
 ## 4. Trampas que ya nos costaron caro
@@ -77,6 +90,15 @@ puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por
    derecho.
 8. **Compilar y pasar los tests NO prueba que guarde.** Cuando se toca **escritura de datos**, la
    verificación tiene que ser: guardar y **volver a leer contra la base**.
+9. **EF genera `defaultValue: 0` al agregar una columna de enum**, y 0 suele **no ser un valor válido**
+   del enum (acá `JornadaType` es 1 = Completa, 2 = Parcial). Si no se corrige, todas las filas
+   existentes quedan con un valor inexistente. Al agregar una columna de enum hay que **editar la
+   migración a mano** y poner el valor correcto (`defaultValue: 1`).
+10. **La migración es la fuente de verdad del dato, no el nombre del campo.** `Assignments.CreatedAt`
+   *parece* un timestamp técnico, pero en realidad guarda `SOCEMP_FECHAING` (fecha de ingreso a la
+   empresa): es el dato de negocio del que sale la **antigüedad**. `Employees.HireDate` es la fecha de
+   alta al sindicato y **da otra antigüedad**. Antes de usar un campo de fecha, mirar de dónde lo trajo
+   `SIRGA.Migration/Program.cs`.
 
 ---
 
@@ -123,6 +145,23 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 - **Pestaña SQL** en el GUI de DSH: sólo lectura, doble candado (lista negra + transacción con ROLLBACK),
   sólo `SIRGA_DB` y `Sindicato`.
 - **Tabla `Ramas`** creada (paso 1 de separar las escalas del sindicato).
+- **Mínimo de escala calculado** (la corrección que el usuario reportó el 2026-10-06). La columna
+  "Mínimo Escala" de `/declarations/new` ya no muestra el básico pelado ni $0: calcula
+  **(básico + antigüedad + NR1 + NR2) × jornada**, con **antigüedad = 1% × años cumplidos** contados
+  desde el **ingreso del empleado a esa empresa** (`Assignments.CreatedAt`, origen `SOCEMP_FECHAING`),
+  y **jornada Parcial = 50%** (también prorratea los NR). Muestra el estado **Debajo / Igual /
+  Superior** contra lo que el estudio carga en "Remuneración", con el desglose a la vista.
+  - La fórmula vive en **un solo lugar**: `SalaryMinimumCalculator` (Application). Antes estaba
+    duplicada con criterios distintos (la pantalla usaba sólo el básico; el servicio contaba la
+    antigüedad desde `Employees.HireDate`) y eso hacía que la pantalla y la base dijeran cosas
+    diferentes. **No volver a copiar la fórmula en la pantalla.**
+  - **Jornada**: campo nuevo (`SindicataryAssignment.Jornada`, enum `JornadaType`), migración
+    `AddJornadaToAssignments`. Las **36.011** asignaciones quedaron en **Completa** (el sistema
+    anterior no tenía el dato; darlo por parcial sería inventar una quita). Se edita desde la fila de
+    la DDJJ y **se persiste en la asignación**, igual que la categoría.
+  - **Antigüedad al 1% cargada** en las **1.339** escalas (estaban todas en 0), con respaldo en
+    `dbo._BackupSalaryScalesAntiguedad` y script idempotente
+    `script_sirga_db_antiguedad_escalas.sql`. Simulacro en `.dsh-tools/simulacro_antiguedad_escalas.sql`.
 
 ---
 
@@ -143,6 +182,16 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    >
    > Ojo: la 1737080 quedó en estado **borrador (1)**, igual que las anteriores. Vale la pena revisar si
    > el paso final de presentación completa o si el flujo deja todo en borrador.
+   >
+   > **ESTADO (2026-10-06, sesión siguiente): el usuario detalló UNA de esas correcciones: el campo
+   > "Mínimo Escala" tenía que calcularse por antigüedad, categoría, jornada y socio, y proponer una
+   > remuneración de referencia. Ya está implementado (ver "Hecho").**
+   > > Detalle importante de lo que pidió: "Remuneración" es lo que el estudio tipea del **recibo de
+   > > sueldo** y **no se prellena**; "Mínimo Escala" es el sueldo que **debería** cobrar y sirve
+   > > **sólo para mostrar** si paga debajo, igual o por encima de la escala. Ser socio **no** cambia
+   > > el mínimo: sólo agrega la cuota socio del 2%.
+   > > **Falta que el usuario lo verifique en pantalla** (los clics y lo visual no los puede hacer un
+   > > agente) y que diga si quedan **otras** correcciones sin detallar.
 2. **Modelo de ramas, pasos 2 a 4**: vincular `Unions` a `Rama`; pasar `EmployeeCategories` y
    `SalaryScales` a colgar de la **rama**; y recién al final cambiar las consultas que filtran por
    `UnionId` para que filtren por la rama del sindicato. **Las escalas son nacionales y dependen de la
@@ -164,8 +213,8 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 8. **Alcance del Auditor** en las pantallas que faltan (dashboard, inspection-stats, inspectors,
    union/inspection, legal-notices, admin/payments, unions) y en los endpoints de export.
 9. **Bug del eje Y** en `CollectionsReport.razor:74` (los valores son múltiplos exactos de MiB).
-10. **Calidad de datos**: 7 empleados sin nombre; empresas cuyo `BusinessName` es un CUIT o un fragmento;
-    `AntiguedadPercentage = 0` en las 1.339 escalas.
+10. **Calidad de datos**: 7 empleados sin nombre; empresas cuyo `BusinessName` es un CUIT o un fragmento.
+    (`AntiguedadPercentage = 0` en las 1.339 escalas **ya está resuelto**: se cargó el 1%.)
 
 ---
 
@@ -184,12 +233,26 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 - **Un empleado puede pertenecer a dos empresas y dos estudios distintos.**
 - **Cada sindicato tiene su código de ente** en el código de barras: Santiago del Estero **0134**, La
   Banda 0135, Frías 0136, Añatuya 0137.
+- **El mínimo de escala es el sueldo que el empleado DEBERÍA cobrar** según escala, antigüedad y
+  jornada. Es un **valor de referencia para comparar**: se muestra si el estudio está pagando **debajo,
+  igual o superior**. **No reemplaza** la remuneración del recibo de sueldo, que carga el estudio a mano.
+- **La antigüedad es el 1% por año trabajado**, y se cuenta desde la **fecha de ingreso del empleado a
+  esa empresa** (`SOCEMP_FECHAING`), no desde el alta al sindicato. Son **años cumplidos**: si el
+  aniversario todavía no llegó en el mes del período, ese año no cuenta.
+- **Ser socio NO cambia el mínimo de escala**: el mínimo es el de convenio para todos. Ser socio sólo
+  agrega la **cuota socio del 2%** al descuento.
+- **La jornada es Completa o Parcial, y Parcial = 50% del mínimo completo**, incluidos los acuerdos no
+  remunerativos.
+- **El mínimo de escala INCLUYE los acuerdos no remunerativos (NR1 + NR2)**, pero los NR **no** entran
+  en la **base de aportes**: el 2% se calcula sobre básico + antigüedad. NR = no remunerativo.
+- **La jornada es por asignación, no por empleado**: el mismo empleado puede estar a jornada completa en
+  una empresa y parcial en otra.
 
 ---
 
 ## 9. Cómo se verifica el trabajo
 
-- **Build con 0 avisos** y **tests en verde** antes de cada commit (hoy 119/119).
+- **Build con 0 avisos** y **tests en verde** antes de cada commit (hoy 136/136).
 - **Consultas contra la base** para probar afirmaciones de datos (no suponer: medir).
 - **Simulacro (dry-run) antes de cualquier escritura masiva**, con respaldo del estado anterior.
 - **Al terminar: la app queda levantada** en `http://localhost:5122` y **avisar al usuario** lo que no se

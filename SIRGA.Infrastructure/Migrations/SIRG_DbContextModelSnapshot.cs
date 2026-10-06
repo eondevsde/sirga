@@ -1257,6 +1257,9 @@ namespace SIRGA.Infrastructure.Migrations
                     b.Property<bool>("IsVoluntaryMember")
                         .HasColumnType("bit");
 
+                    b.Property<int>("Jornada")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("MembershipEndDate")
                         .HasColumnType("datetime2");
 

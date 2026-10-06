@@ -86,7 +86,9 @@ public class UnionService
       JurisdictionCity = u.JurisdictionCity,
       CctCode = u.CctCode,
       AdminEmail = u.AdminEmail,
-      IsActive = u.IsActive
+      IsActive = u.IsActive,
+      LawContributionPercentage = u.LawContributionPercentage,
+      UnionMemberPercentage = u.UnionMemberPercentage
     });
   }
 
@@ -102,7 +104,9 @@ public class UnionService
       JurisdictionCity = union.JurisdictionCity,
       CctCode = union.CctCode,
       AdminEmail = union.AdminEmail,
-      IsActive = union.IsActive
+      IsActive = union.IsActive,
+      LawContributionPercentage = union.LawContributionPercentage,
+      UnionMemberPercentage = union.UnionMemberPercentage
     };
   }
 
@@ -119,7 +123,9 @@ public class UnionService
       JurisdictionCity = union.JurisdictionCity,
       CctCode = union.CctCode,
       AdminEmail = union.AdminEmail,
-      IsActive = union.IsActive
+      IsActive = union.IsActive,
+      LawContributionPercentage = union.LawContributionPercentage,
+      UnionMemberPercentage = union.UnionMemberPercentage
     };
   }
 

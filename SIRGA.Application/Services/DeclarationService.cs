@@ -95,35 +95,38 @@ public class DeclarationService(
       if (scale == null) continue;
 
       decimal remunerativeTotal;
-      // Si el estudio cargó un salario bruto para este empleado, se usa ese como base de cálculo;
-      // si no (salario 0 o ausente), se calcula por escala (básico + antigüedad).
+      // Antigüedad contada desde el ingreso del empleado A ESTA EMPRESA (Assignments.CreatedAt,
+      // origen SOCEMP_FECHAING). Antes se contaba desde Employees.HireDate, que es la fecha de alta
+      // al sindicato: daba una antigüedad distinta de la real. La fórmula vive en un solo lugar
+      // (SalaryMinimumCalculator) para que la pantalla y este cálculo no puedan divergir.
+      int anios = SalaryMinimumCalculator.AniosAntiguedad(assign.CreatedAt, targetDate);
+      decimal factorJornada = SalaryMinimumCalculator.FactorJornada(assign.Jornada);
+
+      // Si el estudio cargó un salario bruto para este empleado, se usa ese como base de cálculo
+      // (es el importe que figura en el recibo de sueldo); si no (salario 0 o ausente), se usa el
+      // mínimo REMUNERATIVO de escala: básico + antigüedad, prorrateado por jornada.
       if (enteredSalaries.TryGetValue(assign.EmployeeId, out var enteredBase) && enteredBase > 0)
       {
         remunerativeTotal = enteredBase;
       }
       else
       {
-        // Cálculo de Antigüedad
-        var employee = await unitOfWork.Employees.GetByIdAsync(assign.EmployeeId);
-        int internalAntiguedad = 0;
-        if (employee != null)
-        {
-          internalAntiguedad = targetDate.Year - employee.HireDate.Year;
-          if (targetDate.Month < employee.HireDate.Month) internalAntiguedad--;
-          if (internalAntiguedad < 0) internalAntiguedad = 0;
-        }
-
-        decimal basicSalary = scale.BasicAmount;
-        decimal antiguedadAmount = basicSalary * (scale.AntiguedadPercentage / 100) * internalAntiguedad;
-        remunerativeTotal = basicSalary + antiguedadAmount;
+        // Los acuerdos no remunerativos (AgreementNR1/AgreementNR2) NO entran en la base de aportes:
+        // son no remunerativos por definición. Por eso acá va sólo básico + antigüedad, aunque el
+        // mínimo de escala que se muestra en pantalla (que sí los incluye) sea más alto.
+        decimal antiguedadImporte = SalaryMinimumCalculator.Antiguedad(
+            scale.BasicAmount, scale.AntiguedadPercentage, anios);
+        remunerativeTotal = Math.Round(
+            (scale.BasicAmount + antiguedadImporte) * factorJornada, 2, MidpointRounding.AwayFromZero);
       }
 
-      // Cálculos dinámicos basados en la configuración del Sindicato
-      decimal lawContribution = remunerativeTotal * (union.LawContributionPercentage / 100);
-      decimal socioContribution = assign.IsVoluntaryMember ? remunerativeTotal * (union.UnionMemberPercentage / 100) : 0;
-
-      // Acuerdos No Remunerativos (suman directo)
-      decimal nonRemunerativeTotal = scale.AgreementNR1 + scale.AgreementNR2;
+      // Cálculos dinámicos basados en la configuración del Sindicato. Se redondea a 2 decimales
+      // (igual que la pantalla y que las columnas decimal(18,2) de la base): sin esto el importe
+      // que muestra la pantalla y el que queda guardado podían diferir en centavos.
+      decimal lawContribution = Redondear(remunerativeTotal * (union.LawContributionPercentage / 100));
+      decimal socioContribution = assign.IsVoluntaryMember
+          ? Redondear(remunerativeTotal * (union.UnionMemberPercentage / 100))
+          : 0;
 
       var detail = new DeclarationDetail
       {
@@ -284,6 +287,9 @@ public class DeclarationService(
     }
     return resultList;
   }
+
+  /// <summary>Redondeo de dinero a 2 decimales "hacia afuera" (criterio contable), no el bancario de .NET.</summary>
+  private static decimal Redondear(decimal valor) => Math.Round(valor, 2, MidpointRounding.AwayFromZero);
 
   private DeclarationResponseDto MapToResponse(DeclarationRegistry declaration, Company branch, Union? union, decimal totalAporteLey, decimal totalCuotaSocio)
   {
