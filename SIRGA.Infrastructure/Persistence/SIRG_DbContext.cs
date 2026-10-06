@@ -68,17 +68,12 @@ public class SIRG_DbContext : IdentityDbContext
             .HasForeignKey(d => d.AssignmentId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Configuración para evitar ciclos de cascada en SalaryScales y EmployeeCategories
-        modelBuilder.Entity<SalaryScale>()
-            .HasOne(s => s.Union)
-            .WithMany()
-            .HasForeignKey(s => s.UnionId)
-            .OnDelete(DeleteBehavior.Restrict);
-
+        // Categorías y escalas cuelgan de la RAMA (el convenio), no del sindicato: las escalas son
+        // nacionales por rama. Restrict para no borrar una rama con escalas colgando.
         modelBuilder.Entity<EmployeeCategory>()
-            .HasOne(c => c.Union)
-            .WithMany(u => u.Categories)
-            .HasForeignKey(c => c.UnionId)
+            .HasOne(c => c.Rama)
+            .WithMany(r => r.Categories)
+            .HasForeignKey(c => c.RamaId)
             .OnDelete(DeleteBehavior.Restrict);
 
         // Traspaso de empresas entre estudios: el historial es la fuente del dueño actual (la fila

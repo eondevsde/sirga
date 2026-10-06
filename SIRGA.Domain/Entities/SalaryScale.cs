@@ -4,6 +4,11 @@ namespace SIRGA.Domain.Entities;
 
 /// <summary>
 /// Catálogo de escalas salariales vigentes.
+///
+/// La escala es de una CATEGORÍA, y la categoría pertenece a una RAMA de actividad: las escalas son
+/// nacionales por rama (Comercio 130/75, Panaderos...), no por sindicato. Por eso acá NO hay `UnionId`:
+/// la rama se llega por la categoría, y así no puede quedar una escala apuntando a una rama distinta de
+/// la de su propia categoría.
 /// </summary>
 public class SalaryScale
 {
@@ -24,7 +29,4 @@ public class SalaryScale
   public decimal AgreementNR2 { get; set; } // Acuerdo no remunerativo 2
 
   public bool IsActive { get; set; }
-
-  public int UnionId { get; set; }
-  public virtual Union Union { get; set; } = null!;
 }

@@ -32,4 +32,8 @@ public class Rama
   public string? Notes { get; set; }
 
   public bool IsActive { get; set; } = true;
+
+  // Propiedades de Navegación
+  /// <summary>Categorías de esta rama. Las escalas de esas categorías son las que se usan para liquidar.</summary>
+  public virtual ICollection<EmployeeCategory> Categories { get; set; } = new List<EmployeeCategory>();
 }

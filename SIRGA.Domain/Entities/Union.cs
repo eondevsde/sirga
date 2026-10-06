@@ -43,5 +43,4 @@ public partial class Union // Sindicato
   // Propiedades de Navegación
   public virtual ICollection<SindicataryAssignment> Assignments { get; set; } = new List<SindicataryAssignment>();
   public virtual ICollection<DeclarationRegistry> Declarations { get; set; } = new List<DeclarationRegistry>();
-  public virtual ICollection<EmployeeCategory> Categories { get; set; } = new List<EmployeeCategory>();
 }

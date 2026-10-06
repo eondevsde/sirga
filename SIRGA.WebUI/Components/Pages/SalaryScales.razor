@@ -110,12 +110,30 @@ else
       _scales.Clear();
   }
 
+  /// <summary>
+  /// Rama del sindicato elegido. La pantalla sigue eligiéndose por SINDICATO porque así trabaja el
+  /// usuario, pero las escalas y las categorías son de la RAMA: acá se resuelve cuál es.
+  /// </summary>
+  private int _ramaId => _unions.FirstOrDefault(u => u.Id == _selectedUnionId)?.RamaId ?? 0;
+
   private async Task LoadData()
   {
     _loading = true;
     try
     {
-      _scales = await ScaleService.GetByUnionAsync(_selectedUnionId);
+      if (_ramaId == 0)
+      {
+        // Sin rama no se sabe qué escalas mostrar: se dice, en lugar de mostrar una lista vacía que
+        // parecería "no hay escalas cargadas".
+        _scales = new();
+        Snackbar.Add(
+            "El sindicato no tiene una rama de actividad asignada, así que no se pueden mostrar sus escalas. " +
+            "Asignásela en la pantalla de Sindicatos.",
+            Severity.Warning);
+        return;
+      }
+
+      _scales = await ScaleService.GetByRamaAsync(_ramaId);
     }
     catch (Exception ex)
     {
@@ -138,7 +156,7 @@ else
   private async Task OpenCategoriesDialog()
   {
     // Diálogo para gestionar categorías que crearemos a continuación
-    var parameters = new DialogParameters { ["UnionId"] = _selectedUnionId };
+    var parameters = new DialogParameters { ["RamaId"] = _ramaId };
     var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
     var dialog = await DialogService.ShowAsync<ManageCategoriesDialog>("Gestionar Categorías", parameters, options);
     await dialog.Result;
@@ -146,7 +164,7 @@ else
 
   private async Task OpenAddDialog()
   {
-    var parameters = new DialogParameters { ["UnionId"] = _selectedUnionId };
+    var parameters = new DialogParameters { ["RamaId"] = _ramaId };
     var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
     var dialog = await DialogService.ShowAsync<AddScaleDialog>("Nueva Escala", parameters, options);
     var result = await dialog.Result;
@@ -155,7 +173,7 @@ else
 
   private async Task OpenEditDialog(SalaryScaleDto scale)
   {
-    var parameters = new DialogParameters { ["Scale"] = scale, ["UnionId"] = _selectedUnionId };
+    var parameters = new DialogParameters { ["Scale"] = scale, ["RamaId"] = _ramaId };
     var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
     var dialog = await DialogService.ShowAsync<AddScaleDialog>("Editar Escala", parameters, options);
     var result = await dialog.Result;

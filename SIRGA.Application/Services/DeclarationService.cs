@@ -31,22 +31,35 @@ public class DeclarationService(
     var union = await unitOfWork.Unions.GetByIdAsync(request.UnionId)
         ?? throw new Exception("El sindicato no existe.");
 
+    // Las escalas y las categorías son NACIONALES por RAMA (el convenio), no por sindicato: se resuelven
+    // por la rama del sindicato. Si el sindicato no tiene rama asignada no se puede saber qué escala
+    // aplicarle, y hay que decirlo en vez de liquidar cualquier cosa.
+    int ramaId = union.RamaId
+        ?? throw new Exception(
+            $"El sindicato {union.Name} no tiene una rama de actividad asignada, así que no se puede " +
+            "saber qué escala salarial aplicarle. Asignásela en la pantalla de Sindicatos.");
+
     // 2. Buscar Escala Salarial para el periodo (Formato YYYY-MM)
     var periodParts = request.Period.Split("-");
     int year = int.Parse(periodParts[0]);
     int month = int.Parse(periodParts[1]);
     var targetDate = new DateTime(year, month, 1);
 
+    var categories = (await unitOfWork.EmployeeCategories.FindAsync(c => c.RamaId == ramaId))
+        .ToDictionary(c => c.Code);
+
     // Buscar escala para el periodo; si no hay exacta, congelar la más reciente anterior (fallback)
-    var scales = await unitOfWork.SalaryScales.FindAsync(s => s.Period <= targetDate && s.UnionId == request.UnionId);
+    var idsCategorias = categories.Values.Select(c => c.Id).ToList();
+    var scales = await unitOfWork.SalaryScales.FindAsync(s =>
+        s.Period <= targetDate && idsCategorias.Contains(s.EmployeeCategoryId));
     if (!scales.Any())
     {
-      throw new Exception($"No se encontró una escala salarial cargada para el periodo {request.Period} del sindicato {union.Name}.");
+      throw new Exception(
+          $"No se encontró una escala salarial cargada para el periodo {request.Period} de la rama " +
+          $"{union.Rama?.Name ?? ramaId.ToString()} (sindicato {union.Name}).");
     }
     var latestScalePeriod = scales.Max(s => s.Period);
     scales = scales.Where(s => s.Period == latestScalePeriod).ToList();
-
-    var categories = (await unitOfWork.EmployeeCategories.FindAsync(c => c.UnionId == request.UnionId)).ToDictionary(c => c.Code);
 
     // 3. Crear Cabecera de DDJJ
     var existingDeclarations = await unitOfWork.Declarations.FindAsync(d =>

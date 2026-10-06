@@ -15,7 +15,7 @@ public class SalaryScaleService(IUnitOfWork unitOfWork)
     return scales.Select(s => new SalaryScaleDto
     {
       Id = s.Id,
-      UnionId = s.UnionId,
+      RamaId = categories.TryGetValue(s.EmployeeCategoryId, out var cat) ? cat.RamaId : 0,
       Period = s.Period,
       EmployeeCategoryId = s.EmployeeCategoryId,
       CategoryCode = categories.ContainsKey(s.EmployeeCategoryId) ? categories[s.EmployeeCategoryId].Code : "N/A",
@@ -36,7 +36,7 @@ public class SalaryScaleService(IUnitOfWork unitOfWork)
     return scales.Select(s => new SalaryScaleDto
     {
       Id = s.Id,
-      UnionId = s.UnionId,
+      RamaId = categories.TryGetValue(s.EmployeeCategoryId, out var cat) ? cat.RamaId : 0,
       Period = s.Period,
       EmployeeCategoryId = s.EmployeeCategoryId,
       CategoryCode = categories.ContainsKey(s.EmployeeCategoryId) ? categories[s.EmployeeCategoryId].Code : "N/A",
@@ -49,19 +49,26 @@ public class SalaryScaleService(IUnitOfWork unitOfWork)
     }).OrderByDescending(s => s.Period).ThenBy(s => s.CategoryCode);
   }
 
-  public async Task<List<SalaryScaleDto>> GetByUnionAsync(int unionId)
+  /// <summary>
+  /// Escalas de una RAMA de actividad: las escalas son nacionales por rama, así que ya no se piden por
+  /// sindicato. Las categorías se resuelven por la rama y las escalas por esas categorías.
+  /// </summary>
+  public async Task<List<SalaryScaleDto>> GetByRamaAsync(int ramaId)
   {
-    var scales = await unitOfWork.SalaryScales.FindAsync(s => s.UnionId == unionId);
-    var categories = (await unitOfWork.EmployeeCategories.FindAsync(c => c.UnionId == unionId)).ToDictionary(c => c.Id);
+    var categorias = (await unitOfWork.EmployeeCategories.FindAsync(c => c.RamaId == ramaId)).ToDictionary(c => c.Id);
+    if (categorias.Count == 0) return new();
+
+    var ids = categorias.Keys.ToList();
+    var scales = await unitOfWork.SalaryScales.FindAsync(s => ids.Contains(s.EmployeeCategoryId));
 
     return scales.Select(s => new SalaryScaleDto
     {
       Id = s.Id,
-      UnionId = s.UnionId,
+      RamaId = ramaId,
       Period = s.Period,
       EmployeeCategoryId = s.EmployeeCategoryId,
-      CategoryCode = categories.ContainsKey(s.EmployeeCategoryId) ? categories[s.EmployeeCategoryId].Code : "N/A",
-      CategoryName = categories.ContainsKey(s.EmployeeCategoryId) ? categories[s.EmployeeCategoryId].Name : "N/A",
+      CategoryCode = categorias.TryGetValue(s.EmployeeCategoryId, out var c) ? c.Code : "N/A",
+      CategoryName = categorias.TryGetValue(s.EmployeeCategoryId, out var c2) ? c2.Name : "N/A",
       BasicAmount = s.BasicAmount,
       AgreementNR1 = s.AgreementNR1,
       AgreementNR2 = s.AgreementNR2,
@@ -76,7 +83,6 @@ public class SalaryScaleService(IUnitOfWork unitOfWork)
     {
       Period = dto.Period,
       EmployeeCategoryId = dto.EmployeeCategoryId,
-      UnionId = dto.UnionId,
       BasicAmount = dto.BasicAmount,
       AntiguedadPercentage = dto.AntiguedadPercentage,
       AgreementNR1 = dto.AgreementNR1,
@@ -120,7 +126,6 @@ public class SalaryScaleService(IUnitOfWork unitOfWork)
     {
       Period = dto.Period,
       EmployeeCategoryId = dto.EmployeeCategoryId,
-      UnionId = dto.UnionId,
       BasicAmount = dto.BasicAmount,
       AntiguedadPercentage = dto.AntiguedadPercentage,
       AgreementNR1 = dto.AgreementNR1,

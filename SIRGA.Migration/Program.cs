@@ -7,6 +7,7 @@ namespace SIRGA.Migration;
 public static class Program
 {
     private static int _unionId;
+    private static int _ramaId;
     private static decimal _lawPct = 2m;
     private static decimal _memberPct = 2m;
 
@@ -183,6 +184,28 @@ public static class Program
         ins.Parameters.AddWithValue("@socio", _memberPct);
         _unionId = (int)ins.ExecuteScalar();
         Log.Write($"Union Id={_unionId}: {nombre} (ley {_lawPct}%, socio {_memberPct}%)");
+
+        // Las categorías y las escalas cuelgan de la RAMA (el convenio), no del sindicato. Este
+        // importador es de Comercio 130/75, así que resuelve (o crea) esa rama y deja el sindicato
+        // vinculado: sin eso, el sindicato queda sin rama y no se puede liquidar.
+        using var connRama = Db.Open(Db.TargetCs);
+        using (var sel = new SqlCommand("SELECT Id FROM Ramas WHERE Code = '130/75'", connRama))
+        {
+            if (sel.ExecuteScalar() is int idExistente) _ramaId = idExistente;
+        }
+        if (_ramaId == 0)
+        {
+            using var insRama = new SqlCommand(
+                "INSERT INTO Ramas (Code, Name, Notes, IsActive) OUTPUT INSERTED.Id VALUES ('130/75', 'Comercio', 'Empleados de Comercio', 1)", connRama);
+            _ramaId = (int)insRama.ExecuteScalar();
+        }
+        using (var upd = new SqlCommand("UPDATE Unions SET RamaId = @rama WHERE Id = @id", connRama))
+        {
+            upd.Parameters.AddWithValue("@rama", _ramaId);
+            upd.Parameters.AddWithValue("@id", _unionId);
+            upd.ExecuteNonQuery();
+        }
+        Log.Write($"Rama Id={_ramaId} (130/75) vinculada al sindicato {_unionId}");
     }
 
     // ---------- TASA DE INTERES ----------
@@ -212,10 +235,10 @@ public static class Program
             if (name.Length == 0) continue;
             using var conn = Db.Open(Db.TargetCs);
             using var ins = new SqlCommand(
-                "INSERT INTO EmployeeCategories (Code, Name, UnionId, IsActive) OUTPUT INSERTED.Id VALUES (@code, @name, @union, 1)", conn);
+                "INSERT INTO EmployeeCategories (Code, Name, RamaId, IsActive) OUTPUT INSERTED.Id VALUES (@code, @name, @rama, 1)", conn);
             ins.Parameters.AddWithValue("@code", code);
             ins.Parameters.AddWithValue("@name", name);
-            ins.Parameters.AddWithValue("@union", _unionId);
+            ins.Parameters.AddWithValue("@rama", _ramaId);
             _categoryByCode[code] = (int)ins.ExecuteScalar();
             count++;
         }
@@ -237,8 +260,8 @@ public static class Program
             if (!_categoryByCode.TryGetValue(code, out var catId)) continue;
             using var conn = Db.Open(Db.TargetCs);
             using var ins = new SqlCommand("""
-                INSERT INTO SalaryScales (Period, EmployeeCategoryId, BasicAmount, AntiguedadPercentage, AgreementNR1, AgreementNR2, IsActive, UnionId)
-                VALUES (@period, @cat, @basic, 0, @nr1, @nr2, @active, @union)
+                INSERT INTO SalaryScales (Period, EmployeeCategoryId, BasicAmount, AntiguedadPercentage, AgreementNR1, AgreementNR2, IsActive)
+                VALUES (@period, @cat, @basic, 0, @nr1, @nr2, @active)
                 """, conn);
             ins.Parameters.AddWithValue("@period", Convert.ToDateTime(r["Periodo"]));
             ins.Parameters.AddWithValue("@cat", catId);
@@ -246,7 +269,6 @@ public static class Program
             ins.Parameters.AddWithValue("@nr1", Db.Dec(r["AcuerdoNR1"]));
             ins.Parameters.AddWithValue("@nr2", Db.Dec(r["AcuerdoNR2"]));
             ins.Parameters.AddWithValue("@active", Convert.ToInt32(r["Estado"]) == 1);
-            ins.Parameters.AddWithValue("@union", _unionId);
             ins.ExecuteNonQuery();
             count++;
         }

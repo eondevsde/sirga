@@ -199,14 +199,29 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   tiraba una excepción y dejaba al usuario sin salida).
 - **Pestaña SQL** en el GUI de DSH: sólo lectura, doble candado (lista negra + transacción con ROLLBACK),
   sólo `SIRGA_DB` y `Sindicato`.
-- **Tabla `Ramas`** creada (paso 1 de separar las escalas del sindicato), y **paso 2 hecho**: la rama
-  **Comercio (130/75)** está creada y **los 2 sindicatos quedaron vinculados** (`Unions.RamaId`, migración
-  `LinkUnionsToRama`, script idempotente `script_sirga_db_ramas_vincular_sindicatos.sql`, 0 sin rama).
-  Se agregó el repositorio `Ramas` a la `IUnitOfWork` (con el mismo contexto y semáforo), se puede
-  asignar la rama desde la pantalla de Sindicatos, y la grilla avisa **"Sin rama"** cuando falta.
+- **Modelo de ramas COMPLETO (pasos 1 a 4)**: las categorías y las escalas cuelgan de la **rama de
+  actividad** (el convenio) y no del sindicato. Las escalas y las paritarias son **nacionales por rama**,
+  así que va un solo juego de categorías y escalas por convenio, compartido por todos sus sindicatos.
+  - **Paso 1**: tabla `Ramas`.
+  - **Paso 2**: rama **Comercio (130/75)** creada y **los 2 sindicatos vinculados** (`Unions.RamaId`,
+    migración `LinkUnionsToRama`, script `script_sirga_db_ramas_vincular_sindicatos.sql`, 0 sin rama).
+    Se agregó el repositorio `Ramas` a la `IUnitOfWork` (mismo contexto y semáforo), se asigna desde la
+    pantalla de Sindicatos y la grilla avisa **"Sin rama"** cuando falta.
+  - **Pasos 3 y 4**: `EmployeeCategories.RamaId` (migración `MoveScalesAndCategoriesToRama`) y
+    **`SalaryScales` se quedó SIN `UnionId`**: la rama se llega por la categoría de la escala, así no
+    puede quedar una escala apuntando a una rama distinta de la de su propia categoría. Las consultas
+    (`DeclarationService`, `SalaryScaleService`, `EmployeeCategoryService` y las pantallas) resuelven la
+    **rama del sindicato**; si un sindicato no tiene rama, **se avisa** en vez de liquidar cualquier cosa.
+  - **Verificado con datos reales**: sindicato 19 → rama Comercio → categoría 13 → escala 2026-03 →
+    mínimo **$1.478.431,61**, exactamente el mismo número que antes de mover todo.
+  - **Respaldo** del vínculo viejo en `dbo._BackupScalesCategoriesUnionId` (21 categorías + 1.339
+    escalas), porque la migración elimina dos columnas.
+  - **Ojo al generar migraciones acá**: EF propuso un **`RenameColumn` de `UnionId` a `RamaId`**, que
+    está MAL: conserva los valores viejos (19 = id del sindicato) como si fueran ids de rama y el FK
+    falla. Hay que **derivar** el valor (la rama del sindicato) y hacer el `ADD COLUMN` nullable →
+    `UPDATE` → `ALTER NOT NULL` → FK. Ya se corrigió a mano en la migración.
   - **Ojo**: La Banda (sindicato 20) tiene el `CctCode` en **`"PENDIENTE"`**; se vinculó a Comercio por su
-    nombre y porque la propia documentación de `Rama` dice que comparten 130/75. **Falta completarle el
-    CctCode.**
+    nombre y porque la documentación de `Rama` dice que comparten 130/75. **Falta completarle el CctCode.**
   - Al editar un sindicato, el diálogo tiene que devolver `RamaId` (y los porcentajes): si no, guardar
     **borra la rama** sin avisar. Ya está corregido en `Unions.razor`.
 - **Tasas de interés migradas del sistema anterior** (`Sindicato.dbo.Intereses` → `InterestRates`):
@@ -280,17 +295,15 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    > > el mínimo: sólo agrega la cuota socio del 2%.
    > > **Falta que el usuario lo verifique en pantalla** (los clics y lo visual no los puede hacer un
    > > agente) y que diga si quedan **otras** correcciones sin detallar.
-2. **Modelo de ramas, pasos 3 y 4** (el **paso 2 ya está hecho**: ver "Hecho"): falta pasar
-   `EmployeeCategories` y `SalaryScales` a colgar de la **rama**, y recién al final cambiar las consultas
-   que filtran por `UnionId` para que filtren por la rama del sindicato. **Las escalas son nacionales y
-   dependen de la rama** (Comercio 130/75, Panaderos, Farmacéuticos...), no de la ciudad: hoy hay que
-   copiarlas por sindicato, que es el error que este modelo corrige. El paso 4 toca el cálculo de la DDJJ
-   y el de la boleta: **hacerlo descansado y con la prueba al lado**.
-   > **Antes de empezar el paso 3, mirar esto** (medido): hoy **sólo el sindicato 19 tiene escalas**
-   > (**1.339** filas en **62** períodos) y **categorías** (**21**); el sindicato 20 **no tiene ninguna**.
-   > Migrar las escalas a la rama implica decidir qué pasa cuando dos sindicatos de la misma rama tengan
-   > escalas distintas (hoy no pasa, pero el paso 3 lo tiene que resolver: o se unifican o hay que
-   > definir la precedencia).
+2. ~~**Modelo de ramas, pasos 3 y 4**~~ **HECHO (2026-10-06)**: las categorías y las escalas ya cuelgan
+   de la **rama** y las consultas filtran por la rama del sindicato. Ver "Hecho".
+   > **Lo que queda de este tema**: las escalas tienen **42 pares (período, categoría) DUPLICADOS**
+   > (84 filas de 1.339): son **copias exactas** (0 con valores distintos), todas del período 2022-07 del
+   > sindicato 19 y con ids consecutivos, así que parecen de una importación repetida. **No hay que
+   > decidir cuál vale** (los valores son idénticos), pero **bloquean un índice único por (período,
+   > categoría)** que convendría tener para que "la escala de esa categoría y ese período" no vuelva a
+   > ser ambigua. Para resolverlo hace falta **simulacro + respaldo + OK del usuario** (es un borrado o
+   > una desactivación masiva).
 3. ~~**Botón de imprimir la boleta** que dispare el PDF ya escrito.~~ **HECHO (2026-10-06)**: está en el
    historial de DDJJ, y el recargo ya usa la **tasa real migrada** (ver punto 4).
 4. **Recargo del 2° vencimiento**: 10 días después del 1° (configurable), con la tasa de `InterestRates`.
@@ -341,6 +354,9 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 
 ## 8. Reglas de negocio que no se deducen del código
 
+- **Las escalas y las paritarias son NACIONALES por rama** (confirmado por el usuario): **no existe el
+  caso de dos sindicatos de la misma rama con escalas distintas**. Por eso las escalas cuelgan de la
+  **rama** y no del sindicato, y no hace falta definir precedencia ni unificar nada al migrarlas.
 - **La transferencia de una empresa entre estudios la decide y ejecuta el Sindicato.** El estudio destino
   no puede pedirla. Queda historial (`CompanyStudioHistories`) y aviso al estudio anterior.
 - **El Sindicato asigna a sus auditores** desde una pantalla, y el **Auditor sólo ve su sindicato en

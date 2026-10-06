@@ -6,9 +6,13 @@ namespace SIRGA.Application.Services;
 
 public class EmployeeCategoryService(IUnitOfWork unitOfWork)
 {
-  public async Task<List<EmployeeCategory>> GetByUnionAsync(int unionId)
+  /// <summary>
+  /// Categorías de una RAMA de actividad. Antes se pedían por sindicato: las categorías son las mismas
+  /// para todos los sindicatos de la misma rama (Comercio 130/75), igual que las escalas.
+  /// </summary>
+  public async Task<List<EmployeeCategory>> GetByRamaAsync(int ramaId)
   {
-    var cats = await unitOfWork.EmployeeCategories.FindAsync(c => c.UnionId == unionId);
+    var cats = await unitOfWork.EmployeeCategories.FindAsync(c => c.RamaId == ramaId);
     return cats.ToList();
   }
 

@@ -54,7 +54,12 @@
 @code {
   [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
   [Parameter] public SalaryScaleDto Scale { get; set; } = new() { Period = DateTime.Now, IsActive = true };
-  [Parameter] public int UnionId { get; set; }
+
+  /// <summary>
+  /// Rama de actividad a la que pertenece la escala. Antes era el sindicato: las escalas y las
+  /// categorías son nacionales por rama, así que el que elige es la rama.
+  /// </summary>
+  [Parameter] public int RamaId { get; set; }
 
   private MudForm _form = null!;
   private DateTime? _date = DateTime.Now;
@@ -64,9 +69,8 @@
   {
     _date = Scale.Period;
     if (Scale.Id == 0) Scale.Period = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-    
-    _categories = await CategoryService.GetByUnionAsync(UnionId);
-    if (Scale.Id == 0) Scale.UnionId = UnionId;
+
+    _categories = await CategoryService.GetByRamaAsync(RamaId);
   }
 
   private void Cancel() => MudDialog.Cancel();

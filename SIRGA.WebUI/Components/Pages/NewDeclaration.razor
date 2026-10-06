@@ -460,7 +460,23 @@ else
   {
     try
     {
-      _currentScales = await ScaleService.GetByUnionAsync(_selectedUnionId);
+      // Las escalas y las categorías son de la RAMA del sindicato (son nacionales por convenio), no del
+      // sindicato. Sin rama asignada no se puede calcular ningún mínimo.
+      var ramaId = SelectedUnion?.RamaId ?? 0;
+      if (ramaId == 0)
+      {
+        _currentScales = new();
+        if (_selectedUnionId > 0)
+        {
+          Snackbar.Add(
+              "El sindicato elegido no tiene rama de actividad asignada, así que no se pueden calcular los " +
+              "mínimos de escala. Asignásela en la pantalla de Sindicatos.",
+              Severity.Warning);
+        }
+        return;
+      }
+
+      _currentScales = await ScaleService.GetByRamaAsync(ramaId);
       // Periodo exacto; si no existe, congelar la escala más reciente anterior (fallback)
       var targetDate = new DateTime(_year, _month, 1);
       var available = _currentScales.Where(s => s.Period <= targetDate).ToList();
@@ -476,7 +492,9 @@ else
     }
     catch (Exception ex)
     {
-      Console.WriteLine($"Error al cargar escalas: {ex.Message}");
+      // Antes esto iba sólo a la consola: la pantalla quedaba con los mínimos en cero y no había forma
+      // de saber que la carga de escalas había fallado. No hay fallos silenciosos.
+      Snackbar.Add("No se pudieron cargar las escalas salariales: " + ex.Message, Severity.Error);
       _currentScales = new();
     }
   }

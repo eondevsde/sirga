@@ -776,12 +776,12 @@ namespace SIRGA.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<int>("UnionId")
+                    b.Property<int>("RamaId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UnionId");
+                    b.HasIndex("RamaId");
 
                     b.ToTable("EmployeeCategories");
                 });
@@ -1238,14 +1238,9 @@ namespace SIRGA.Infrastructure.Migrations
                     b.Property<DateTime>("Period")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("UnionId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
 
                     b.HasIndex("EmployeeCategoryId");
-
-                    b.HasIndex("UnionId");
 
                     b.ToTable("SalaryScales");
                 });
@@ -1765,13 +1760,13 @@ namespace SIRGA.Infrastructure.Migrations
 
             modelBuilder.Entity("SIRGA.Domain.Entities.EmployeeCategory", b =>
                 {
-                    b.HasOne("SIRGA.Domain.Entities.Union", "Union")
+                    b.HasOne("SIRGA.Domain.Entities.Rama", "Rama")
                         .WithMany("Categories")
-                        .HasForeignKey("UnionId")
+                        .HasForeignKey("RamaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Union");
+                    b.Navigation("Rama");
                 });
 
             modelBuilder.Entity("SIRGA.Domain.Entities.InspectionAct", b =>
@@ -1880,15 +1875,7 @@ namespace SIRGA.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("SIRGA.Domain.Entities.Union", "Union")
-                        .WithMany()
-                        .HasForeignKey("UnionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("EmployeeCategory");
-
-                    b.Navigation("Union");
                 });
 
             modelBuilder.Entity("SIRGA.Domain.Entities.SindicataryAssignment", b =>
@@ -2028,11 +2015,14 @@ namespace SIRGA.Infrastructure.Migrations
                     b.Navigation("Cities");
                 });
 
+            modelBuilder.Entity("SIRGA.Domain.Entities.Rama", b =>
+                {
+                    b.Navigation("Categories");
+                });
+
             modelBuilder.Entity("SIRGA.Domain.Entities.Union", b =>
                 {
                     b.Navigation("Assignments");
-
-                    b.Navigation("Categories");
 
                     b.Navigation("Declarations");
                 });

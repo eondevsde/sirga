@@ -3,8 +3,10 @@ namespace SIRGA.Application.DTOs;
 public class SalaryScaleDto
 {
   public int Id { get; set; }
-  public int UnionId { get; set; }
-  public string UnionName { get; set; } = "";
+
+  /// <summary>Rama de actividad del sindicato: las escalas son nacionales por rama, no por sindicato.</summary>
+  public int RamaId { get; set; }
+
   public DateTime Period { get; set; }
   public int EmployeeCategoryId { get; set; }
   public string CategoryCode { get; set; } = "";

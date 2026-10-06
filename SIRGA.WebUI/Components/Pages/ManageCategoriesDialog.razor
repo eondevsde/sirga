@@ -46,7 +46,7 @@
 
 @code {
   [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
-  [Parameter] public int UnionId { get; set; }
+  [Parameter] public int RamaId { get; set; }
 
   private List<EmployeeCategory> _categories = new();
   private EmployeeCategory _newCategory = new EmployeeCategory();
@@ -58,7 +58,7 @@
 
   private async Task LoadCategories()
   {
-    _categories = await CategoryService.GetByUnionAsync(UnionId);
+    _categories = await CategoryService.GetByRamaAsync(RamaId);
   }
 
   private async Task AddCategory()
@@ -69,7 +69,7 @@
       return;
     }
 
-    _newCategory.UnionId = UnionId;
+    _newCategory.RamaId = RamaId;
     await CategoryService.CreateAsync(_newCategory);
     _newCategory = new EmployeeCategory();
     await LoadCategories();
