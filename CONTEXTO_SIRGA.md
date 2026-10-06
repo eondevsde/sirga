@@ -4,7 +4,7 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 113 commits en `main` · 142/142 tests · build 0 avisos.
+Última actualización: **2026-10-06** · 1131 commits en `main` · 142/142 tests · build 0 avisos.
 
 ---
 
@@ -114,6 +114,22 @@ puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por
    como `TypeInitializationException`, al inicializar la clase). Se resuelve en `Program.cs`, que prueba
    `%TEMP%\sirga-questpdf` y si no `bin\...\questpdf-tmp`, **escribiendo de verdad** para comprobar. Se
    detectó porque un proceso lanzado con token restringido no podía escribir en `%TEMP%`.
+13. **Los literales de fecha `yyyy-mm-dd` se MALINTERPRETAN contra columnas `datetime`.** La sesión de
+   `sqlcmd` viene con `language = Español` y **`dateformat = dmy`**, y con eso `'2026-03-01'` contra un
+   `datetime` se lee como **año-día-mes**: queda **2026-01-03** (¡y no avisa!). Medido:
+
+   | Literal | Destino `date` | Destino `datetime` |
+   |---|---|---|
+   | `'2026-03-01'` | 2026-03-01 ✓ | **2026-01-03** ✗ |
+   | `'2006-07-01'` | 2006-07-01 ✓ | **2006-01-07** ✗ |
+   | `'2999-12-31'` | ok ✓ | **error** de conversión ✗ |
+
+   Consecuencia real: `WHERE Desde = '2006-07-01'` sobre un `datetime` devolvía **0 filas sin error**.
+   **Regla: contra `datetime`, escribir el literal SIN guiones (`'20060701'`), que nunca depende del
+   `dateformat`.** Con `date` el guionado funciona, pero conviene usar siempre la forma sin guiones.
+   Un `'1900-01-01'` zafa por casualidad (día y mes son el mismo número), así que los guionados que ya
+   existen en `script_sirga_db_upgrade_produccion.sql` **se verificaron y están bien**: no hay que
+   tocarlos.
 
 ---
 
