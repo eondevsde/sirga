@@ -44,6 +44,10 @@ public class SIRG_DbContext : IdentityDbContext
     // un sindicato puede operar con más de un banco y cada uno tiene su estructura de código de barras.
     public DbSet<Bank> Banks => Set<Bank>();
     public DbSet<UnionBankConfig> UnionBankConfigs => Set<UnionBankConfig>();
+
+    // Rama de actividad (convenio colectivo): las escalas y categorías son nacionales y dependen de la
+    // rama, no del sindicato. Varios sindicatos comparten la misma rama.
+    public DbSet<Rama> Ramas => Set<Rama>();
     public DbSet<CompanyStudioHistory> CompanyStudioHistories => Set<CompanyStudioHistory>();
     public DbSet<UnionAuditor> UnionAuditors => Set<UnionAuditor>();
 
