@@ -75,17 +75,35 @@ public class BoletaService(IUnitOfWork unitOfWork)
     // período, por el total. NO es el saldo (que puede venir con crédito aplicado o con intereses).
     decimal importePrimero = cabecera.TotalAmount;
 
-    // La tasa se busca a la fecha del PRIMER vencimiento: es cuando empieza a correr el recargo.
-    var (tasaMensual, normaTasa, esTasaPorDefecto) = await ObtenerTasaResarcitoriaAsync(primerVencimiento);
+    // RECARGO DEL 2° VENCIMIENTO = el interés resarcitorio por los días que van del 1° al 2° vencimiento:
+    // desde el día siguiente al 1° hasta el 2°, con la MISMA fórmula que la mora de la DDJJ (tasa diaria =
+    // mensual / 30 y fragmentado por tramos si el período cruza un cambio de tasa).
+    // Antes se prorrateaba por los días del mes; la especificación de ARCA dice /30 SIEMPRE.
+    var tasas = (await unitOfWork.InterestRates.GetAllAsync())
+        .Where(r => r.IsActive && r.TypeOfInterest == InterestType.Resarcitorio);
 
-    // El recargo se prorratea por los DÍAS DEL MES del segundo vencimiento, NO por 30.
-    // Medido contra la única boleta real que tenemos (GAMMAROTA: 644,96 sobre 72.703,76 en 10 días,
-    // con la tasa resarcitoria del 2,75%): 2,75% × 10/31 = 644,95 (falla 1 centavo), mientras que con
-    // /30 daba 666,45 (falla $21,49). La columna Diario del sistema anterior es Mensual/30, así que
-    // tampoco sirve para esto.
-    int diasDelMes = DateTime.DaysInMonth(segundoVencimiento.Year, segundoVencimiento.Month);
-    var (recargo, importeSegundo, porcentajeRecargo) =
-        CalcularRecargo(importePrimero, tasaMensual, configuracion.DaysToSecondDue, diasDelMes);
+    var resultadoRecargo = InterestCalculator.Calcular(importePrimero, primerVencimiento, segundoVencimiento, tasas);
+
+    if (resultadoRecargo.FaltaTasa)
+    {
+      // Sin tasa para todo el período no se puede saber cuánto cobrar el 2° vencimiento: se dice, no se
+      // emite una boleta con un recargo inventado.
+      return new BoletaArmadoResult(null,
+          $"No hay tasa de interés cargada para todo el período entre el 1° y el 2° vencimiento " +
+          $"({resultadoRecargo.DiasSinTasa} día(s) sin tasa). Cargala en Tasas de interés antes de emitir la boleta.",
+          null);
+    }
+
+    decimal recargo = resultadoRecargo.Interes;
+    decimal importeSegundo = importePrimero + recargo;
+    decimal porcentajeRecargo = importePrimero > 0 ? recargo / importePrimero : 0m;
+
+    // Si el período cruza más de un tramo, la boleta puede tener más de una norma: se listan todas.
+    string? normaTasa = resultadoRecargo.Tramos
+        .Select(t => t.Norma)
+        .Where(n => !string.IsNullOrWhiteSpace(n))
+        .Distinct()
+        .Aggregate((string?)null, (a, b) => a is null ? b : $"{a} / {b}");
 
     var codigo = BoletaBse.GenerarConConfiguracion(
         configuracion, cabecera.Period, cabecera.Cuit ?? string.Empty, importePrimero, importeSegundo);
@@ -103,7 +121,7 @@ public class BoletaService(IUnitOfWork unitOfWork)
       CuotaSindical = cabecera.CuotaSocio,
       Recargo = recargo,
       RecargoPorcentaje = Math.Round(porcentajeRecargo * 100m, 4),
-      DiasRecargo = configuracion.DaysToSecondDue,
+      DiasRecargo = resultadoRecargo.DiasMora,
       RecargoNorma = normaTasa,
       RecargoSerie = nameof(InterestType.Resarcitorio),
       PrimerVencimiento = primerVencimiento,
@@ -113,10 +131,12 @@ public class BoletaService(IUnitOfWork unitOfWork)
       CodigoBarras = codigo
     };
 
-    string? advertencia = esTasaPorDefecto
-        ? $"El recargo del 2° vencimiento ({datos.RecargoPorcentaje:0.####}% por {datos.DiasRecargo} días) " +
-          $"salió de la tasa POR DEFECTO de SIRGA ({tasaMensual * 100m:0.####}% mensual): no hay una tasa " +
-          $"resarcitoria cargada para la fecha del primer vencimiento ({primerVencimiento:dd/MM/yyyy})."
+    // Si el período entre vencimientos cruzó un cambio de tasa, se dice: el recargo está sumado por
+    // tramos y conviene que el estudio lo vea.
+    string? advertencia = resultadoRecargo.Tramos.Count > 1
+        ? "El período entre el 1° y el 2° vencimiento cruza más de un tramo de tasa: " +
+          string.Join(" + ", resultadoRecargo.Tramos.Select(t => $"{t.Dias} días al {t.TasaMensual * 100m:0.####}%")) +
+          "."
         : null;
 
     return new BoletaArmadoResult(datos, null, advertencia);
@@ -149,27 +169,4 @@ public class BoletaService(IUnitOfWork unitOfWork)
     bool esPorDefecto = vigente.EffectiveDate.Year <= 1900;
     return (vigente.MonthlyRate, vigente.Norm, esPorDefecto);
   }
-
-  /// <summary>
-  /// Recargo del segundo vencimiento: prorratea la tasa MENSUAL por los días entre vencimientos sobre
-  /// los **días del mes del vencimiento** (10/31 en agosto) y lo aplica sobre el importe del primero.
-  /// Devuelve también el porcentaje aplicado, para poder mostrarlo y auditarlo.
-  ///
-  /// Es público y estático para poder probarse: es la cuenta que define cuánto cobra el banco.
-  /// </summary>
-  /// <param name="diasDelMes">
-  /// Días del mes del segundo vencimiento (<c>DateTime.DaysInMonth</c> del mes que corresponde).
-  /// </param>
-  public static (decimal Recargo, decimal ImporteSegundo, decimal Porcentaje) CalcularRecargo(
-      decimal importePrimero, decimal tasaMensual, int dias, int diasDelMes)
-  {
-    if (dias <= 0) return (0m, importePrimero, 0m);
-
-    decimal porcentaje = tasaMensual * (dias / (decimal)Math.Max(diasDelMes, 1));
-    decimal recargo = Redondear(importePrimero * porcentaje);
-    return (recargo, importePrimero + recargo, porcentaje);
-  }
-
-  /// <summary>Redondeo de dinero a 2 decimales hacia afuera, igual que el resto del sistema.</summary>
-  private static decimal Redondear(decimal valor) => Math.Round(valor, 2, MidpointRounding.AwayFromZero);
 }

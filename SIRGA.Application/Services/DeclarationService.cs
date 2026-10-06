@@ -203,25 +203,28 @@ public class DeclarationService(
     var dueDate = new DateTime(nextMonth.Year, nextMonth.Month, 15);
 
     decimal interestAmount = 0;
-    if (DateTime.Now > dueDate && declaration.BalanceAmount > 0)
+    if (DateTime.Now.Date > dueDate.Date && declaration.BalanceAmount > 0)
     {
-      // Se filtra por serie RESARCITORIA, por rango de vigencia y por ACTIVAS. La tabla de tasas tiene
-      // DOS series por período: sin el filtro, esta consulta devolvía dos filas para la misma fecha y
-      // usaba cualquiera de las dos (no determinista). Las desactivadas no se usan.
-      var rates = await unitOfWork.InterestRates.GetAllAsync();
-      var currentRate = rates
-          .Where(r => r.IsActive
-                   && r.TypeOfInterest == InterestType.Resarcitorio
-                   && r.EffectiveDate <= DateTime.Now
-                   && (r.ValidTo == null || r.ValidTo >= DateTime.Now))
-          .OrderByDescending(r => r.EffectiveDate)
-          .FirstOrDefault()?.MonthlyRate ?? 0.03m;
+      // Interés resarcitorio por DÍAS y por TRAMOS de tasa (especificación de ARCA): desde el día
+      // siguiente al vencimiento hasta hoy, fragmentando el período si atraviesa un cambio de tasa.
+      // ANTES se calculaba por MESES ENTEROS con un mínimo de 1, así que pagar un día tarde costaba un
+      // mes completo de interés; y la tasa diaria era la mensual sobre los días del mes real.
+      var tasas = (await unitOfWork.InterestRates.GetAllAsync())
+          .Where(r => r.IsActive && r.TypeOfInterest == InterestType.Resarcitorio);
 
-      var monthsLate = ((DateTime.Now.Year - dueDate.Year) * 12) + DateTime.Now.Month - dueDate.Month;
-      if (monthsLate < 1) monthsLate = 1; // Mínimo un mes de interés si ya venció
-
-      interestAmount = declaration.BalanceAmount * currentRate * monthsLate;
+      var resultado = InterestCalculator.Calcular(declaration.BalanceAmount, dueDate, DateTime.Now, tasas);
+      interestAmount = resultado.Interes;
       declaration.BalanceAmount += interestAmount;
+
+      if (resultado.FaltaTasa)
+      {
+        // No debería pasar (la escala llega hasta hoy), pero si pasa hay que verlo: son días de mora sin
+        // tasa cargada, o sea interés cobrado de menos.
+        logger.LogError(
+            "La mora de la DDJJ {DeclarationId} tiene {Dias} día(s) sin tasa cargada: el interés puede estar " +
+            "incompleto. Revisar la escala de InterestRates.",
+            declaration.Id, resultado.DiasSinTasa);
+      }
     }
 
     // Generar Código de Barras ficticio para la boleta (Basado en CUIT + Periodo + Saldo/Total)

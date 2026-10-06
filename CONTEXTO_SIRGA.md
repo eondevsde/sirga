@@ -153,6 +153,16 @@ puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por
    (`diag_ddjj_cero.sql`) seguían usando `SalaryScales.UnionId`, que ya no existe: **fallaban al
    compilar** (y un batch no ejecuta nada si no compila). Ya se corrigieron; el que se agregue algo al
    esquema, que busque `UnionId` en los `.sql` antes de dar por cerrado el cambio.
+17. **No verificar cuentas de plata con SQL: SQL Server redondea la división `decimal` distinto que C#.**
+   Al verificar el interés, la misma fórmula dio en SQL **1.982,39** y en la app **1.982,53** (y 467,47
+   contra 467,50), porque `0.0275 / 30` no da lo mismo en los dos motores. **La app es C#**: las cuentas
+   se verifican con el motor real (una prueba temporal que cargue las tasas de la base), no con una
+   consulta. SQL sirve para *contar filas y ver datos*, no para rehacer una cuenta de dinero.
+18. **Dividir una tasa mensual por 30 da un decimal periódico: hay que redondear el tramo, no el total.**
+   `0,04 / 30 = 0,00133333...` hacía que un tramo de 15 días sobre 100.000 diera
+   **1.999,9999999999999999999999950** en vez de 2.000,00. Si se suman los tramos sin redondear, el
+   **desglose no cierra con el total** (y el desglose es lo que el estudio audita). Se redondea **cada
+   tramo** a 2 decimales y el total es la suma.
 
 ---
 
@@ -189,6 +199,30 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   (pesos 1-2 desde la derecha, DV con peso 2, complemento / 2).
 - **PDF de la boleta** (`BoletaPdfService`): **triplicado** — talón **cliente**, **banco** y
   **sindicato** — con el código dibujado vía ZXing + QuestPDF.
+- **Intereses resarcitorios: un solo motor, por DÍAS y por TRAMOS** (`InterestCalculator`, Application,
+  función pura y probable). Lo usan **los dos** cálculos de interés del sistema:
+  - la **mora de la DDJJ** (`DeclarationService`), y
+  - el **recargo del 2° vencimiento** de la boleta (`BoletaService`).
+  Regla implementada, según la **especificación de ARCA que pasó el usuario**:
+  1. Si paga **en término o antes**, el interés es **0**.
+  2. La mora corre **desde el día siguiente al vencimiento hasta la fecha de pago**, ambos inclusive.
+  3. La deuda se **fragmenta por tramos de tasa**: si el período atraviesa un cambio de tasa, cada parte
+     se calcula con la suya (ARCA las cambia bimestralmente).
+  4. **Tasa diaria = tasa mensual ÷ 30 SIEMPRE**, sin importar si el mes tiene 28, 29, 30 o 31 días.
+  5. Interés del tramo = capital × tasa diaria × días del tramo, **redondeado a 2 decimales**, y el total
+     es la suma de los tramos.
+  - **La escala migrada del sistema anterior ES la matriz de ARCA**: verificado contra los tres tramos
+    que pasó el usuario (01/02/2025-28/02/2025 = 7,26%; 01/03/2025-30/06/2025 = 4,00%; 01/07/2025 en
+    adelante = 2,75%) y sus tasas diarias dan exactas (0,00242 / 0,00133333 / 0,00091667).
+  - **Esto REEMPLAZÓ la convención anterior** (prorratear la tasa mensual por los días del mes) y también
+    la mora por **meses enteros con mínimo de 1**, que cobraba un mes completo por pagar un día tarde:
+    para una DDJJ de 102.988,71 del período 2026-08 pagada el 06/10, la regla vieja cobraba **2.832,19**
+    y la nueva cobra **1.982,53** (21 días reales).
+  - **OJO — pendiente de contrastar**: la **única boleta real que tenemos** (GAMMAROTA, 72.703,76 en 10
+    días) tiene impreso **644,96**, y con la regla /30 da **666,45** (diferencia 21,49). Con días del mes
+    daba 644,95. O sea que esa boleta parece haber usado días del mes, no /30. **Es una sola boleta**: hay
+    que contrastar con más (basta el número tipeado) para decidir si el banco/SIRGA usa otra convención.
+    Está anotado en `InterestCalculatorTests.BoletaRealGammarota_...` para que no se pierda.
 - **Botón para imprimir la boleta bancaria** (la que va al banco): está en el **historial de DDJJ** y también
   en el paso final de **Nueva DDJJ**. El armado de los datos está en `BoletaService` (Application), **no**
   en la pantalla: junta la DDJJ, la empresa, el sindicato y su **configuración bancaria** (`UnionBankConfigs`
@@ -207,8 +241,10 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   - **Verificado generando el PDF real** de la DDJJ **1737080** (ABDALA LLAMIL, período 2026-08,
     total 51.000): banco Santiago del Estero / Sucursal Central / cliente 18588639, 1er venc.
     15/09/2026 **$51.000,00** y 2do venc. 25/09/2026 **$51.467,50** (recargo 467,50 = 0,9167% por 10 días,
-    con la tasa **resarcitoria 2,75%** y el prorrateo por los 30 días de septiembre), y el código
+    con la tasa **resarcitoria 2,75%** y la **tasa diaria = mensual / 30** que manda ARCA), y el código
     `0134408260000020405264693126258000510000026268000514675003`. 1 página con los 3 talones.
+    (El número **no cambió** al pasar al motor de tramos: septiembre tiene 30 días, así que /30 y "días del
+    mes" coinciden.)
   - El **importe del 1er vencimiento es el TOTAL de la DDJJ**, no el saldo (que puede venir con crédito
     aplicado o con intereses).
   - Si el sindicato **no tiene configuración bancaria activa**, el botón **avisa** en pantalla en lugar
@@ -407,6 +443,13 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     la boleta a Application (o invertir la dependencia) para que el mail pueda usarlo. **Va junto con el
     pendiente del `PresencialBarCode`, que sigue guardando el código ficticio** (`001` + CUIT + período +
     importe) en lugar de los 58 dígitos reales del banco.
+15. **Confirmar la convención del recargo del 2° vencimiento con más boletas reales.** El motor nuevo usa
+    **tasa diaria = mensual / 30** (especificación de ARCA que pasó el usuario), pero la **única boleta
+    real** que tenemos (GAMMAROTA: 72.703,76 en 10 días) tiene impreso **644,96** y con /30 da **666,45**
+    (21,49 de diferencia); con días del mes daba 644,95. Con **una** boleta no alcanza para decidir si esa
+    boleta usó otra convención o si el número impreso está mal. Pidiendo 2 o 3 boletas más con recargo
+    (basta el importe) se cierra. **Afecta lo que cobra el banco**, así que conviene resolverlo antes de
+    emitir boletas en serio.
 
 ---
 
