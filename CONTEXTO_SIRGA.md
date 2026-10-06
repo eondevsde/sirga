@@ -4,7 +4,7 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 108 commits en `main` · 136/136 tests · build 0 avisos.
+Última actualización: **2026-10-06** · 110 commits en `main` · 136/136 tests · build 0 avisos.
 
 ---
 
