@@ -186,6 +186,19 @@ public class DeclarationService(
     decimal amountToPay = declaration.BalanceAmount > 0 ? declaration.BalanceAmount : 0;
     declaration.PresencialBarCode = $"001{branch.Cuit}{request.Period.Replace("-", "")}{((int)(amountToPay * 100)):D10}";
 
+    // Ninguna DDJJ se guarda en cero SIN JUSTIFICACIÓN. Si no se calculó ningún importe y hay
+    // empleados asignados, es un problema de datos (el código de categoría del empleado no existe
+    // entre las categorías del sindicato, o no hay escala para esa categoría) y hay que verlo: una
+    // DDJJ presentada en cero la rechaza el sindicato, y guardarla como si estuviera bien es peor que
+    // fallar. El único cero legítimo es el de un empleado con licencia médica, que se declara aparte.
+    if (totalAmount == 0 && assignments.Any())
+    {
+      throw new Exception(
+          $"No se guardó la DDJJ: ninguno de los {assignments.Count()} empleados de la empresa tiene " +
+          $"categoría con escala salarial para el período {request.Period}. Revisá los códigos de " +
+          "categoría de los empleados contra las categorías cargadas del sindicato.");
+    }
+
     // Si se reanudó un borrador existente, la cabecera ya está en la base: se actualiza. Si es nueva,
     // se inserta. Con AddAsync sobre una entidad ya existente, EF intentaría insertar el mismo Id.
     if (existingDraft != null)
