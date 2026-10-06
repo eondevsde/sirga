@@ -1,4 +1,5 @@
 @using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
 @using System.ComponentModel.DataAnnotations
 
 <MudDialog>
@@ -19,6 +20,17 @@
       <MudTextField Label="Email Administrador (Usuario Sindicato)" @bind-Value="_model.AdminEmail"
                     For="@(() => _model.AdminEmail)" HelperText="Email con el que el sindicato ingresará al sistema" Class="mb-4" />
 
+      @* Rama de actividad (el convenio). Es lo que va a permitir que las escalas cuelguen de la rama
+         y no de cada sindicato: varios sindicatos comparten la misma rama. *@
+      <MudSelect T="int?" Label="Rama de actividad" Value="_model.RamaId"
+                 ValueChanged="@((int? v) => _model.RamaId = v)" Clearable="true"
+                 HelperText="El convenio del sindicato (varios sindicatos comparten la misma rama)" Class="mb-4">
+        @foreach (var rama in _ramas)
+        {
+          <MudSelectItem T="int?" Value="@((int?)rama.Id)">@rama.Name (@rama.Code)</MudSelectItem>
+        }
+      </MudSelect>
+
       <MudSwitch @bind-Value="_model.IsActive" Label="Activo" Color="Color.Primary" />
     </MudForm>
   </DialogContent>
@@ -32,7 +44,26 @@
   [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
   [Parameter] public UnionDto _model { get; set; } = new();
 
+  [Inject] private UnionService UnionService { get; set; } = null!;
+  [Inject] private ISnackbar Snackbar { get; set; } = null!;
+
   private MudForm _form = null!;
+  private List<Rama> _ramas = new();
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      _ramas = (await UnionService.GetRamasAsync()).ToList();
+    }
+    catch (Exception ex)
+    {
+      // Si no se pueden traer las ramas, se avisa: sin esto el combo queda vacío y parece que no hay
+      // ninguna, que es distinto de que la consulta haya fallado.
+      Snackbar.Add("No se pudieron cargar las ramas de actividad: " + ex.Message, Severity.Warning);
+      _ramas = new();
+    }
+  }
 
   private async Task Submit()
   {

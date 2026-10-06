@@ -25,6 +25,7 @@ public interface IUnitOfWork : IDisposable
   IRepository<SalaryScale> SalaryScales { get; }
   IRepository<AccountingStudio> AccountingStudios { get; }
   IRepository<InterestRate> InterestRates { get; }
+  IRepository<Rama> Ramas { get; }
   IRepository<PaymentTransaction> PaymentTransactions { get; }
   IRepository<CompanyBalance> CompanyBalances { get; }
   IRepository<BalanceHistory> BalanceHistories { get; }

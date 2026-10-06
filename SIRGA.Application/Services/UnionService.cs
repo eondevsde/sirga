@@ -78,6 +78,7 @@ public class UnionService
   public async Task<IEnumerable<UnionDto>> GetAllAsync()
   {
     var unions = await _unitOfWork.Unions.GetAllAsync();
+    var ramas = await NombresDeRamasAsync();
     return unions.Select(u => new UnionDto
     {
       Id = u.Id,
@@ -88,9 +89,23 @@ public class UnionService
       AdminEmail = u.AdminEmail,
       IsActive = u.IsActive,
       LawContributionPercentage = u.LawContributionPercentage,
-      UnionMemberPercentage = u.UnionMemberPercentage
+      UnionMemberPercentage = u.UnionMemberPercentage,
+      RamaId = u.RamaId,
+      RamaName = u.RamaId is int rid && ramas.TryGetValue(rid, out var nombre) ? nombre : null
     });
   }
+
+  /// <summary>Ramas de actividad, para poder asignarle una a cada sindicato.</summary>
+  public async Task<IEnumerable<Rama>> GetRamasAsync()
+      => (await _unitOfWork.Ramas.GetAllAsync()).OrderBy(r => r.Name).ToList();
+
+  /// <summary>Id -> nombre de las ramas, para no hacer una consulta por sindicato.</summary>
+  private async Task<Dictionary<int, string>> NombresDeRamasAsync()
+      => (await _unitOfWork.Ramas.GetAllAsync()).ToDictionary(r => r.Id, r => r.Name);
+
+  /// <summary>Nombre de una rama puntual (para traer un solo sindicato).</summary>
+  private async Task<string?> NombreDeRamaAsync(int ramaId)
+      => (await _unitOfWork.Ramas.GetByIdAsync(ramaId))?.Name;
 
   public async Task<UnionDto?> GetByIdAsync(int id)
   {
@@ -106,7 +121,9 @@ public class UnionService
       AdminEmail = union.AdminEmail,
       IsActive = union.IsActive,
       LawContributionPercentage = union.LawContributionPercentage,
-      UnionMemberPercentage = union.UnionMemberPercentage
+      UnionMemberPercentage = union.UnionMemberPercentage,
+      RamaId = union.RamaId,
+      RamaName = union.RamaId is null ? null : await NombreDeRamaAsync(union.RamaId.Value)
     };
   }
 
@@ -125,7 +142,9 @@ public class UnionService
       AdminEmail = union.AdminEmail,
       IsActive = union.IsActive,
       LawContributionPercentage = union.LawContributionPercentage,
-      UnionMemberPercentage = union.UnionMemberPercentage
+      UnionMemberPercentage = union.UnionMemberPercentage,
+      RamaId = union.RamaId,
+      RamaName = union.RamaId is null ? null : await NombreDeRamaAsync(union.RamaId.Value)
     };
   }
 
@@ -150,7 +169,8 @@ public class UnionService
       JurisdictionCity = dto.JurisdictionCity,
       CctCode = dto.CctCode,
       AdminEmail = dto.AdminEmail,
-      IsActive = dto.IsActive
+      IsActive = dto.IsActive,
+      RamaId = dto.RamaId
     };
 
     await _unitOfWork.Unions.AddAsync(union);
@@ -168,6 +188,7 @@ public class UnionService
     union.CctCode = dto.CctCode;
     union.AdminEmail = dto.AdminEmail;
     union.IsActive = dto.IsActive;
+    union.RamaId = dto.RamaId;
 
     await _unitOfWork.Unions.UpdateAsync(union);
     await _unitOfWork.CompleteAsync();

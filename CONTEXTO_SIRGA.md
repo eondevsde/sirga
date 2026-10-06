@@ -199,7 +199,16 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   tiraba una excepción y dejaba al usuario sin salida).
 - **Pestaña SQL** en el GUI de DSH: sólo lectura, doble candado (lista negra + transacción con ROLLBACK),
   sólo `SIRGA_DB` y `Sindicato`.
-- **Tabla `Ramas`** creada (paso 1 de separar las escalas del sindicato).
+- **Tabla `Ramas`** creada (paso 1 de separar las escalas del sindicato), y **paso 2 hecho**: la rama
+  **Comercio (130/75)** está creada y **los 2 sindicatos quedaron vinculados** (`Unions.RamaId`, migración
+  `LinkUnionsToRama`, script idempotente `script_sirga_db_ramas_vincular_sindicatos.sql`, 0 sin rama).
+  Se agregó el repositorio `Ramas` a la `IUnitOfWork` (con el mismo contexto y semáforo), se puede
+  asignar la rama desde la pantalla de Sindicatos, y la grilla avisa **"Sin rama"** cuando falta.
+  - **Ojo**: La Banda (sindicato 20) tiene el `CctCode` en **`"PENDIENTE"`**; se vinculó a Comercio por su
+    nombre y porque la propia documentación de `Rama` dice que comparten 130/75. **Falta completarle el
+    CctCode.**
+  - Al editar un sindicato, el diálogo tiene que devolver `RamaId` (y los porcentajes): si no, guardar
+    **borra la rama** sin avisar. Ya está corregido en `Unions.razor`.
 - **Tasas de interés migradas del sistema anterior** (`Sindicato.dbo.Intereses` → `InterestRates`):
   **74 filas**, **37 por cada serie** (resarcitoria y punitoria), de **1901-01-01** al **2025-07-01**.
   Script idempotente `script_sirga_db_intereses_desde_sistema_anterior.sql`, respaldo en
@@ -271,12 +280,17 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    > > el mínimo: sólo agrega la cuota socio del 2%.
    > > **Falta que el usuario lo verifique en pantalla** (los clics y lo visual no los puede hacer un
    > > agente) y que diga si quedan **otras** correcciones sin detallar.
-2. **Modelo de ramas, pasos 2 a 4**: vincular `Unions` a `Rama`; pasar `EmployeeCategories` y
-   `SalaryScales` a colgar de la **rama**; y recién al final cambiar las consultas que filtran por
-   `UnionId` para que filtren por la rama del sindicato. **Las escalas son nacionales y dependen de la
-   rama** (Comercio 130/75, Panaderos, Farmacéuticos...), no de la ciudad: hoy hay que copiarlas por
-   sindicato, que es el error que este modelo corrige. El paso 4 toca el cálculo de la DDJJ: **hacerlo
-   descansado y con la prueba al lado**.
+2. **Modelo de ramas, pasos 3 y 4** (el **paso 2 ya está hecho**: ver "Hecho"): falta pasar
+   `EmployeeCategories` y `SalaryScales` a colgar de la **rama**, y recién al final cambiar las consultas
+   que filtran por `UnionId` para que filtren por la rama del sindicato. **Las escalas son nacionales y
+   dependen de la rama** (Comercio 130/75, Panaderos, Farmacéuticos...), no de la ciudad: hoy hay que
+   copiarlas por sindicato, que es el error que este modelo corrige. El paso 4 toca el cálculo de la DDJJ
+   y el de la boleta: **hacerlo descansado y con la prueba al lado**.
+   > **Antes de empezar el paso 3, mirar esto** (medido): hoy **sólo el sindicato 19 tiene escalas**
+   > (**1.339** filas en **62** períodos) y **categorías** (**21**); el sindicato 20 **no tiene ninguna**.
+   > Migrar las escalas a la rama implica decidir qué pasa cuando dos sindicatos de la misma rama tengan
+   > escalas distintas (hoy no pasa, pero el paso 3 lo tiene que resolver: o se unifican o hay que
+   > definir la precedencia).
 3. ~~**Botón de imprimir la boleta** que dispare el PDF ya escrito.~~ **HECHO (2026-10-06)**: está en el
    historial de DDJJ, y el recargo ya usa la **tasa real migrada** (ver punto 4).
 4. **Recargo del 2° vencimiento**: 10 días después del 1° (configurable), con la tasa de `InterestRates`.
@@ -310,7 +324,8 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 8. **Alcance del Auditor** en las pantallas que faltan (dashboard, inspection-stats, inspectors,
    union/inspection, legal-notices, admin/payments, unions) y en los endpoints de export.
 9. **Bug del eje Y** en `CollectionsReport.razor:74` (los valores son múltiplos exactos de MiB).
-10. **Calidad de datos**: 7 empleados sin nombre; empresas cuyo `BusinessName` es un CUIT o un fragmento.
+10. **Calidad de datos**: 7 empleados sin nombre; empresas cuyo `BusinessName` es un CUIT o un fragmento;
+    **el `CctCode` del sindicato 20 (La Banda) está en `"PENDIENTE"`** y debería ser `130/75`.
     (`AntiguedadPercentage = 0` en las 1.339 escalas **ya está resuelto**: se cargó el 1%.)
 11. ~~**`DeclarationService` se come los errores del PDF y del mail en silencio**~~ **HECHO (2026-10-06)**:
     se le inyectó `ILogger<DeclarationService>` y el `catch` vacío pasó a registrar el error con el id

@@ -40,6 +40,9 @@ public class UnitOfWork : IUnitOfWork
     UnionAuditors = new Repository<UnionAuditor>(_context, dbLock);
     Banks = new Repository<Bank>(_context, dbLock);
     UnionBankConfigs = new Repository<UnionBankConfig>(_context, dbLock);
+    // Mismo contexto y mismo semáforo que el resto: si se construyera con otro contexto, las
+    // escrituras se perderían en silencio al llamar a CompleteAsync.
+    Ramas = new Repository<Rama>(_context, dbLock);
   }
 
   public IRepository<Employee> Employees { get; }
@@ -73,6 +76,7 @@ public class UnitOfWork : IUnitOfWork
   // resto, para que CompleteAsync() guarde lo que escriben.
   public IRepository<Bank> Banks { get; }
   public IRepository<UnionBankConfig> UnionBankConfigs { get; }
+  public IRepository<Rama> Ramas { get; }
 
   public async Task<int> CompleteAsync()
   {

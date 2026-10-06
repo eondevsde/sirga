@@ -1346,10 +1346,15 @@ namespace SIRGA.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int?>("RamaId")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("UnionMemberPercentage")
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("RamaId");
 
                     b.ToTable("Unions");
                 });
@@ -1911,6 +1916,15 @@ namespace SIRGA.Infrastructure.Migrations
                     b.Navigation("Employee");
 
                     b.Navigation("Union");
+                });
+
+            modelBuilder.Entity("SIRGA.Domain.Entities.Union", b =>
+                {
+                    b.HasOne("SIRGA.Domain.Entities.Rama", "Rama")
+                        .WithMany()
+                        .HasForeignKey("RamaId");
+
+                    b.Navigation("Rama");
                 });
 
             modelBuilder.Entity("SIRGA.Domain.Entities.UnionAuditor", b =>

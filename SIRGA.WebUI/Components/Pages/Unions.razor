@@ -29,6 +29,7 @@
       <MudTh>ID</MudTh>
       <MudTh>Nombre</MudTh>
       <MudTh>CCT</MudTh>
+      <MudTh>Rama</MudTh>
       <MudTh>Provincia</MudTh>
       <MudTh>Ciudad</MudTh>
       <MudTh>Estado</MudTh>
@@ -38,6 +39,18 @@
       <MudTd DataLabel="ID">@context.Id</MudTd>
       <MudTd DataLabel="Nombre">@context.Name</MudTd>
       <MudTd DataLabel="CCT">@context.CctCode</MudTd>
+      <MudTd DataLabel="Rama">
+        @if (string.IsNullOrWhiteSpace(context.RamaName))
+        {
+          @* Un sindicato sin rama no es lo mismo que uno con rama vacía: se dice, porque hasta que la
+             tenga no se pueden colgar bien las escalas. *@
+          <MudChip T="string" Size="Size.Small" Color="Color.Warning">Sin rama</MudChip>
+        }
+        else
+        {
+          @context.RamaName
+        }
+      </MudTd>
       <MudTd DataLabel="Provincia">@context.JurisdictionProvince</MudTd>
       <MudTd DataLabel="Ciudad">@context.JurisdictionCity</MudTd>
       <MudTd DataLabel="Estado">
@@ -135,7 +148,12 @@
         JurisdictionProvince = union.JurisdictionProvince,
         JurisdictionCity = union.JurisdictionCity,
         AdminEmail = union.AdminEmail,
-        IsActive = union.IsActive
+        IsActive = union.IsActive,
+        // Estos tres tienen que venir copiados: el diálogo devuelve el DTO y UpdateAsync escribe lo que
+        // traiga. Si no se copian, editar el sindicato le borra la rama (y los porcentajes) sin avisar.
+        RamaId = union.RamaId,
+        LawContributionPercentage = union.LawContributionPercentage,
+        UnionMemberPercentage = union.UnionMemberPercentage
       }
     };
         

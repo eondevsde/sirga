@@ -19,4 +19,10 @@ public class UnionDto
 
   /// <summary>Porcentaje de la cuota de socio (sólo se aplica a los afiliados).</summary>
   public decimal UnionMemberPercentage { get; set; } = 2m;
+
+  /// <summary>Rama de actividad (el convenio). Nullable: un sindicato puede no tenerla asignada.</summary>
+  public int? RamaId { get; set; }
+
+  /// <summary>Nombre de la rama, para mostrarlo sin tener que buscarlo.</summary>
+  public string? RamaName { get; set; }
 }
