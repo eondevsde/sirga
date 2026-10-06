@@ -1,29 +1,12 @@
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using SIRGA.Application.DTOs;
 using SIRGA.Application.Services;
 using ZXing;
 using ZXing.Common;
 
 namespace SIRGA.WebUI.Services;
-
-/// <summary>Datos que se imprimen en la boleta de pago.</summary>
-public record DatosBoleta(
-    string Sindicato,
-    string Banco,
-    string Sucursal,
-    string NumeroCliente,
-    string RazonSocial,
-    string Cuit,
-    string Periodo,
-    decimal AporteLey,
-    decimal CuotaSindical,
-    decimal Recargo,
-    DateTime PrimerVencimiento,
-    decimal ImportePrimerVencimiento,
-    DateTime SegundoVencimiento,
-    decimal ImporteSegundoVencimiento,
-    string CodigoBarras);
 
 /// <summary>
 /// Boleta de pago para el cobro en el banco, en PDF y por TRIPLICADO: talón para el CLIENTE, talón para
@@ -31,10 +14,13 @@ public record DatosBoleta(
 ///
 /// El código de barras se dibuja a partir del patrón que genera ZXing: se arma una fila con las barras
 /// como rectángulos, así no hace falta ninguna imagen ni una librería de dibujo extra.
+///
+/// Este servicio sólo DIBUJA: los datos los arma <see cref="BoletaService"/> (capa de negocio). Antes
+/// tenía su propio record de datos y nadie lo llamaba, porque faltaba justamente quien lo armara.
 /// </summary>
 public class BoletaPdfService
 {
-  public byte[] Generar(DatosBoleta boleta)
+  public byte[] Generar(BoletaDatosDto boleta)
   {
     ArgumentNullException.ThrowIfNull(boleta);
 
@@ -64,7 +50,7 @@ public class BoletaPdfService
     }).GeneratePdf();
   }
 
-  private static void Talon(IContainer contenedor, DatosBoleta boleta, string etiquetaTalon)
+  private static void Talon(IContainer contenedor, BoletaDatosDto boleta, string etiquetaTalon)
   {
     contenedor.Border(1).BorderColor(Colors.Grey.Medium).Padding(10).Column(columna =>
     {

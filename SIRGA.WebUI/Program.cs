@@ -101,6 +101,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<AccountingStudioService>();
 builder.Services.AddScoped<IPaymentService, MercadoPagoService>();
 builder.Services.AddScoped<PdfReportService>();
+// Arma los datos de la boleta bancaria (vencimientos, recargo y código de barras) a partir de la DDJJ.
+builder.Services.AddScoped<BoletaService>();
 // Boleta de pago del banco, en PDF y por triplicado (talón cliente, banco y sindicato).
 builder.Services.AddScoped<SIRGA.WebUI.Services.BoletaPdfService>();
 builder.Services.AddScoped<IReportService, ExcelReportService>();
@@ -122,6 +124,33 @@ builder.Services.AddScoped<UnionSubscriptionService>();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+// QuestPDF (boletas y reportes) escribe archivos temporales mientras arma el PDF. Si %TEMP% no es
+// escribible, la generación falla con "Unable to find a suitable temporary storage location" y la
+// boleta NO sale. Pasa, por ejemplo, cuando el proceso corre con un token restringido. Se prueban
+// carpetas escribiendo de verdad y se usa la primera que sirva; si ninguna sirve se deja el
+// comportamiento por defecto de QuestPDF (no se aborta el arranque por esto).
+foreach (var carpetaTemporal in new[]
+         {
+             Path.Combine(Path.GetTempPath(), "sirga-questpdf"),
+             Path.Combine(AppContext.BaseDirectory, "questpdf-tmp")
+         })
+{
+    try
+    {
+        Directory.CreateDirectory(carpetaTemporal);
+        var prueba = Path.Combine(carpetaTemporal, $"prueba-{Guid.NewGuid():N}.tmp");
+        File.WriteAllText(prueba, "x");
+        File.Delete(prueba);
+
+        QuestPDF.Settings.TemporaryStoragePath = carpetaTemporal;
+        break;
+    }
+    catch
+    {
+        // No era escribible: se prueba la siguiente.
+    }
+}
 
 // Seed de Datos Iniciales
 using (var scope = app.Services.CreateScope())

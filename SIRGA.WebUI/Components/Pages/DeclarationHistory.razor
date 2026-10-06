@@ -6,6 +6,8 @@
 @inject ISnackbar Snackbar
 @inject SIRGA.Application.Services.PdfReportService PdfService
 @inject SIRGA.Application.Services.DeclarationService DeclarationService
+@inject SIRGA.Application.Services.BoletaService BoletaService
+@inject SIRGA.WebUI.Services.BoletaPdfService BoletaPdfService
 @inject IJSRuntime JSRuntime
 
 <PageTitle>SIRGA - Historial de DDJJ</PageTitle>
@@ -45,6 +47,10 @@ else
         </MudChip>
       </MudTd>
       <MudTd DataLabel="Acciones" Style="text-align:right">
+        <MudTooltip Text="Imprimir la boleta bancaria (BSE), por triplicado: cliente, banco y sindicato">
+          <MudIconButton Icon="@Icons.Material.Filled.Print" Color="Color.Primary"
+                         OnClick="@(() => OnImprimirBoletaBancaria(context))" />
+        </MudTooltip>
         <MudTooltip Text="Re-descargar Boleta PDF">
           <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error"
                          OnClick="@(() => OnDownloadPdf(context))" />
@@ -123,6 +129,45 @@ else
     catch (Exception ex)
     {
       Snackbar.Add("Error al generar PDF: " + ex.Message, Severity.Error);
+    }
+  }
+
+  /// <summary>
+  /// Imprime la boleta BANCARIA: la que va al banco con el código de barras de 58 dígitos, por
+  /// triplicado. Los datos los arma BoletaService (Application) y los dibuja BoletaPdfService: la
+  /// pantalla no calcula importes ni vencimientos, sólo pide y descarga.
+  /// </summary>
+  private async Task OnImprimirBoletaBancaria(DeclarationResponseDto declaration)
+  {
+    try
+    {
+      var armado = await BoletaService.ArmarAsync(declaration.Id);
+
+      if (armado.Datos is null)
+      {
+        // Motivo concreto (sin configuración bancaria, período inválido, etc.) en lugar de un PDF vacío.
+        Snackbar.Add(armado.Error ?? "No se pudo armar la boleta bancaria.", Severity.Error);
+        return;
+      }
+
+      var datos = armado.Datos;
+      var pdfBytes = BoletaPdfService.Generar(datos);
+      var fileName = $"BoletaBancaria_{datos.Periodo}_{datos.Cuit}.pdf";
+      await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, Convert.ToBase64String(pdfBytes));
+
+      Snackbar.Add(
+          $"Boleta bancaria emitida. 1° venc. {datos.PrimerVencimiento:dd/MM/yyyy}: {datos.ImportePrimerVencimiento:C2} · " +
+          $"2° venc. {datos.SegundoVencimiento:dd/MM/yyyy}: {datos.ImporteSegundoVencimiento:C2}",
+          Severity.Success);
+
+      // El recargo puede salir de la tasa por defecto (la escala de AFIP no está cargada): se avisa
+      // en vez de dejar una boleta con un importe provisorio sin que nadie lo sepa.
+      if (!string.IsNullOrWhiteSpace(armado.Advertencia))
+        Snackbar.Add(armado.Advertencia, Severity.Warning);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al generar la boleta bancaria: " + ex.Message, Severity.Error);
     }
   }
 }

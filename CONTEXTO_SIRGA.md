@@ -4,7 +4,7 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 111 commits en `main` · 136/136 tests · build 0 avisos.
+Última actualización: **2026-10-06** · 112 commits en `main` · 142/142 tests · build 0 avisos.
 
 ---
 
@@ -109,6 +109,11 @@ puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por
    `Invoke-WebRequest http://localhost:5122/_content/MudBlazor/MudBlazor.min.css` → tiene que dar 200
    (≈594 KB). Después de arreglarlo, el navegador necesita **recarga forzada (Ctrl+F5)**, porque quedó
    con el CSS roto en caché.
+12. **QuestPDF necesita una carpeta temporal escribible.** Si `%TEMP%` no se puede escribir, la
+   generación del PDF **revienta** con `Unable to find a suitable temporary storage location` (y encima
+   como `TypeInitializationException`, al inicializar la clase). Se resuelve en `Program.cs`, que prueba
+   `%TEMP%\sirga-questpdf` y si no `bin\...\questpdf-tmp`, **escribiendo de verdad** para comprobar. Se
+   detectó porque un proceso lanzado con token restringido no podía escribir en `%TEMP%`.
 
 ---
 
@@ -143,8 +148,20 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   carácter por carácter. Fechas julianas `aaddd`, "datos generales" = período + CUIT, dígito verificador
   (pesos 1-2 desde la derecha, DV con peso 2, complemento / 2).
 - **PDF de la boleta** (`BoletaPdfService`): **triplicado** — talón **cliente**, **banco** y
-  **sindicato** — con el código dibujado vía ZXing + QuestPDF. *Escrito y compilando; todavía sin botón
-  que lo dispare.*
+  **sindicato** — con el código dibujado vía ZXing + QuestPDF.
+- **Botón para imprimir la boleta bancaria** (la que va al banco), en el **historial de DDJJ**
+  (`/declarations/history` y `/empresa/{id}/historial`), al lado del PDF viejo. El armado de los datos
+  está en `BoletaService` (Application), **no** en la pantalla: junta la DDJJ, la empresa, el sindicato
+  y su **configuración bancaria** (`UnionBankConfigs` + `Banks`), calcula los dos vencimientos y genera
+  el **código de barras de 58 dígitos**. La pantalla sólo pide y descarga.
+  - **Verificado generando el PDF real** de la DDJJ **1737080** (ABDALA LLAMIL, período 2026-08,
+    total 51.000): banco Santiago del Estero / Sucursal Central / cliente 18588639, 1er venc.
+    15/09/2026 $51.000,00 y 2do venc. 25/09/2026 $51.510,00, y el código
+    `0134408260000020405264693126258000510000026268000515100004`. 1 página con los 3 talones.
+  - El **importe del 1er vencimiento es el TOTAL de la DDJJ**, no el saldo (que puede venir con crédito
+    aplicado o con intereses).
+  - Si el sindicato **no tiene configuración bancaria activa**, el botón **avisa** en pantalla en lugar
+    de emitir una boleta inventada.
 - **Categorías de los empleados migradas** desde `maesoc`: **9.586** asignaciones activas (quedan **7**
   sin resolver, empleados con `FullName = "SIN NOMBRE"`). Respaldo en
   `dbo._BackupAssignmentsCategoryCode`.
@@ -208,11 +225,20 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    rama** (Comercio 130/75, Panaderos, Farmacéuticos...), no de la ciudad: hoy hay que copiarlas por
    sindicato, que es el error que este modelo corrige. El paso 4 toca el cálculo de la DDJJ: **hacerlo
    descansado y con la prueba al lado**.
-3. **Botón de imprimir la boleta** que dispare el PDF ya escrito.
+3. ~~**Botón de imprimir la boleta** que dispare el PDF ya escrito.~~ **HECHO (2026-10-06)**: está en el
+   historial de DDJJ. Lo que **falta** es lo del punto 4 (la tasa real), porque el recargo del 2°
+   vencimiento sale hoy de la tasa por defecto y el botón lo **advierte** en pantalla.
 4. **Recargo del 2° vencimiento**: 10 días después del 1° (configurable), con la tasa de `InterestRates`.
    **Dato importante: la tabla de tasas tiene sólo el 3% por defecto; la escala de AFIP NO está cargada.**
    Caso de prueba real: la boleta de GAMMAROTA tenía recargo **$644,96 sobre $72.703,76 = 0,887% en 10
    días** → el cálculo tiene que reproducir ese número.
+   > **ESTADO (2026-10-06)**: el **mecanismo ya está implementado** en `BoletaService.CalcularRecargo`:
+   > prorratea la tasa MENSUAL por los días entre vencimientos (**días / 30**) y lo aplica sobre el total.
+   > Con el 3% por defecto y 10 días da **1,00%**, así que la boleta sale **con un 2° vencimiento
+   > provisorio** y la pantalla lo **advierte** con un cartel. **Lo que falta es cargar la escala real de
+   > AFIP**: con la tasa que implica el caso GAMMAROTA la fórmula reproduce los $644,96 (hay un test que
+   > lo deja anotado). **Falta que el usuario confirme la convención de días (/30)**, que es la única
+   > decisión que se tomó sin preguntar.
 5. **Licencia médica** (definido con el usuario): se **marca al cargar la DDJJ**, período a período, con
    **certificado adjunto**. El empleado con licencia genera un **detalle en cero con motivo** (el único
    cero legítimo).
@@ -225,6 +251,11 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 9. **Bug del eje Y** en `CollectionsReport.razor:74` (los valores son múltiplos exactos de MiB).
 10. **Calidad de datos**: 7 empleados sin nombre; empresas cuyo `BusinessName` es un CUIT o un fragmento.
     (`AntiguedadPercentage = 0` en las 1.339 escalas **ya está resuelto**: se cargó el 1%.)
+11. **`DeclarationService` se come los errores del PDF y del mail en silencio**: el bloque que genera la
+    boleta y manda el mail al estudio está dentro de `try { ... } catch { }` **sin log ni aviso**. Si la
+    generación del PDF falla (por ejemplo por la carpeta temporal, ver sección 4), **la DDJJ se guarda
+    igual y nadie se entera de que la boleta no salió**. Va contra la regla de "no hay fallos
+    silenciosos": hay que inyectar un logger y dejar el error visible, sin que eso haga fallar la DDJJ.
 
 ---
 
@@ -262,7 +293,7 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 
 ## 9. Cómo se verifica el trabajo
 
-- **Build con 0 avisos** y **tests en verde** antes de cada commit (hoy 136/136).
+- **Build con 0 avisos** y **tests en verde** antes de cada commit (hoy 142/142).
 - **Consultas contra la base** para probar afirmaciones de datos (no suponer: medir).
 - **Simulacro (dry-run) antes de cualquier escritura masiva**, con respaldo del estado anterior.
 - **Al terminar: la app queda levantada** en `http://localhost:5122` y **avisar al usuario** lo que no se
