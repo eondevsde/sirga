@@ -108,7 +108,11 @@ public static class BoletaBse
   }
 
   /// <summary>
-  /// Arma el código de 58 dígitos. Los importes se reciben ya calculados (el segundo, con su recargo).
+  /// Arma el código de 58 dígitos. Los importes se reciben ya calculados.
+  ///
+  /// El formato tiene DOS juegos de fecha+importe (así viene la boleta real del banco). La boleta de
+  /// SIRGA usa una sola fecha de vencimiento, así que los dos juegos van con el mismo valor; esta
+  /// sobrecarga con dos juegos distintos existe para poder reproducir una boleta real en las pruebas.
   /// </summary>
   public static string Generar(
       string codigoEnte,
@@ -180,33 +184,29 @@ public static class BoletaBse
     return new DateTime(anio, mes, 1).AddMonths(1).AddDays(Math.Max(diaDelMes, 1) - 1);
   }
 
-  /// <summary>Segundo vencimiento: el primero más los días configurados (10 por defecto).</summary>
-  public static DateTime SegundoVencimiento(DateTime primerVencimiento, int dias)
-      => primerVencimiento.AddDays(Math.Max(dias, 0));
-
   /// <summary>
-  /// Genera el código a partir de la configuración bancaria del sindicato: el código de ente y los
-  /// vencimientos salen de ahí, no de la lógica. Es la forma correcta de emitir la boleta, porque el
-  /// código de ente cambia por sindicato (0134, 0135, 0136, 0137).
+  /// Genera el código a partir de la configuración bancaria del sindicato, para **UNA sola fecha de
+  /// vencimiento**: la boleta de SIRGA ya no tiene 2° vencimiento.
+  ///
+  /// El FORMATO del banco tiene dos juegos de fecha+importe (así viene la boleta real), así que se repite
+  /// el mismo dato en los dos: el código sigue teniendo los 58 dígitos que el banco lee.
   /// </summary>
   public static string GenerarConConfiguracion(
       UnionBankConfig configuracion,
       string periodo,
       string cuit,
-      decimal importePrimerVencimiento,
-      decimal importeSegundoVencimiento)
+      DateTime vencimiento,
+      decimal importe)
   {
     ArgumentNullException.ThrowIfNull(configuracion);
-
-    var primerVencimiento = PrimerVencimiento(periodo, configuracion.FirstDueDay);
 
     return Generar(
         configuracion.EntityCode,
         periodo,
         cuit,
-        primerVencimiento,
-        importePrimerVencimiento,
-        SegundoVencimiento(primerVencimiento, configuracion.DaysToSecondDue),
-        importeSegundoVencimiento);
+        vencimiento,
+        importe,
+        vencimiento,
+        importe);
   }
 }

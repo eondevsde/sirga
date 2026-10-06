@@ -202,7 +202,8 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 - **Intereses resarcitorios: un solo motor, por DÍAS y por TRAMOS** (`InterestCalculator`, Application,
   función pura y probable). Lo usan **los dos** cálculos de interés del sistema:
   - la **mora de la DDJJ** (`DeclarationService`), y
-  - el **recargo del 2° vencimiento** de la boleta (`BoletaService`).
+  - el **interés de la boleta** (`BoletaService`): desde el día siguiente al vencimiento hasta la fecha de
+    pago declarada por el cliente, que además pasa a ser el vencimiento de la boleta.
   Regla implementada, según la **especificación de ARCA que pasó el usuario**:
   1. Si paga **en término o antes**, el interés es **0**.
   2. La mora corre **desde el día siguiente al vencimiento hasta la fecha de pago**, ambos inclusive.
@@ -226,27 +227,38 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 - **Botón para imprimir la boleta bancaria** (la que va al banco): está en el **historial de DDJJ** y también
   en el paso final de **Nueva DDJJ**. El armado de los datos está en `BoletaService` (Application), **no**
   en la pantalla: junta la DDJJ, la empresa, el sindicato y su **configuración bancaria** (`UnionBankConfigs`
-  + `Banks`), calcula los dos vencimientos y genera el **código de barras de 58 dígitos**. La pantalla sólo
-  pide y descarga.
+  + `Banks`) y genera el **código de barras de 58 dígitos**. La pantalla sólo pide y descarga.
+  - **LA BOLETA TIENE UNA SOLA FECHA DE VENCIMIENTO** (pedido del usuario, 2026-10-06): se eliminó el
+    **2° vencimiento**. Si la DDJJ **todavía no venció**, la boleta sale por el total con la fecha del
+    banco y **sin interés**. Si **ya venció**, al imprimir aparece el **modal `PaymentDateDialog`**, el
+    cliente indica **cuándo va a pagar**, y **esa fecha pasa a ser el vencimiento de la boleta** con el
+    **interés resarcitorio** desde el día siguiente al vencimiento original hasta ese día (motor
+    `InterestCalculator`). O sea: desde el primer día de mora la boleta ya sale con su interés.
+  - **Verificado con la DDJJ real 1737080** (ABDALA LLAMIL, período 2026-08, total 51.000; vence
+    15/09/2026): pagando el **20/10/2026** la boleta sale por **$52.636,25** = 51.000 + **1.636,25** de
+    interés (3,2083%, **35 días** al 2,75%, `R (MEC) 823/2025`), y el código
+    `0134408260000020405264693126293000526362526293000526362502`. Pagando el 10/09 (en término) sale por
+    $51.000,00 con vencimiento 15/09/2026 y **sin interés**.
+  - **El formato del banco tiene DOS juegos de fecha+importe** y la boleta usa uno solo: se **repite el
+    mismo** en los dos (lo eligió el usuario) para que el código siga teniendo los **58 dígitos** que el
+    banco lee. Verificado: la 1ª y la 2ª fecha son idénticas, y los dos importes también. `BoletaBse.Generar`
+    conserva la sobrecarga con dos juegos distintos sólo para reproducir una boleta real en las pruebas.
+  - `UnionBankConfig.DaysToSecondDue` (los 10 días al 2° vencimiento) **quedó sin uso**: ya no está en la
+    pantalla de Bancos ni en el armado. **La columna se dejó en la base a propósito** para no borrar
+    configuración del usuario (si hiciera falta volver atrás, el dato está). Ojo: el diálogo de
+    configuración **sigue copiando el valor** al editar, así que no se pisa al guardar.
   > **OJO: HAY DOS GENERADORES DE BOLETA DISTINTOS, Y ESO YA CONFUNDIÓ AL USUARIO.**
   > - `BoletaPdfService` (WebUI) = **la boleta del BANCO**: **3 talones** (cliente, banco, sindicato) con el
   >   código de barras real de 58 dígitos. Es la que se paga. La alimenta `BoletaService`.
   > - `PdfReportService.GeneratePaymentBoleta` (Application) = **comprobante interno de SIRGA**: **1 boleta**
   >   con membrete propio y **SIN código de barras del banco**.
-  > Medido abriendo los PDF: el triplicado tiene **48 bloques de texto (16 × 3 talones)** y **588
-  > rectángulos** (los 3 códigos); el interno, 29 bloques y **6 rectángulos**. Los dos botones eran íconos
-  > parecidos y la diferencia sólo se veía al pasar el mouse, así que el usuario imprimió el interno
-  > creyendo que era la boleta. Ahora **la del banco es un botón con texto** y el interno un ícono
-  > secundario avisado.
-  - **Verificado generando el PDF real** de la DDJJ **1737080** (ABDALA LLAMIL, período 2026-08,
-    total 51.000): banco Santiago del Estero / Sucursal Central / cliente 18588639, 1er venc.
-    15/09/2026 **$51.000,00** y 2do venc. 25/09/2026 **$51.467,50** (recargo 467,50 = 0,9167% por 10 días,
-    con la tasa **resarcitoria 2,75%** y la **tasa diaria = mensual / 30** que manda ARCA), y el código
-    `0134408260000020405264693126258000510000026268000514675003`. 1 página con los 3 talones.
-    (El número **no cambió** al pasar al motor de tramos: septiembre tiene 30 días, así que /30 y "días del
-    mes" coinciden.)
-  - El **importe del 1er vencimiento es el TOTAL de la DDJJ**, no el saldo (que puede venir con crédito
-    aplicado o con intereses).
+  > Medido abriendo los PDF: el triplicado tiene **51 bloques de texto (17 × 3 talones: los 16 de siempre más
+  > la línea de interés)** y **588 rectángulos** (los 3 códigos); el interno, 29 bloques y **6 rectángulos**.
+  > Los dos botones eran íconos parecidos y la diferencia sólo se veía al pasar el mouse, así que el usuario
+  > imprimió el interno creyendo que era la boleta. Ahora **la del banco es un botón con texto** y el interno
+  > un ícono secundario avisado.
+  - El **capital de la boleta es el TOTAL de la DDJJ**, no el saldo (que puede venir con crédito aplicado o
+    con la mora ya sumada al presentar). El interés se calcula sobre ese total.
   - Si el sindicato **no tiene configuración bancaria activa**, el botón **avisa** en pantalla en lugar
     de emitir una boleta inventada.
 - **Categorías de los empleados migradas** desde `maesoc`: **9.586** asignaciones activas (quedan **7**
@@ -443,13 +455,13 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     la boleta a Application (o invertir la dependencia) para que el mail pueda usarlo. **Va junto con el
     pendiente del `PresencialBarCode`, que sigue guardando el código ficticio** (`001` + CUIT + período +
     importe) en lugar de los 58 dígitos reales del banco.
-15. **Confirmar la convención del recargo del 2° vencimiento con más boletas reales.** El motor nuevo usa
-    **tasa diaria = mensual / 30** (especificación de ARCA que pasó el usuario), pero la **única boleta
-    real** que tenemos (GAMMAROTA: 72.703,76 en 10 días) tiene impreso **644,96** y con /30 da **666,45**
-    (21,49 de diferencia); con días del mes daba 644,95. Con **una** boleta no alcanza para decidir si esa
-    boleta usó otra convención o si el número impreso está mal. Pidiendo 2 o 3 boletas más con recargo
-    (basta el importe) se cierra. **Afecta lo que cobra el banco**, así que conviene resolverlo antes de
-    emitir boletas en serio.
+15. **Confirmar la convención de la tasa diaria con más boletas reales.** El motor usa **tasa diaria =
+    mensual / 30** (especificación de ARCA que pasó el usuario), pero la **única boleta real** que tenemos
+    (GAMMAROTA: 72.703,76, vencía el 12/08/2025 y tiene impreso un recargo de **644,96** por 10 días) da
+    **666,45** con /30 (21,49 de diferencia); con días del mes daba 644,95. Con **una** boleta no alcanza
+    para decidir si esa boleta usó otra convención o si el número impreso está mal. **Ya no afecta al 2°
+    vencimiento** (se eliminó), pero **sí afecta a la mora y al interés de la boleta**, o sea a lo que se
+    cobra. Pidiendo 2 o 3 boletas más (basta el importe, las fechas y el total) se cierra.
 
 ---
 

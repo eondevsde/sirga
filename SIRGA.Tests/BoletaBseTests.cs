@@ -71,12 +71,12 @@ public class BoletaBseTests
   }
 
   [Fact]
-  public void El_Primer_Vencimiento_Es_El_Dia_Configurado_Del_Mes_Siguiente()
+  public void El_Vencimiento_Es_El_Dia_Configurado_Del_Mes_Siguiente()
   {
-    // Acordado con el sindicato: el período 09/2026 vence el 15/10/2026 y el segundo a los 10 días.
-    var primerVencimiento = BoletaBse.PrimerVencimiento("2026-09", 15);
-    Assert.Equal(new DateTime(2026, 10, 15), primerVencimiento);
-    Assert.Equal(new DateTime(2026, 10, 25), BoletaBse.SegundoVencimiento(primerVencimiento, 10));
+    // Acordado con el sindicato: el período 09/2026 vence el 15/10/2026. Es la ÚNICA fecha de
+    // vencimiento: la boleta ya no tiene 2° vencimiento, y desde el día siguiente a esta fecha corre el
+    // interés resarcitorio.
+    Assert.Equal(new DateTime(2026, 10, 15), BoletaBse.PrimerVencimiento("2026-09", 15));
 
     // Y el período de diciembre vence en enero del año siguiente.
     Assert.Equal(new DateTime(2027, 1, 15), BoletaBse.PrimerVencimiento("2026-12", 15));
@@ -106,13 +106,18 @@ public class BoletaBseTests
       IsActive = true
     };
 
-    var codigo = BoletaBse.GenerarConConfiguracion(configuracion, "2026-09", "30-71157059-0", 1234567.89m, 1260000m);
+    var codigo = BoletaBse.GenerarConConfiguracion(
+        configuracion, "2026-09", "30-71157059-0", new DateTime(2026, 10, 15), 1234567.89m);
 
     Assert.Equal(BoletaBse.LargoCodigo, codigo.Length);
     Assert.Equal("0134", codigo[..4]);
-    // 15/10/2026 = día 288 de 2026 -> 26288 ; 25/10/2026 = día 298 -> 26298
-    Assert.Equal("26288", codigo[26..31]);
-    Assert.Equal("26298", codigo[41..46]);
+
+    // 15/10/2026 = día 288 de 2026 -> 26288. La boleta tiene UNA sola fecha de vencimiento, así que los
+    // DOS juegos de fecha+importe que pide el formato del banco van con el mismo valor.
+    Assert.Equal("26288", codigo[26..31]);   // 1ª fecha
+    Assert.Equal("26288", codigo[41..46]);   // 2ª fecha: la misma
+    Assert.Equal("0123456789", codigo[31..41]);   // 1.234.567,89
+    Assert.Equal("0123456789", codigo[46..56]);   // el mismo importe
   }
 
   [Fact]

@@ -1,0 +1,74 @@
+@using MudBlazor
+
+@*
+  Modal que aparece cuando se quiere imprimir la boleta de una DDJJ YA VENCIDA: el cliente dice cuándo
+  va a pagar, y esa fecha pasa a ser el vencimiento de la boleta con el interés calculado hasta ahí.
+  Es la forma de que "desde el primer día de mora la boleta ya salga con el interés correspondiente"
+  (pedido del usuario) sin tener que cargar la fecha en otro lado.
+*@
+<MudDialog>
+  <TitleContent>
+    <MudText Typo="Typo.h6">La DDJJ está vencida</MudText>
+  </TitleContent>
+
+  <DialogContent>
+    <MudText Class="mb-3">
+      La DDJJ del período <b>@Periodo</b> venció el <b>@Vencimiento.ToString("dd/MM/yyyy")</b>.
+      Indicá cuándo va a pagar el cliente: <b>esa fecha será el vencimiento de la boleta</b> y el
+      interés resarcitorio se calculará desde el día siguiente al vencimiento hasta ese día.
+    </MudText>
+
+    <MudDatePicker @bind-Date="_fecha" Label="Fecha de pago" Required="true"
+                   Min="@Vencimiento" DateFormat="dd/MM/yyyy"
+                   HelperText="Puede ser una fecha ya pasada, si el pago ya se registró." />
+
+    @if (_fecha is { } elegida)
+    {
+      <MudAlert Severity="@(DiasMora > 0 ? Severity.Warning : Severity.Success)" Class="mt-3" Dense="true">
+        @if (DiasMora > 0)
+        {
+          <text>@DiasMora día(s) de mora: la boleta va a incluir el interés correspondiente.</text>
+        }
+        else
+        {
+          <text>En término: la boleta sale por el total, sin interés.</text>
+        }
+      </MudAlert>
+    }
+    else
+    {
+      <MudAlert Severity="Severity.Warning" Class="mt-3" Dense="true">
+        Elegí la fecha de pago: sin fecha no se puede calcular el interés.
+      </MudAlert>
+    }
+  </DialogContent>
+
+  <DialogActions>
+    <MudButton OnClick="Cancelar">Cancelar</MudButton>
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Aceptar"
+               Disabled="@(_fecha is null)" StartIcon="@Icons.Material.Filled.Print">
+      Generar boleta
+    </MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+  [Parameter] public string Periodo { get; set; } = string.Empty;
+  [Parameter] public DateTime Vencimiento { get; set; }
+
+  private DateTime? _fecha;
+
+  /// <summary>Días de mora hasta la fecha elegida (0 si está en término). Informativo: el importe se calcula en el servicio.</summary>
+  private int DiasMora => _fecha is { } f ? Math.Max((f.Date - Vencimiento.Date).Days, 0) : 0;
+
+  protected override void OnInitialized() => _fecha = DateTime.Today;
+
+  private void Cancelar() => MudDialog.Cancel();
+
+  private void Aceptar()
+  {
+    if (_fecha is { } fecha) MudDialog.Close(DialogResult.Ok(fecha.Date));
+  }
+}

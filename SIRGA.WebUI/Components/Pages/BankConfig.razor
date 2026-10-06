@@ -121,13 +121,16 @@
             <MudNumericField T="int" @bind-Value="_editandoConfig.DesignFormat"
                              Label="Formato diseño" Variant="Variant.Outlined" />
           </MudItem>
-          <MudItem xs="12" md="2">
+          <MudItem xs="12" md="3">
             <MudNumericField T="int" @bind-Value="_editandoConfig.FirstDueDay"
-                             Label="Día 1er vencimiento" Variant="Variant.Outlined" />
+                             Label="Día de vencimiento" Variant="Variant.Outlined"
+                             HelperText="Día del mes siguiente al período en que vence la DDJJ. Es la fecha desde la que corre el interés." />
           </MudItem>
-          <MudItem xs="12" md="2">
-            <MudNumericField T="int" @bind-Value="_editandoConfig.DaysToSecondDue"
-                             Label="Días al 2do vencimiento" Variant="Variant.Outlined" />
+          <MudItem xs="12">
+            <MudAlert Severity="Severity.Info" Dense="true">
+              La boleta tiene <b>una sola fecha de vencimiento</b>. Si la DDJJ ya venció, al imprimirla se
+              pregunta la fecha de pago del cliente y el interés se calcula hasta ese día.
+            </MudAlert>
           </MudItem>
           <MudItem xs="12">
             <MudSwitch T="bool" @bind-Value="_editandoConfig.IsActive" Color="Color.Success"
@@ -157,7 +160,7 @@
         <MudTd DataLabel="Banco">@NombreBanco(config.BankId)</MudTd>
         <MudTd DataLabel="N° de cliente">@config.ClientNumber</MudTd>
         <MudTd DataLabel="Ente">@config.EntityCode</MudTd>
-        <MudTd DataLabel="Vencimientos">día @config.FirstDueDay + @config.DaysToSecondDue días</MudTd>
+        <MudTd DataLabel="Vencimiento">día @config.FirstDueDay del mes siguiente al período</MudTd>
         <MudTd DataLabel="Estado">
           <MudChip T="string" Size="Size.Small" Color="@(config.IsActive ? Color.Success : Color.Default)">
             @(config.IsActive ? "Activa" : "Inactiva")

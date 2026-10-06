@@ -8,6 +8,7 @@
 @inject SIRGA.Application.Services.DeclarationService DeclarationService
 @inject SIRGA.Application.Services.BoletaService BoletaService
 @inject SIRGA.WebUI.Services.BoletaPdfService BoletaPdfService
+@inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
 
 <PageTitle>SIRGA - Historial de DDJJ</PageTitle>
@@ -140,16 +141,24 @@ else
   /// Imprime la boleta BANCARIA: la que va al banco con el código de barras de 58 dígitos, por
   /// triplicado. Los datos los arma BoletaService (Application) y los dibuja BoletaPdfService: la
   /// pantalla no calcula importes ni vencimientos, sólo pide y descarga.
+  ///
+  /// La boleta tiene UNA sola fecha de vencimiento. Si la DDJJ YA venció, antes de generarla se le
+  /// pregunta al cliente cuándo va a pagar: esa fecha es el vencimiento de la boleta y hasta ahí se
+  /// calcula el interés resarcitorio.
   /// </summary>
   private async Task OnImprimirBoletaBancaria(DeclarationResponseDto declaration)
   {
     try
     {
-      var armado = await BoletaService.ArmarAsync(declaration.Id);
+      var (cancelado, fechaPago) = await PedirFechaDePagoSiEstaVencidaAsync(declaration.Id, declaration.Period);
+      if (cancelado) return;
+
+      var armado = await BoletaService.ArmarAsync(declaration.Id, fechaPago);
 
       if (armado.Datos is null)
       {
-        // Motivo concreto (sin configuración bancaria, período inválido, etc.) en lugar de un PDF vacío.
+        // Motivo concreto (sin configuración bancaria, período inválido, o días de mora sin tasa
+        // cargada) en lugar de un PDF vacío o de un importe inventado.
         Snackbar.Add(armado.Error ?? "No se pudo armar la boleta bancaria.", Severity.Error);
         return;
       }
@@ -159,15 +168,19 @@ else
       var fileName = $"BoletaBancaria_{datos.Periodo}_{datos.Cuit}.pdf";
       await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, Convert.ToBase64String(pdfBytes));
 
+      var detalleInteres = datos.Interes > 0
+          ? $" Incluye interés por {datos.DiasInteres} día(s): {datos.Interes:C2} " +
+            $"({datos.InteresPorcentaje:0.####}%)" +
+            (string.IsNullOrWhiteSpace(datos.InteresNorma) ? "." : $" según {datos.InteresNorma}.")
+          : " Sin interés.";
+
       Snackbar.Add(
-          $"Boleta bancaria emitida. 1° venc. {datos.PrimerVencimiento:dd/MM/yyyy}: {datos.ImportePrimerVencimiento:C2} · " +
-          $"2° venc. {datos.SegundoVencimiento:dd/MM/yyyy}: {datos.ImporteSegundoVencimiento:C2}. " +
-          $"Recargo del 2° venc.: {datos.RecargoPorcentaje:0.####}% por {datos.DiasRecargo} días = {datos.Recargo:C2}" +
-          (string.IsNullOrWhiteSpace(datos.RecargoNorma) ? "." : $" (tasa {datos.RecargoSerie} de {datos.RecargoNorma})."),
+          $"Boleta bancaria emitida. Vencimiento {datos.Vencimiento:dd/MM/yyyy} por {datos.ImporteTotal:C2}." +
+          detalleInteres,
           Severity.Success);
 
-      // El recargo puede salir de la tasa por defecto (la escala de AFIP no está cargada): se avisa
-      // en vez de dejar una boleta con un importe provisorio sin que nadie lo sepa.
+      // Si el período de mora cruzó más de un tramo de tasa, se avisa en vez de que el desglose quede
+      // escondido.
       if (!string.IsNullOrWhiteSpace(armado.Advertencia))
         Snackbar.Add(armado.Advertencia, Severity.Warning);
     }
@@ -175,5 +188,31 @@ else
     {
       Snackbar.Add("Error al generar la boleta bancaria: " + ex.Message, Severity.Error);
     }
+  }
+
+  /// <summary>
+  /// Si la DDJJ ya venció, abre el modal para que se indique la fecha de pago (que será el vencimiento de
+  /// la boleta). Devuelve <c>(false, null)</c> si todavía no venció (se emite con la fecha del banco), y
+  /// <c>(true, _)</c> si el usuario cerró el modal sin elegir.
+  /// </summary>
+  private async Task<(bool Cancelado, DateTime? Fecha)> PedirFechaDePagoSiEstaVencidaAsync(int declarationId, string periodo)
+  {
+    var vencimiento = await BoletaService.ObtenerVencimientoAsync(declarationId);
+    if (vencimiento is not { Vencida: true }) return (false, null);
+
+    var parametros = new DialogParameters
+    {
+      { nameof(PaymentDateDialog.Periodo), periodo },
+      { nameof(PaymentDateDialog.Vencimiento), vencimiento.Vencimiento }
+    };
+
+    var dialogo = await DialogService.ShowAsync<PaymentDateDialog>(
+        "Fecha de pago de la boleta", parametros,
+        new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, CloseButton = true });
+
+    var resultado = await dialogo.Result;
+    if (resultado is null || resultado.Canceled || resultado.Data is not DateTime fecha) return (true, null);
+
+    return (false, fecha);
   }
 }

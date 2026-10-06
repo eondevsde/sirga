@@ -90,21 +90,29 @@ public class BoletaPdfService
         {
           datos.Item().Text($"Ap. 2% $ {boleta.AporteLey:N2}");
           datos.Item().Text($"Ap. C.S. $ {boleta.CuotaSindical:N2}");
-          datos.Item().Text($"Imp. Rec.: $ {boleta.Recargo:N2}");
+          datos.Item().Text($"Total DDJJ $ {boleta.Capital:N2}");
         });
 
-        // Vencimientos con sus importes: es lo que el banco cobra.
+        // UNA sola fecha de vencimiento con el importe que el banco cobra. Si la DDJJ ya estaba vencida
+        // cuando se emitió, esa fecha es la que declaró el cliente y el importe incluye el interés.
         fila.ConstantItem(260).Column(datos =>
         {
-          datos.Item().Text($"1er Venc. {boleta.PrimerVencimiento:dd/MM/yyyy} - Importe Total a Depositar: $ {boleta.ImportePrimerVencimiento:N2}").Bold();
-          datos.Item().Text($"2do Venc. {boleta.SegundoVencimiento:dd/MM/yyyy} - Importe Total a Depositar: $ {boleta.ImporteSegundoVencimiento:N2}").Bold();
+          datos.Item().Text($"Vencimiento {boleta.Vencimiento:dd/MM/yyyy} - Importe Total a Depositar: $ {boleta.ImporteTotal:N2}").Bold();
+
+          if (boleta.Interes > 0)
+          {
+            datos.Item()
+                .Text($"Incluye interés resarcitorio por {boleta.DiasInteres} día(s): $ {boleta.Interes:N2} " +
+                      $"({boleta.InteresPorcentaje:0.####}%){(string.IsNullOrWhiteSpace(boleta.InteresNorma) ? "" : $" - {boleta.InteresNorma}")}")
+                .FontSize(7);
+          }
         });
       });
 
       // Código de barras y su número en texto, para poder cargarlo a mano si el lector falla.
       columna.Item().PaddingTop(6).Element(cont => CodigoDeBarras(cont, boleta.CodigoBarras));
       columna.Item().AlignCenter().Text(boleta.CodigoBarras).FontSize(8).LetterSpacing(0.05f);
-      columna.Item().AlignCenter().Text("Pagos posteriores al primer vencimiento, sujetos a actualización.").FontSize(7).Italic();
+      columna.Item().AlignCenter().Text("Pagos posteriores al vencimiento, sujetos a actualización.").FontSize(7).Italic();
     });
   }
 
