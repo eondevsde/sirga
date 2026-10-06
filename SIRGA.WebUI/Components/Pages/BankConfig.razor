@@ -1,0 +1,310 @@
+@page "/admin/bancos"
+@using SIRGA.Application.Services
+@using SIRGA.Domain.Entities
+@attribute [Authorize(Roles = "Sindicato,Admin")]
+@inject BankService BankService
+@inject ISnackbar Snackbar
+
+<PageTitle>SIRGA - Bancos y configuración de boletas</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-2">Bancos y boletas de pago</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">
+  Cargá el banco donde el sindicato cobra las boletas de las DDJJ y su configuración: número de
+  cliente, código de ente del código de barras y días de vencimiento.
+</MudText>
+
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+  <MudTabPanel Text="Bancos">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="NuevoBanco" Class="mb-4">Nuevo banco</MudButton>
+
+    @if (_editandoBanco != null)
+    {
+      <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.subtitle1" Class="mb-3">
+          @(_editandoBanco.Id == 0 ? "Nuevo banco" : "Editar banco")
+        </MudText>
+        <MudGrid>
+          <MudItem xs="12" md="5">
+            <MudTextField T="string" @bind-Value="_editandoBanco.Name" Label="Nombre del banco"
+                          Variant="Variant.Outlined" Required="true" />
+          </MudItem>
+          <MudItem xs="12" md="4">
+            <MudTextField T="string" @bind-Value="_editandoBanco.Branch" Label="Sucursal"
+                          Variant="Variant.Outlined" />
+          </MudItem>
+          <MudItem xs="12" md="3" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="GuardarBanco"
+                       Disabled="@_guardando">Guardar</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => _editandoBanco = null)" Class="ml-2">Cancelar</MudButton>
+          </MudItem>
+          <MudItem xs="12">
+            <MudTextField T="string" @bind-Value="_editandoBanco.Notes" Label="Notas"
+                          Variant="Variant.Outlined" Lines="2" />
+          </MudItem>
+        </MudGrid>
+      </MudPaper>
+    }
+
+    <MudTable Items="@_bancos" Hover="true" Dense="true" Elevation="2" T="Bank">
+      <HeaderContent>
+        <MudTh>Banco</MudTh>
+        <MudTh>Sucursal</MudTh>
+        <MudTh>Estado</MudTh>
+        <MudTh>Acciones</MudTh>
+      </HeaderContent>
+      <RowTemplate Context="banco">
+        <MudTd DataLabel="Banco">@banco.Name</MudTd>
+        <MudTd DataLabel="Sucursal">@(string.IsNullOrWhiteSpace(banco.Branch) ? "-" : banco.Branch)</MudTd>
+        <MudTd DataLabel="Estado">
+          <MudChip T="string" Size="Size.Small" Color="@(banco.IsActive ? Color.Success : Color.Default)">
+            @(banco.IsActive ? "Activo" : "Inactivo")
+          </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Acciones">
+          <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => EditarBanco(banco))">Editar</MudButton>
+          <MudButton Size="Size.Small" Variant="Variant.Text"
+                     Color="@(banco.IsActive ? Color.Warning : Color.Success)"
+                     OnClick="@(() => AlternarBanco(banco))">
+            @(banco.IsActive ? "Desactivar" : "Activar")
+          </MudButton>
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+  </MudTabPanel>
+
+  <MudTabPanel Text="Configuración por sindicato">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="NuevaConfiguracion" Class="mb-4" Disabled="@(!_bancos.Any())">
+      Nueva configuración
+    </MudButton>
+
+    @if (!_bancos.Any())
+    {
+      <MudAlert Severity="Severity.Info" Dense="true">
+        Primero cargá un banco en la pestaña "Bancos".
+      </MudAlert>
+    }
+
+    @if (_editandoConfig != null)
+    {
+      <MudPaper Class="pa-4 mb-4" Elevation="1">
+        <MudText Typo="Typo.subtitle1" Class="mb-3">Configuración del sindicato en el banco</MudText>
+        <MudGrid>
+          <MudItem xs="12" md="6">
+            <MudSelect T="int" Label="Sindicato" Variant="Variant.Outlined" Value="_editandoConfig.UnionId"
+                       ValueChanged="@(v => _editandoConfig.UnionId = v)">
+              @foreach (var sindicato in _sindicatos)
+              {
+                <MudSelectItem T="int" Value="@sindicato.Id">@sindicato.Name</MudSelectItem>
+              }
+            </MudSelect>
+          </MudItem>
+          <MudItem xs="12" md="6">
+            <MudSelect T="int" Label="Banco" Variant="Variant.Outlined" Value="_editandoConfig.BankId"
+                       ValueChanged="@(v => _editandoConfig.BankId = v)">
+              @foreach (var banco in _bancos)
+              {
+                <MudSelectItem T="int" Value="@banco.Id">@banco.Name</MudSelectItem>
+              }
+            </MudSelect>
+          </MudItem>
+          <MudItem xs="12" md="4">
+            <MudTextField T="string" @bind-Value="_editandoConfig.ClientNumber"
+                          Label="Número de cliente en el banco" Variant="Variant.Outlined" Required="true" />
+          </MudItem>
+          <MudItem xs="12" md="2">
+            <MudTextField T="string" @bind-Value="_editandoConfig.EntityCode"
+                          Label="Código de ente" Variant="Variant.Outlined" Required="true" />
+          </MudItem>
+          <MudItem xs="12" md="2">
+            <MudNumericField T="int" @bind-Value="_editandoConfig.DesignFormat"
+                             Label="Formato diseño" Variant="Variant.Outlined" />
+          </MudItem>
+          <MudItem xs="12" md="2">
+            <MudNumericField T="int" @bind-Value="_editandoConfig.FirstDueDay"
+                             Label="Día 1er vencimiento" Variant="Variant.Outlined" />
+          </MudItem>
+          <MudItem xs="12" md="2">
+            <MudNumericField T="int" @bind-Value="_editandoConfig.DaysToSecondDue"
+                             Label="Días al 2do vencimiento" Variant="Variant.Outlined" />
+          </MudItem>
+          <MudItem xs="12">
+            <MudSwitch T="bool" @bind-Value="_editandoConfig.IsActive" Color="Color.Success"
+                       Label="Configuración activa (es la que se usa para emitir la boleta)" />
+          </MudItem>
+          <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="GuardarConfiguracion"
+                       Disabled="@_guardando">Guardar</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => _editandoConfig = null)" Class="ml-2">Cancelar</MudButton>
+          </MudItem>
+        </MudGrid>
+      </MudPaper>
+    }
+
+    <MudTable Items="@_configuraciones" Hover="true" Dense="true" Elevation="2" T="UnionBankConfig">
+      <HeaderContent>
+        <MudTh>Sindicato</MudTh>
+        <MudTh>Banco</MudTh>
+        <MudTh>N° de cliente</MudTh>
+        <MudTh>Ente</MudTh>
+        <MudTh>Vencimientos</MudTh>
+        <MudTh>Estado</MudTh>
+        <MudTh>Acciones</MudTh>
+      </HeaderContent>
+      <RowTemplate Context="config">
+        <MudTd DataLabel="Sindicato">@NombreSindicato(config.UnionId)</MudTd>
+        <MudTd DataLabel="Banco">@NombreBanco(config.BankId)</MudTd>
+        <MudTd DataLabel="N° de cliente">@config.ClientNumber</MudTd>
+        <MudTd DataLabel="Ente">@config.EntityCode</MudTd>
+        <MudTd DataLabel="Vencimientos">día @config.FirstDueDay + @config.DaysToSecondDue días</MudTd>
+        <MudTd DataLabel="Estado">
+          <MudChip T="string" Size="Size.Small" Color="@(config.IsActive ? Color.Success : Color.Default)">
+            @(config.IsActive ? "Activa" : "Inactiva")
+          </MudChip>
+        </MudTd>
+        <MudTd DataLabel="Acciones">
+          <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => EditarConfiguracion(config))">Editar</MudButton>
+        </MudTd>
+      </RowTemplate>
+    </MudTable>
+  </MudTabPanel>
+</MudTabs>
+
+@code {
+  private List<Bank> _bancos = new();
+  private List<UnionBankConfig> _configuraciones = new();
+  private List<Union> _sindicatos = new();
+  private Bank? _editandoBanco;
+  private UnionBankConfig? _editandoConfig;
+  private bool _guardando;
+
+  protected override async Task OnInitializedAsync() => await Cargar();
+
+  private async Task Cargar()
+  {
+    try
+    {
+      _bancos = (await BankService.GetBancosAsync()).ToList();
+      _configuraciones = (await BankService.GetConfiguracionesAsync()).ToList();
+      _sindicatos = (await BankService.GetSindicatosAsync()).ToList();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cargar los bancos: " + ex.Message, Severity.Error);
+    }
+  }
+
+  private void NuevoBanco() => _editandoBanco = new Bank { IsActive = true };
+
+  private void EditarBanco(Bank banco) => _editandoBanco = new Bank
+  {
+    Id = banco.Id,
+    Name = banco.Name,
+    Branch = banco.Branch,
+    Notes = banco.Notes,
+    IsActive = banco.IsActive
+  };
+
+  private async Task GuardarBanco()
+  {
+    if (_editandoBanco == null) return;
+
+    _guardando = true;
+    try
+    {
+      var (ok, error) = await BankService.GuardarBancoAsync(_editandoBanco);
+      if (!ok)
+      {
+        Snackbar.Add(error ?? "No se pudo guardar el banco.", Severity.Warning);
+        return;
+      }
+
+      Snackbar.Add("Banco guardado.", Severity.Success);
+      _editandoBanco = null;
+      await Cargar();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al guardar el banco: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _guardando = false;
+    }
+  }
+
+  private async Task AlternarBanco(Bank banco)
+  {
+    try
+    {
+      await BankService.AlternarBancoAsync(banco.Id);
+      await Cargar();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cambiar el estado: " + ex.Message, Severity.Error);
+    }
+  }
+
+  private void NuevaConfiguracion()
+  {
+    var sindicato = _sindicatos.FirstOrDefault();
+    _editandoConfig = new UnionBankConfig
+    {
+      UnionId = sindicato?.Id ?? 0,
+      BankId = _bancos.FirstOrDefault()?.Id ?? 0,
+      DesignFormat = 4,
+      FirstDueDay = 15,
+      DaysToSecondDue = 10,
+      IsActive = true
+    };
+  }
+
+  private void EditarConfiguracion(UnionBankConfig config) => _editandoConfig = new UnionBankConfig
+  {
+    Id = config.Id,
+    UnionId = config.UnionId,
+    BankId = config.BankId,
+    ClientNumber = config.ClientNumber,
+    EntityCode = config.EntityCode,
+    DesignFormat = config.DesignFormat,
+    FirstDueDay = config.FirstDueDay,
+    DaysToSecondDue = config.DaysToSecondDue,
+    IsActive = config.IsActive
+  };
+
+  private async Task GuardarConfiguracion()
+  {
+    if (_editandoConfig == null) return;
+
+    _guardando = true;
+    try
+    {
+      var (ok, error) = await BankService.GuardarConfiguracionAsync(_editandoConfig);
+      if (!ok)
+      {
+        Snackbar.Add(error ?? "No se pudo guardar la configuración.", Severity.Warning);
+        return;
+      }
+
+      Snackbar.Add("Configuración guardada.", Severity.Success);
+      _editandoConfig = null;
+      await Cargar();
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al guardar la configuración: " + ex.Message, Severity.Error);
+    }
+    finally
+    {
+      _guardando = false;
+    }
+  }
+
+  private string NombreSindicato(int unionId)
+      => _sindicatos.FirstOrDefault(s => s.Id == unionId)?.Name ?? $"(sindicato {unionId})";
+
+  private string NombreBanco(int bankId)
+      => _bancos.FirstOrDefault(b => b.Id == bankId)?.Name ?? $"(banco {bankId})";
+}

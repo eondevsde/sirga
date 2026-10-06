@@ -83,6 +83,8 @@ builder.Services.AddScoped<UnionService>();
 builder.Services.AddScoped<SalaryScaleService>();
 builder.Services.AddScoped<InterestRateService>();
 builder.Services.AddScoped<AuditService>();
+// Bancos y configuración bancaria por sindicato (número de cliente, código de ente y vencimientos).
+builder.Services.AddScoped<BankService>();
 builder.Services.AddScoped<InspectionService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<AccountingStudioService>();
