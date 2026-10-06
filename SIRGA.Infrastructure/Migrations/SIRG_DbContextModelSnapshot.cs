@@ -1242,6 +1242,10 @@ namespace SIRGA.Infrastructure.Migrations
 
                     b.HasIndex("EmployeeCategoryId");
 
+                    b.HasIndex("Period", "EmployeeCategoryId")
+                        .IsUnique()
+                        .HasFilter("[IsActive] = 1");
+
                     b.ToTable("SalaryScales");
                 });
 

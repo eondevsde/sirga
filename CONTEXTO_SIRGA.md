@@ -224,6 +224,16 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     nombre y porque la documentación de `Rama` dice que comparten 130/75. **Falta completarle el CctCode.**
   - Al editar un sindicato, el diálogo tiene que devolver `RamaId` (y los porcentajes): si no, guardar
     **borra la rama** sin avisar. Ya está corregido en `Unions.razor`.
+- **Escalas duplicadas resueltas por DESACTIVACIÓN**: había **42 pares (período, categoría)** con dos
+  escalas (84 filas), de **dos meses importados dos veces** (2022-06 y 2022-07) y **copias exactas**. Se
+  desactivó la copia sobrante conservando la de menor Id: **1.297 activas, 42 inactivas, 1.339 totales
+  (no se borró ninguna)**. Respaldo `dbo._BackupSalaryScalesDuplicadas`, script idempotente
+  `script_sirga_db_escalas_duplicadas_desactivar.sql`.
+  - **`SalaryScale.IsActive` existía pero NINGUNA consulta lo miraba**: desactivar una escala no hacía
+    nada. Ahora la DDJJ y los servicios filtran por activas, y hay un **índice único por (período,
+    categoría) filtrado por `IsActive = 1`** para que no vuelva a haber dos activas para lo mismo.
+  - El **borrado de escalas** se cambió por **desactivar** (y el botón de la pantalla era un `stub` que
+    no borraba ni avisaba). La pantalla lista también las inactivas para poder reactivarlas.
 - **Tasas de interés migradas del sistema anterior** (`Sindicato.dbo.Intereses` → `InterestRates`):
   **74 filas**, **37 por cada serie** (resarcitoria y punitoria), de **1901-01-01** al **2025-07-01**.
   Script idempotente `script_sirga_db_intereses_desde_sistema_anterior.sql`, respaldo en
@@ -297,13 +307,18 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    > > agente) y que diga si quedan **otras** correcciones sin detallar.
 2. ~~**Modelo de ramas, pasos 3 y 4**~~ **HECHO (2026-10-06)**: las categorías y las escalas ya cuelgan
    de la **rama** y las consultas filtran por la rama del sindicato. Ver "Hecho".
-   > **Lo que queda de este tema**: las escalas tienen **42 pares (período, categoría) DUPLICADOS**
-   > (84 filas de 1.339): son **copias exactas** (0 con valores distintos), todas del período 2022-07 del
-   > sindicato 19 y con ids consecutivos, así que parecen de una importación repetida. **No hay que
-   > decidir cuál vale** (los valores son idénticos), pero **bloquean un índice único por (período,
-   > categoría)** que convendría tener para que "la escala de esa categoría y ese período" no vuelva a
-   > ser ambigua. Para resolverlo hace falta **simulacro + respaldo + OK del usuario** (es un borrado o
-   > una desactivación masiva).
+   > ~~**Lo que queda de este tema**~~ **RESUELTO (2026-10-06)**: las **42 escalas duplicadas** (84 filas
+   > de 1.339) se **desactivaron**, no se borraron. Eran **dos meses enteros importados dos veces**
+   > (2022-06 y 2022-07, 21 categorías cada uno), **copias exactas**, así que no hubo que decidir cuál
+   > valía: se conservó la de menor Id y se desactivó la otra. Respaldo en
+   > `dbo._BackupSalaryScalesDuplicadas`, script `script_sirga_db_escalas_duplicadas_desactivar.sql`
+   > (idempotente, verificado con dos corridas).
+   > **Lo importante que apareció**: `SalaryScale.IsActive` **existía pero ninguna consulta lo miraba**,
+   > así que desactivar una escala no hacía nada. Ahora la DDJJ y los servicios filtran por activas, y
+   > hay un **índice único por (período, categoría) filtrado por activas** que impide que vuelva a haber
+   > dos escalas activas para lo mismo.
+   > También se cambió el **borrado de escalas por desactivar** (el botón de la pantalla era un `stub`
+   > que no hacía nada: ni borraba ni avisaba) y la pantalla muestra las inactivas para poder reactivarlas.
 3. ~~**Botón de imprimir la boleta** que dispare el PDF ya escrito.~~ **HECHO (2026-10-06)**: está en el
    historial de DDJJ, y el recargo ya usa la **tasa real migrada** (ver punto 4).
 4. **Recargo del 2° vencimiento**: 10 días después del 1° (configurable), con la tasa de `InterestRates`.

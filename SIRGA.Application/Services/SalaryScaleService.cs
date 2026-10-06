@@ -53,13 +53,18 @@ public class SalaryScaleService(IUnitOfWork unitOfWork)
   /// Escalas de una RAMA de actividad: las escalas son nacionales por rama, así que ya no se piden por
   /// sindicato. Las categorías se resuelven por la rama y las escalas por esas categorías.
   /// </summary>
-  public async Task<List<SalaryScaleDto>> GetByRamaAsync(int ramaId)
+  /// <param name="incluirInactivas">
+  /// Por defecto trae sólo las ACTIVAS, que son las que se usan para liquidar. La pantalla de administración
+  /// pasa <c>true</c> para poder ver y reactivar las desactivadas.
+  /// </param>
+  public async Task<List<SalaryScaleDto>> GetByRamaAsync(int ramaId, bool incluirInactivas = false)
   {
     var categorias = (await unitOfWork.EmployeeCategories.FindAsync(c => c.RamaId == ramaId)).ToDictionary(c => c.Id);
     if (categorias.Count == 0) return new();
 
     var ids = categorias.Keys.ToList();
-    var scales = await unitOfWork.SalaryScales.FindAsync(s => ids.Contains(s.EmployeeCategoryId));
+    var scales = await unitOfWork.SalaryScales.FindAsync(s =>
+        ids.Contains(s.EmployeeCategoryId) && (incluirInactivas || s.IsActive));
 
     return scales.Select(s => new SalaryScaleDto
     {
@@ -110,14 +115,22 @@ public class SalaryScaleService(IUnitOfWork unitOfWork)
     }
   }
 
-  public async Task DeleteAsync(int id)
+  /// <summary>
+  /// Activa o desactiva una escala. **NO se borra**: la escala es histórica y una que no corresponde se
+  /// desactiva dejando rastro. Las consultas que liquidan (la DDJJ) sólo miran las activas, y el índice
+  /// único por (período, categoría) está filtrado por activas, así que desactivar una deja cargar la que
+  /// la reemplaza.
+  /// </summary>
+  public async Task<(bool Success, string? Error)> SetActiveAsync(int id, bool activa)
   {
     var entity = await unitOfWork.SalaryScales.GetByIdAsync(id);
-    if (entity != null)
-    {
-      await unitOfWork.SalaryScales.RemoveAsync(entity);
-      await unitOfWork.CompleteAsync();
-    }
+    if (entity is null) return (false, "La escala no existe.");
+    if (entity.IsActive == activa) return (true, null);
+
+    entity.IsActive = activa;
+    await unitOfWork.SalaryScales.UpdateAsync(entity);
+    var ok = await unitOfWork.CompleteAsync() > 0;
+    return (ok, ok ? null : "No se pudo cambiar el estado de la escala.");
   }
 
   public async Task CreateScaleAsync(SalaryScaleDto dto)
@@ -146,16 +159,6 @@ public class SalaryScaleService(IUnitOfWork unitOfWork)
       entity.AgreementNR1 = dto.AgreementNR1;
       entity.AgreementNR2 = dto.AgreementNR2;
       entity.IsActive = dto.IsActive;
-      await unitOfWork.CompleteAsync();
-    }
-  }
-
-  public async Task DeleteScaleAsync(int id)
-  {
-    var entity = await unitOfWork.SalaryScales.GetByIdAsync(id);
-    if (entity != null)
-    {
-      await unitOfWork.SalaryScales.RemoveAsync(entity);
       await unitOfWork.CompleteAsync();
     }
   }

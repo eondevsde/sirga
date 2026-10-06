@@ -48,10 +48,12 @@ public class DeclarationService(
     var categories = (await unitOfWork.EmployeeCategories.FindAsync(c => c.RamaId == ramaId))
         .ToDictionary(c => c.Code);
 
-    // Buscar escala para el periodo; si no hay exacta, congelar la más reciente anterior (fallback)
+    // Buscar escala para el periodo; si no hay exacta, congelar la más reciente anterior (fallback).
+    // Sólo las ACTIVAS: una escala desactivada no se usa (antes se ignoraba IsActive, así que
+    // desactivar una escala no hacía nada y podía usarse una dada de baja).
     var idsCategorias = categories.Values.Select(c => c.Id).ToList();
     var scales = await unitOfWork.SalaryScales.FindAsync(s =>
-        s.Period <= targetDate && idsCategorias.Contains(s.EmployeeCategoryId));
+        s.IsActive && s.Period <= targetDate && idsCategorias.Contains(s.EmployeeCategoryId));
     if (!scales.Any())
     {
       throw new Exception(

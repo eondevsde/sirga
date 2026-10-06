@@ -48,11 +48,16 @@ public class SalaryScalesController(SalaryScaleService salaryScaleService) : Con
     return Ok();
   }
 
+  /// <summary>
+  /// Activa o desactiva una escala. Reemplaza al DELETE que había: la escala es histórica, así que una
+  /// que no corresponde se desactiva y queda el rastro, en lugar de borrarse.
+  /// </summary>
   [Authorize(Roles = "Admin")]
-  [HttpDelete("{id}")]
-  public async Task<IActionResult> Delete(int id)
+  [HttpPost("{id}/estado")]
+  public async Task<IActionResult> SetActive(int id, [FromQuery] bool activa)
   {
-    await salaryScaleService.DeleteScaleAsync(id);
-    return Ok();
+    var (ok, error) = await salaryScaleService.SetActiveAsync(id, activa);
+    if (ok) return Ok();
+    return error == "La escala no existe." ? NotFound() : BadRequest(error);
   }
 }

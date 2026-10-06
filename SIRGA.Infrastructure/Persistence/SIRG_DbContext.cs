@@ -137,6 +137,15 @@ public class SIRG_DbContext : IdentityDbContext
         modelBuilder.Entity<AuditLog>()
             .HasIndex(l => l.Timestamp);
 
+        // Una sola escala ACTIVA por (período, categoría). Había 42 pares con dos escalas activas (copias
+        // exactas, de una importación repetida) que se desactivaron. Con dos activas, "la escala de esa
+        // categoría en ese período" es ambigua: la consulta devuelve dos filas y usa cualquiera. El índice
+        // es FILTRADO por activas para que una escala desactivada no bloquee cargar la que la reemplaza.
+        modelBuilder.Entity<SalaryScale>()
+            .HasIndex(s => new { s.Period, s.EmployeeCategoryId })
+            .IsUnique()
+            .HasFilter("[IsActive] = 1");
+
         modelBuilder.Entity<BalanceHistory>()
             .HasIndex(h => h.CompanyId);
 

@@ -79,8 +79,12 @@ else
       <MudTd DataLabel="Acciones" Style="text-align:right">
         <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
                        OnClick="@(() => OpenEditDialog(context))" />
-        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                       OnClick="@(() => DeleteScale(context.Id))" />
+        @* No se borra: la escala es histórica. Se desactiva y deja de usarse. *@
+        <MudTooltip Text="@(context.IsActive ? "Desactivar (no se borra)" : "Reactivar")">
+          <MudIconButton Icon="@(context.IsActive ? Icons.Material.Filled.ToggleOn : Icons.Material.Filled.ToggleOff)"
+                         Color="@(context.IsActive ? Color.Warning : Color.Success)" Size="Size.Small"
+                         OnClick="@(() => ToggleScale(context))" />
+        </MudTooltip>
       </MudTd>
     </RowTemplate>
     <PagerContent>
@@ -133,7 +137,8 @@ else
         return;
       }
 
-      _scales = await ScaleService.GetByRamaAsync(_ramaId);
+      // Se incluyen las inactivas: así se ven (con su estado) y se pueden reactivar. No se borran.
+      _scales = await ScaleService.GetByRamaAsync(_ramaId, incluirInactivas: true);
     }
     catch (Exception ex)
     {
@@ -180,9 +185,33 @@ else
     if (result is { Canceled: false }) await LoadData();
   }
 
-  private async Task DeleteScale(int id)
+  /// <summary>
+  /// Activa o desactiva la escala. NO se borra: la escala es histórica y una que no corresponde se
+  /// desactiva dejando rastro. Las consultas que liquidan (la DDJJ) sólo miran las activas.
+  ///
+  /// Antes acá había un `DeleteScale` que NO hacía nada (sólo `Task.Yield()` y recargar la lista), así
+  /// que el botón de borrar era decorativo: no borraba ni avisaba.
+  /// </summary>
+  private async Task ToggleScale(SalaryScaleDto escala)
   {
-    await Task.Yield();
-    await LoadData();
+    try
+    {
+      var (ok, error) = await ScaleService.SetActiveAsync(escala.Id, !escala.IsActive);
+      if (!ok)
+      {
+        Snackbar.Add(error ?? "No se pudo cambiar el estado de la escala.", Severity.Error);
+        return;
+      }
+
+      await LoadData();
+      Snackbar.Add(
+          $"Escala de {escala.CategoryName} ({escala.Period:MM/yyyy}) " +
+          $"{(escala.IsActive ? "desactivada" : "reactivada")}.",
+          Severity.Info);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al cambiar el estado de la escala: " + ex.Message, Severity.Error);
+    }
   }
 }
