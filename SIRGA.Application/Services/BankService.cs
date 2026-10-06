@@ -10,19 +10,19 @@ namespace SIRGA.Application.Services;
 /// Un sindicato puede operar con más de un banco, y cada banco tiene su propia configuración.
 /// Los bancos NO se eliminan: se desactivan, porque las boletas ya emitidas los referencian y hay que
 /// poder reconstruir con qué banco se cobró cada una.
+///
+/// Usa la unidad de trabajo (y no repositorios sueltos) a propósito: los repositorios tienen que
+/// compartir el contexto con ella, si no CompleteAsync() guarda en un contexto distinto y las
+/// escrituras se pierden en silencio.
 /// </summary>
-public class BankService(
-    IRepository<Bank> bancos,
-    IRepository<UnionBankConfig> configuraciones,
-    IRepository<Union> sindicatos,
-    IUnitOfWork unitOfWork)
+public class BankService(IUnitOfWork unitOfWork)
 {
   // ---------- Bancos ----------
 
   public async Task<IReadOnlyList<Bank>> GetBancosAsync()
-      => (await bancos.GetAllAsync()).OrderBy(b => b.Name).ToList();
+      => (await unitOfWork.Banks.GetAllAsync()).OrderBy(b => b.Name).ToList();
 
-  public async Task<Bank?> GetBancoAsync(int id) => await bancos.GetByIdAsync(id);
+  public async Task<Bank?> GetBancoAsync(int id) => await unitOfWork.Banks.GetByIdAsync(id);
 
   public async Task<(bool Ok, string? Error)> GuardarBancoAsync(Bank banco)
   {
@@ -32,14 +32,14 @@ public class BankService(
     banco.Name = banco.Name.Trim();
     banco.Branch = banco.Branch?.Trim();
 
-    var repetidos = await bancos.FindAsync(b => b.Name == banco.Name && b.Id != banco.Id);
+    var repetidos = await unitOfWork.Banks.FindAsync(b => b.Name == banco.Name && b.Id != banco.Id);
     if (repetidos.Any())
       return (false, $"Ya hay un banco cargado con el nombre \"{banco.Name}\".");
 
     if (banco.Id == 0)
-      await bancos.AddAsync(banco);
+      await unitOfWork.Banks.AddAsync(banco);
     else
-      await bancos.UpdateAsync(banco);
+      await unitOfWork.Banks.UpdateAsync(banco);
 
     await unitOfWork.CompleteAsync();
     return (true, null);
@@ -48,25 +48,25 @@ public class BankService(
   /// <summary>Activa o desactiva un banco. No se borra: las boletas emitidas lo referencian.</summary>
   public async Task AlternarBancoAsync(int id)
   {
-    var banco = await bancos.GetByIdAsync(id);
+    var banco = await unitOfWork.Banks.GetByIdAsync(id);
     if (banco == null) return;
 
     banco.IsActive = !banco.IsActive;
-    await bancos.UpdateAsync(banco);
+    await unitOfWork.Banks.UpdateAsync(banco);
     await unitOfWork.CompleteAsync();
   }
 
   // ---------- Configuración por sindicato ----------
 
   public async Task<IReadOnlyList<Union>> GetSindicatosAsync()
-      => (await sindicatos.GetAllAsync()).OrderBy(u => u.Name).ToList();
+      => (await unitOfWork.Unions.GetAllAsync()).OrderBy(u => u.Name).ToList();
 
   public async Task<IReadOnlyList<UnionBankConfig>> GetConfiguracionesAsync()
-      => (await configuraciones.GetAllAsync()).OrderBy(c => c.UnionId).ToList();
+      => (await unitOfWork.UnionBankConfigs.GetAllAsync()).OrderBy(c => c.UnionId).ToList();
 
   /// <summary>Configuración activa de un sindicato: la que se usa para emitir la boleta.</summary>
   public async Task<UnionBankConfig?> GetConfiguracionActivaAsync(int unionId)
-      => (await configuraciones.FindAsync(c => c.UnionId == unionId && c.IsActive)).FirstOrDefault();
+      => (await unitOfWork.UnionBankConfigs.FindAsync(c => c.UnionId == unionId && c.IsActive)).FirstOrDefault();
 
   public async Task<(bool Ok, string? Error)> GuardarConfiguracionAsync(UnionBankConfig config)
   {
@@ -87,15 +87,15 @@ public class BankService(
     if (config.DaysToSecondDue < 0 || config.DaysToSecondDue > 60)
       return (false, "Los días hasta el segundo vencimiento tienen que estar entre 0 y 60.");
 
-    var existente = config.Id > 0
-        ? await configuraciones.GetByIdAsync(config.Id)
-        : (await configuraciones.FindAsync(c => c.UnionId == config.UnionId && c.BankId == config.BankId)).FirstOrDefault();
-
     // Un sindicato no puede tener dos configuraciones distintas del mismo banco.
-    var otras = await configuraciones.FindAsync(c =>
+    var otras = await unitOfWork.UnionBankConfigs.FindAsync(c =>
         c.UnionId == config.UnionId && c.BankId == config.BankId && c.Id != config.Id);
     if (otras.Any())
       return (false, "Ese sindicato ya tiene configurado ese banco.");
+
+    var existente = config.Id > 0
+        ? await unitOfWork.UnionBankConfigs.GetByIdAsync(config.Id)
+        : (await unitOfWork.UnionBankConfigs.FindAsync(c => c.UnionId == config.UnionId && c.BankId == config.BankId)).FirstOrDefault();
 
     if (existente != null)
     {
@@ -105,11 +105,11 @@ public class BankService(
       existente.FirstDueDay = config.FirstDueDay;
       existente.DaysToSecondDue = config.DaysToSecondDue;
       existente.IsActive = config.IsActive;
-      await configuraciones.UpdateAsync(existente);
+      await unitOfWork.UnionBankConfigs.UpdateAsync(existente);
     }
     else
     {
-      await configuraciones.AddAsync(config);
+      await unitOfWork.UnionBankConfigs.AddAsync(config);
     }
 
     await unitOfWork.CompleteAsync();

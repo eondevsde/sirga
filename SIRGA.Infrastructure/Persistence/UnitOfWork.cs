@@ -38,6 +38,8 @@ public class UnitOfWork : IUnitOfWork
     UnionSubscriptionRequests = new Repository<UnionSubscriptionRequest>(_context, dbLock);
     CompanyStudioHistories = new Repository<CompanyStudioHistory>(_context, dbLock);
     UnionAuditors = new Repository<UnionAuditor>(_context, dbLock);
+    Banks = new Repository<Bank>(_context, dbLock);
+    UnionBankConfigs = new Repository<UnionBankConfig>(_context, dbLock);
   }
 
   public IRepository<Employee> Employees { get; }
@@ -66,6 +68,11 @@ public class UnitOfWork : IUnitOfWork
   public IRepository<UnionSubscriptionRequest> UnionSubscriptionRequests { get; }
   public IRepository<CompanyStudioHistory> CompanyStudioHistories { get; }
   public IRepository<UnionAuditor> UnionAuditors { get; }
+
+  // Bancos y configuración bancaria por sindicato: con el MISMO contexto y el mismo semáforo que el
+  // resto, para que CompleteAsync() guarde lo que escriben.
+  public IRepository<Bank> Banks { get; }
+  public IRepository<UnionBankConfig> UnionBankConfigs { get; }
 
   public async Task<int> CompleteAsync()
   {

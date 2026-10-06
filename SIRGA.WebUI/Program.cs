@@ -95,6 +95,7 @@ builder.Services.AddScoped<AuditService>();
 //   2) UnitOfWork: las dos propiedades, construidas con el mismo contexto que las demás
 //   3) BankService: recibir IUnitOfWork y usarlo en lugar de los repositorios sueltos
 //   4) Recién entonces: builder.Services.AddScoped<BankService>();
+builder.Services.AddScoped<BankService>();
 builder.Services.AddScoped<InspectionService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<AccountingStudioService>();

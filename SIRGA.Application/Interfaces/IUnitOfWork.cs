@@ -43,5 +43,10 @@ public interface IUnitOfWork : IDisposable
   IRepository<UnionSubscriptionRequest> UnionSubscriptionRequests { get; }
   IRepository<CompanyStudioHistory> CompanyStudioHistories { get; }
   IRepository<UnionAuditor> UnionAuditors { get; }
+
+  // Bancos y configuración bancaria por sindicato (número de cliente, código de ente, vencimientos).
+  IRepository<Bank> Banks { get; }
+  IRepository<UnionBankConfig> UnionBankConfigs { get; }
+
   Task<int> CompleteAsync();
 }
