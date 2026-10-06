@@ -47,12 +47,16 @@ else
         </MudChip>
       </MudTd>
       <MudTd DataLabel="Acciones" Style="text-align:right">
-        <MudTooltip Text="Imprimir la boleta bancaria (BSE), por triplicado: cliente, banco y sindicato">
-          <MudIconButton Icon="@Icons.Material.Filled.Print" Color="Color.Primary"
-                         OnClick="@(() => OnImprimirBoletaBancaria(context))" />
-        </MudTooltip>
-        <MudTooltip Text="Re-descargar Boleta PDF">
-          <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error"
+        @* La boleta del BANCO (la que se paga en el banco) va como botón CON TEXTO, porque es la acción
+           importante. Antes los dos eran íconos parecidos y la diferencia sólo se veía al pasar el mouse:
+           el usuario terminó imprimiendo el comprobante interno creyendo que era la boleta. *@
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Print"
+                   OnClick="@(() => OnImprimirBoletaBancaria(context))">
+          Boleta bancaria (triplicada)
+        </MudButton>
+        <MudTooltip Text="Comprobante interno de SIRGA: NO es la boleta del banco y no lleva su código de barras">
+          <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Default" Size="Size.Small"
                          OnClick="@(() => OnDownloadPdf(context))" />
         </MudTooltip>
       </MudTd>

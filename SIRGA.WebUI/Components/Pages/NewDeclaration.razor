@@ -15,6 +15,8 @@
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject SIRGA.Application.Services.PdfReportService PdfService
+@inject SIRGA.Application.Services.BoletaService BoletaService
+@inject SIRGA.WebUI.Services.BoletaPdfService BoletaPdfService
 @inject IJSRuntime JSRuntime
 
 <PageTitle>SIRGA - Nueva DDJJ</PageTitle>
@@ -260,17 +262,28 @@ else
                   }
                 </MudButton>
 
-                @if (_showPaymentButton)
+                @if (_lastResult is not null)
                 {
-                  <MudStack Row="true" Spacing="2">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-2" Size="Size.Large"
-                               Href="@_paymentUrl" Target="_blank" StartIcon="@Icons.Material.Filled.Payment">
-                      Pagar con Mercado Pago
+                  <MudStack Row="true" Spacing="2" Class="mt-2" AlignItems="AlignItems.Center">
+                    @if (_showPaymentButton)
+                    {
+                      <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                                 Href="@_paymentUrl" Target="_blank" StartIcon="@Icons.Material.Filled.Payment">
+                        Pagar con Mercado Pago
+                      </MudButton>
+                    }
+                    @* La boleta del BANCO es la que se paga: va primera y con texto. El comprobante interno
+                       queda como botón secundario y avisado, para no volver a confundirlos. *@
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                               OnClick="ImprimirBoletaBancaria" StartIcon="@Icons.Material.Filled.Print">
+                      Boleta bancaria (triplicada)
                     </MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" Class="mt-2" Size="Size.Large"
-                               OnClick="DownloadBoleta" StartIcon="@Icons.Material.Filled.PictureAsPdf">
-                      Descargar Boleta PDF
-                    </MudButton>
+                    <MudTooltip Text="Comprobante interno de SIRGA: NO es la boleta del banco y no lleva su código de barras">
+                      <MudButton Variant="Variant.Outlined" Color="Color.Default" Size="Size.Large"
+                                 OnClick="DownloadBoleta" StartIcon="@Icons.Material.Filled.PictureAsPdf">
+                        Comprobante interno
+                      </MudButton>
+                    </MudTooltip>
                   </MudStack>
                 }
               </MudItem>
@@ -683,6 +696,42 @@ else
     catch (Exception ex)
     {
       Snackbar.Add("Error al generar PDF: " + ex.Message, Severity.Error);
+    }
+  }
+
+  /// <summary>
+  /// Imprime la boleta BANCARIA (la que se paga en el banco), por triplicado y con el código de barras de
+  /// 58 dígitos. Es la que antes no estaba en esta pantalla: sólo se podía bajar el comprobante interno.
+  /// </summary>
+  private async Task ImprimirBoletaBancaria()
+  {
+    if (_lastResult is null) return;
+
+    try
+    {
+      var armado = await BoletaService.ArmarAsync(_lastResult.Id);
+      if (armado.Datos is null)
+      {
+        Snackbar.Add(armado.Error ?? "No se pudo armar la boleta bancaria.", Severity.Error);
+        return;
+      }
+
+      var datos = armado.Datos;
+      var pdfBytes = BoletaPdfService.Generar(datos);
+      var fileName = $"BoletaBancaria_{datos.Periodo}_{datos.Cuit}.pdf";
+      await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, Convert.ToBase64String(pdfBytes));
+
+      Snackbar.Add(
+          $"Boleta bancaria emitida. 1° venc. {datos.PrimerVencimiento:dd/MM/yyyy}: {datos.ImportePrimerVencimiento:C2} · " +
+          $"2° venc. {datos.SegundoVencimiento:dd/MM/yyyy}: {datos.ImporteSegundoVencimiento:C2}",
+          Severity.Success);
+
+      if (!string.IsNullOrWhiteSpace(armado.Advertencia))
+        Snackbar.Add(armado.Advertencia, Severity.Warning);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("Error al generar la boleta bancaria: " + ex.Message, Severity.Error);
     }
   }
 

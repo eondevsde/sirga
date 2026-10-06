@@ -189,11 +189,21 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   (pesos 1-2 desde la derecha, DV con peso 2, complemento / 2).
 - **PDF de la boleta** (`BoletaPdfService`): **triplicado** — talón **cliente**, **banco** y
   **sindicato** — con el código dibujado vía ZXing + QuestPDF.
-- **Botón para imprimir la boleta bancaria** (la que va al banco), en el **historial de DDJJ**
-  (`/declarations/history` y `/empresa/{id}/historial`), al lado del PDF viejo. El armado de los datos
-  está en `BoletaService` (Application), **no** en la pantalla: junta la DDJJ, la empresa, el sindicato
-  y su **configuración bancaria** (`UnionBankConfigs` + `Banks`), calcula los dos vencimientos y genera
-  el **código de barras de 58 dígitos**. La pantalla sólo pide y descarga.
+- **Botón para imprimir la boleta bancaria** (la que va al banco): está en el **historial de DDJJ** y también
+  en el paso final de **Nueva DDJJ**. El armado de los datos está en `BoletaService` (Application), **no**
+  en la pantalla: junta la DDJJ, la empresa, el sindicato y su **configuración bancaria** (`UnionBankConfigs`
+  + `Banks`), calcula los dos vencimientos y genera el **código de barras de 58 dígitos**. La pantalla sólo
+  pide y descarga.
+  > **OJO: HAY DOS GENERADORES DE BOLETA DISTINTOS, Y ESO YA CONFUNDIÓ AL USUARIO.**
+  > - `BoletaPdfService` (WebUI) = **la boleta del BANCO**: **3 talones** (cliente, banco, sindicato) con el
+  >   código de barras real de 58 dígitos. Es la que se paga. La alimenta `BoletaService`.
+  > - `PdfReportService.GeneratePaymentBoleta` (Application) = **comprobante interno de SIRGA**: **1 boleta**
+  >   con membrete propio y **SIN código de barras del banco**.
+  > Medido abriendo los PDF: el triplicado tiene **48 bloques de texto (16 × 3 talones)** y **588
+  > rectángulos** (los 3 códigos); el interno, 29 bloques y **6 rectángulos**. Los dos botones eran íconos
+  > parecidos y la diferencia sólo se veía al pasar el mouse, así que el usuario imprimió el interno
+  > creyendo que era la boleta. Ahora **la del banco es un botón con texto** y el interno un ícono
+  > secundario avisado.
   - **Verificado generando el PDF real** de la DDJJ **1737080** (ABDALA LLAMIL, período 2026-08,
     total 51.000): banco Santiago del Estero / Sucursal Central / cliente 18588639, 1er venc.
     15/09/2026 **$51.000,00** y 2do venc. 25/09/2026 **$51.467,50** (recargo 467,50 = 0,9167% por 10 días,
@@ -379,17 +389,24 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     se le inyectó `ILogger<DeclarationService>` y el `catch` vacío pasó a registrar el error con el id
     de la DDJJ, la empresa y el período. La DDJJ **sigue sin fallar** por el mail (eso estaba bien), pero
     el problema ya no queda invisible. Era el **único `catch` vacío de todo el código**.
+12. ~~**La pantalla de tasas ya no borra**~~ **HECHO (2026-10-06)**: se cambió el borrado definitivo por
+    **desactivar** (el patrón que usan los bancos) y se agregó **edición**. Lo que sigue pendiente acá:
+    - Sigue siendo **global**, no por sindicato (`InterestRate` no tiene `UnionId`), y **sólo para rol
+      Admin**, no para el estudio contable. Las dos cosas están bien por ahora (el sindicato que factura
+      es uno solo), pero conviene revisarlo cuando entren los otros sindicatos.
 13. **Los scripts de esquema generados quedaron viejos tras el modelo de ramas.**
     `script_sirga_db_produccion.sql` y `script_sirga_db_upgrade_produccion.sql` **crean
     `SalaryScales.UnionId` y `EmployeeCategories.UnionId`**, columnas que ya no existen, y no crean
     `RamaId`. Son artefactos generados (no se tocan a mano y **no se corren desde acá**): hay que
     **regenerarlos** con `dotnet ef migrations script` cuando se prepare un despliegue, si no el esquema
     que armen no va a coincidir con el modelo. Lo mismo con `.dsh-tools/schema_verify.sql`.
-12. ~~**La pantalla de tasas ya no borra**~~ **HECHO (2026-10-06)**: se cambió el borrado definitivo por
-    **desactivar** (el patrón que usan los bancos) y se agregó **edición**. Lo que sigue pendiente acá:
-    - Sigue siendo **global**, no por sindicato (`InterestRate` no tiene `UnionId`), y **sólo para rol
-      Admin**, no para el estudio contable. Las dos cosas están bien por ahora (el sindicato que factura
-      es uno solo), pero conviene revisarlo cuando entren los otros sindicatos.
+14. **El mail al estudio adjunta la boleta VIEJA, no la del banco.** `DeclarationService` genera el
+    adjunto con `PdfReportService.GeneratePaymentBoleta` (el comprobante interno, sin código de barras),
+    cuando debería mandar la boleta bancaria triplicada. No es un cambio de una línea: `BoletaPdfService`
+    está en **WebUI** y `DeclarationService` en **Application**, así que hay que mover el renderizado de
+    la boleta a Application (o invertir la dependencia) para que el mail pueda usarlo. **Va junto con el
+    pendiente del `PresencialBarCode`, que sigue guardando el código ficticio** (`001` + CUIT + período +
+    importe) en lugar de los 58 dígitos reales del banco.
 
 ---
 
