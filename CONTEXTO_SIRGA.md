@@ -276,8 +276,7 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    sindicato, que es el error que este modelo corrige. El paso 4 toca el cálculo de la DDJJ: **hacerlo
    descansado y con la prueba al lado**.
 3. ~~**Botón de imprimir la boleta** que dispare el PDF ya escrito.~~ **HECHO (2026-10-06)**: está en el
-   historial de DDJJ. Lo que **falta** es lo del punto 4 (la tasa real), porque el recargo del 2°
-   vencimiento sale hoy de la tasa por defecto y el botón lo **advierte** en pantalla.
+   historial de DDJJ, y el recargo ya usa la **tasa real migrada** (ver punto 4).
 4. **Recargo del 2° vencimiento**: 10 días después del 1° (configurable), con la tasa de `InterestRates`.
    Caso de prueba real: la boleta de GAMMAROTA tenía recargo **$644,96 sobre $72.703,76 = 0,887% en 10
    días** → el cálculo tiene que reproducir ese número.
