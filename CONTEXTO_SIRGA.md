@@ -4,7 +4,7 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 110 commits en `main` · 136/136 tests · build 0 avisos.
+Última actualización: **2026-10-06** · 111 commits en `main` · 136/136 tests · build 0 avisos.
 
 ---
 
@@ -44,8 +44,8 @@ estudios. Stack: **.NET 10 Blazor Server** (Interactive Server, prerender ON) + 
 | Credenciales | En `.dsh-tools\.sqlpwd` (ignorado por git). **Nunca escribir la contraseña en un comando, código ni informe**: se lee del archivo |
 | Pestaña SQL | Plugin de DSH en `C:\Users\drop1\.dsh\profiles\node_modules\@deepseek-ai\dsh-sql-tab` (sólo lectura, dev + legacy, sin producción) |
 
-**Para levantar la app** (job en background, `workdir = SIRGA.WebUI`):
-`dotnet "C:\Proyectos\SIRGA\SIRGA.WebUI\bin\Debug\net10.0\SIRGA.WebUI.dll" --urls "http://localhost:5122"`
+**Para levantar la app** (job en background, `workdir = SIRGA.WebUI`), **siempre en Development**:
+`$env:ASPNETCORE_ENVIRONMENT="Development"; dotnet "C:\Proyectos\SIRGA\SIRGA.WebUI\bin\Debug\net10.0\SIRGA.WebUI.dll" --urls "http://localhost:5122"`
 
 **Para compilar hay que matar la app primero** (bloquea los DLL): buscar el proceso que **escucha el
 puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por nombre.
@@ -99,6 +99,16 @@ puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por
    empresa): es el dato de negocio del que sale la **antigüedad**. `Employees.HireDate` es la fecha de
    alta al sindicato y **da otra antigüedad**. Antes de usar un campo de fecha, mirar de dónde lo trajo
    `SIRGA.Migration/Program.cs`.
+11. **La app tiene que arrancar en `Development`, o la UI se ve sin estilos y "gigante".** Sin
+   `ASPNETCORE_ENVIRONMENT=Development` arranca como **Production**, y en Production los *static web
+   assets* de los paquetes **no se sirven**: `_content/MudBlazor/MudBlazor.min.css` devuelve **500** y
+   `SIRGA.WebUI.styles.css` **404**. El HTML se renderiza pelado (fuentes y SVG enormes) y **parece**
+   que se rompió el marcado, pero no: el `.razor` está bien. En el log se ve
+   `Hosting environment: Production` y
+   `Static Web Assets are not enabled`. Se comprueba en un segundo pidiendo el CSS:
+   `Invoke-WebRequest http://localhost:5122/_content/MudBlazor/MudBlazor.min.css` → tiene que dar 200
+   (≈594 KB). Después de arreglarlo, el navegador necesita **recarga forzada (Ctrl+F5)**, porque quedó
+   con el CSS roto en caché.
 
 ---
 

@@ -33,9 +33,13 @@ Respetá también lo que diga `.github/copilot-instructions.md`.
 
 - **Compilar requiere matar la app primero** (bloquea los DLL): buscá el proceso que **escucha el puerto
   5122** con `Get-NetTCPConnection -LocalPort 5122` y matalo. **No** mates por nombre de proceso.
-- **La app se levanta como job en background** con `workdir = C:\Proyectos\SIRGA\SIRGA.WebUI`
-  (`dotnet "C:\Proyectos\SIRGA\SIRGA.WebUI\bin\Debug\net10.0\SIRGA.WebUI.dll" --urls "http://localhost:5122"`).
+- **La app se levanta como job en background** con `workdir = C:\Proyectos\SIRGA\SIRGA.WebUI`, y
+  **siempre con `ASPNETCORE_ENVIRONMENT=Development`**:
+  `$env:ASPNETCORE_ENVIRONMENT="Development"; dotnet "C:\Proyectos\SIRGA\SIRGA.WebUI\bin\Debug\net10.0\SIRGA.WebUI.dll" --urls "http://localhost:5122"`
   Si la levantás desde la raíz del repo, falla por la cadena de conexión.
+  **Sin `ASPNETCORE_ENVIRONMENT=Development` la app arranca como Production, los *static web assets*
+  no se sirven y el CSS de MudBlazor da 500**: la pantalla se ve **sin estilos y gigante**. No es un
+  problema del marcado. Ver `CONTEXTO_SIRGA.md`, sección 4.
 - **Al terminar, dejá la app levantada** y decile al usuario en qué URL.
 - **No podés operar el navegador**: lo visual, los clics y los popups de MudBlazor los verifica el
   usuario. Decí explícitamente **qué no pudiste verificar**, en lugar de darlo por bueno.
