@@ -4,7 +4,9 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 116 commits en `main` · 143/143 tests · build 0 avisos.
+Última actualización: **2026-10-06** · 143/143 tests · build 0 avisos.
+(El conteo de commits no se anota acá a propósito: quedaba viejo con cada commit y este documento no
+puede mentir. Se consulta con `git rev-list --count HEAD`.)
 
 ---
 
