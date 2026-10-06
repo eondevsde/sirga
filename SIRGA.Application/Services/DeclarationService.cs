@@ -176,9 +176,16 @@ public class DeclarationService(
     decimal interestAmount = 0;
     if (DateTime.Now > dueDate && declaration.BalanceAmount > 0)
     {
+      // Se filtra por serie RESARCITORIA y por rango de vigencia. La tabla de tasas tiene DOS series por
+      // período: sin el filtro, esta consulta devolvía dos filas para la misma fecha y usaba cualquiera
+      // de las dos (no determinista).
       var rates = await unitOfWork.InterestRates.GetAllAsync();
-      var currentRate = rates.OrderByDescending(r => r.EffectiveDate)
-                           .FirstOrDefault(r => r.EffectiveDate <= DateTime.Now)?.MonthlyRate ?? 0.03m;
+      var currentRate = rates
+          .Where(r => r.TypeOfInterest == InterestType.Resarcitorio
+                   && r.EffectiveDate <= DateTime.Now
+                   && (r.ValidTo == null || r.ValidTo >= DateTime.Now))
+          .OrderByDescending(r => r.EffectiveDate)
+          .FirstOrDefault()?.MonthlyRate ?? 0.03m;
 
       var monthsLate = ((DateTime.Now.Year - dueDate.Year) * 12) + DateTime.Now.Month - dueDate.Month;
       if (monthsLate < 1) monthsLate = 1; // Mínimo un mes de interés si ya venció

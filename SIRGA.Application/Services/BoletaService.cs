@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SIRGA.Application.DTOs;
 using SIRGA.Application.Interfaces;
+using SIRGA.Domain.Enums;
 
 namespace SIRGA.Application.Services;
 
@@ -19,9 +20,6 @@ namespace SIRGA.Application.Services;
 /// </summary>
 public class BoletaService(IUnitOfWork unitOfWork)
 {
-  /// <summary>Base de prorrateo de la tasa mensual. Documentado para poder revisarlo: ver pendiente del recargo en CONTEXTO_SIRGA.md.</summary>
-  public const int DiasDelMesParaProrrateo = 30;
-
   /// <summary>Tasa mensual que usa el sistema cuando la tabla de tasas no tiene ninguna fila vigente.</summary>
   public const decimal TasaMensualPorDefecto = 0.03m;
 
@@ -77,9 +75,17 @@ public class BoletaService(IUnitOfWork unitOfWork)
     // período, por el total. NO es el saldo (que puede venir con crédito aplicado o con intereses).
     decimal importePrimero = cabecera.TotalAmount;
 
-    var (tasaMensual, esTasaPorDefecto) = await ObtenerTasaMensualAsync();
+    // La tasa se busca a la fecha del PRIMER vencimiento: es cuando empieza a correr el recargo.
+    var (tasaMensual, normaTasa, esTasaPorDefecto) = await ObtenerTasaResarcitoriaAsync(primerVencimiento);
+
+    // El recargo se prorratea por los DÍAS DEL MES del segundo vencimiento, NO por 30.
+    // Medido contra la única boleta real que tenemos (GAMMAROTA: 644,96 sobre 72.703,76 en 10 días,
+    // con la tasa resarcitoria del 2,75%): 2,75% × 10/31 = 644,95 (falla 1 centavo), mientras que con
+    // /30 daba 666,45 (falla $21,49). La columna Diario del sistema anterior es Mensual/30, así que
+    // tampoco sirve para esto.
+    int diasDelMes = DateTime.DaysInMonth(segundoVencimiento.Year, segundoVencimiento.Month);
     var (recargo, importeSegundo, porcentajeRecargo) =
-        CalcularRecargo(importePrimero, tasaMensual, configuracion.DaysToSecondDue);
+        CalcularRecargo(importePrimero, tasaMensual, configuracion.DaysToSecondDue, diasDelMes);
 
     var codigo = BoletaBse.GenerarConConfiguracion(
         configuracion, cabecera.Period, cabecera.Cuit ?? string.Empty, importePrimero, importeSegundo);
@@ -98,6 +104,8 @@ public class BoletaService(IUnitOfWork unitOfWork)
       Recargo = recargo,
       RecargoPorcentaje = Math.Round(porcentajeRecargo * 100m, 4),
       DiasRecargo = configuracion.DaysToSecondDue,
+      RecargoNorma = normaTasa,
+      RecargoSerie = nameof(InterestType.Resarcitorio),
       PrimerVencimiento = primerVencimiento,
       ImportePrimerVencimiento = importePrimero,
       SegundoVencimiento = segundoVencimiento,
@@ -107,43 +115,57 @@ public class BoletaService(IUnitOfWork unitOfWork)
 
     string? advertencia = esTasaPorDefecto
         ? $"El recargo del 2° vencimiento ({datos.RecargoPorcentaje:0.####}% por {datos.DiasRecargo} días) " +
-          $"se calculó con la tasa por defecto de SIRGA ({tasaMensual * 100m:0.##}% mensual). " +
-          "La escala de tasas de AFIP todavía no está cargada."
+          $"salió de la tasa POR DEFECTO de SIRGA ({tasaMensual * 100m:0.####}% mensual): no hay una tasa " +
+          $"resarcitoria cargada para la fecha del primer vencimiento ({primerVencimiento:dd/MM/yyyy})."
         : null;
 
     return new BoletaArmadoResult(datos, null, advertencia);
   }
 
   /// <summary>
-  /// Tasa mensual vigente y si es la de por defecto. La tabla trae una sola fila (3%, fecha 1900) que es
-  /// el default de SIRGA: si nunca se cargó una tasa con fecha real, el recargo es provisorio.
+  /// Tasa mensual RESARCITORIA vigente a una fecha, la norma que la fija, y si hubo que caer en la tasa
+  /// por defecto de SIRGA.
+  ///
+  /// Se filtra por <see cref="InterestType.Resarcitorio"/> porque la tabla trae DOS series por período
+  /// (resarcitoria y punitoria): sin el filtro, "la tasa vigente" devolvería dos filas para la misma
+  /// fecha y elegiría una al azar. Y se usa el rango de vigencia completo (EffectiveDate..ValidTo) en
+  /// lugar de "la última fecha anterior", que ignoraba el fin de vigencia.
   /// </summary>
-  private async Task<(decimal TasaMensual, bool EsPorDefecto)> ObtenerTasaMensualAsync()
+  private async Task<(decimal TasaMensual, string? Norma, bool EsPorDefecto)> ObtenerTasaResarcitoriaAsync(DateTime fecha)
   {
-    var tasas = (await unitOfWork.InterestRates.GetAllAsync()).ToList();
+    var tasas = (await unitOfWork.InterestRates.GetAllAsync())
+        .Where(r => r.TypeOfInterest == InterestType.Resarcitorio)
+        .ToList();
 
     var vigente = tasas
+        .Where(r => r.EffectiveDate <= fecha && (r.ValidTo is null || r.ValidTo >= fecha))
         .OrderByDescending(r => r.EffectiveDate)
-        .FirstOrDefault(r => r.EffectiveDate <= DateTime.Today);
+        .FirstOrDefault();
 
     if (vigente is null)
-      return (TasaMensualPorDefecto, true);
+      return (TasaMensualPorDefecto, null, true);
 
-    bool esPorDefecto = tasas.Count == 1 && vigente.EffectiveDate.Year <= 1900;
-    return (vigente.MonthlyRate, esPorDefecto);
+    // La fila de 1900 es el "default SIRGA" que se cargó a mano, no una tasa real de AFIP.
+    bool esPorDefecto = vigente.EffectiveDate.Year <= 1900;
+    return (vigente.MonthlyRate, vigente.Norm, esPorDefecto);
   }
 
   /// <summary>
-  /// Recargo del segundo vencimiento: prorratea la tasa MENSUAL por los días entre vencimientos
-  /// (días / 30) y lo aplica sobre el importe del primero. Devuelve también el porcentaje aplicado,
-  /// para poder mostrarlo y para poder auditarlo.
+  /// Recargo del segundo vencimiento: prorratea la tasa MENSUAL por los días entre vencimientos sobre
+  /// los **días del mes del vencimiento** (10/31 en agosto) y lo aplica sobre el importe del primero.
+  /// Devuelve también el porcentaje aplicado, para poder mostrarlo y auditarlo.
   ///
   /// Es público y estático para poder probarse: es la cuenta que define cuánto cobra el banco.
   /// </summary>
+  /// <param name="diasDelMes">
+  /// Días del mes del segundo vencimiento (<c>DateTime.DaysInMonth</c> del mes que corresponde).
+  /// </param>
   public static (decimal Recargo, decimal ImporteSegundo, decimal Porcentaje) CalcularRecargo(
-      decimal importePrimero, decimal tasaMensual, int dias)
+      decimal importePrimero, decimal tasaMensual, int dias, int diasDelMes)
   {
-    decimal porcentaje = tasaMensual * (dias / (decimal)DiasDelMesParaProrrateo);
+    if (dias <= 0) return (0m, importePrimero, 0m);
+
+    decimal porcentaje = tasaMensual * (dias / (decimal)Math.Max(diasDelMes, 1));
     decimal recargo = Redondear(importePrimero * porcentaje);
     return (recargo, importePrimero + recargo, porcentaje);
   }

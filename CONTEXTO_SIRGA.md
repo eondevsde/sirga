@@ -4,7 +4,7 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 1131 commits en `main` · 142/142 tests · build 0 avisos.
+Última actualización: **2026-10-06** · 115 commits en `main` · 142/142 tests · build 0 avisos.
 
 ---
 
@@ -130,6 +130,14 @@ puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por
    Un `'1900-01-01'` zafa por casualidad (día y mes son el mismo número), así que los guionados que ya
    existen en `script_sirga_db_upgrade_produccion.sql` **se verificaron y están bien**: no hay que
    tocarlos.
+14. **Todo `decimal` se fuerza a `decimal(18,2)`, y eso redondea a CERO cualquier tasa o coeficiente.**
+   En `SIRG_DbContext.OnModelCreating` hay un bucle que recorre **todas** las propiedades `decimal` y les
+   pone `decimal(18,2)` (convención pensada para importes). Un campo que no es plata —una tasa, un
+   porcentaje, un coeficiente— queda redondeado: `InterestRates.MonthlyRate` valía 0,0275 (2,75%) y se
+   guardaba **0,03**; una tasa diaria como 0,00091667 quedaba directamente **0,00**, sin ningún aviso.
+   **La excepción se declara DESPUÉS del bucle y con `HasColumnType`**, no con `HasPrecision`: el bucle deja el
+   tipo de columna fijado como texto y le gana a la precisión (con `HasPrecision`, EF no generaba ni el
+   cambio de columna).
 
 ---
 
@@ -146,6 +154,7 @@ La app vieja vive en la base `Sindicato` (copia local) y **sí** tiene lo que fa
 `categorias_empleado` (22) | `EmployeeCategories` | códigos **1..21**; el 0 = "TODAS" es un filtro, no una categoría |
 `EscalaSalarial` (1.339) | `SalaryScales` | `CodCategoria`/`Importe`/`AcuerdoNR1`/`AcuerdoNR2` |
 `socemp` (36.019) | `Assignments` | relación socio-empresa |
+`Intereses` (70) + `Intereses_` (52) | `InterestRates` (74) | **las tasas**: la segunda **no** es un subconjunto, aporta 4 filas que tapan huecos |
 
 **Ojo:** hay **dos** tablas `maesoc` (la vacía en `dbo` y la que tiene datos en el esquema `fotos_`) y el
 servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consulta daba cero.
@@ -172,8 +181,9 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   el **código de barras de 58 dígitos**. La pantalla sólo pide y descarga.
   - **Verificado generando el PDF real** de la DDJJ **1737080** (ABDALA LLAMIL, período 2026-08,
     total 51.000): banco Santiago del Estero / Sucursal Central / cliente 18588639, 1er venc.
-    15/09/2026 $51.000,00 y 2do venc. 25/09/2026 $51.510,00, y el código
-    `0134408260000020405264693126258000510000026268000515100004`. 1 página con los 3 talones.
+    15/09/2026 **$51.000,00** y 2do venc. 25/09/2026 **$51.467,50** (recargo 467,50 = 0,9167% por 10 días,
+    con la tasa **resarcitoria 2,75%** y el prorrateo por los 30 días de septiembre), y el código
+    `0134408260000020405264693126258000510000026268000514675003`. 1 página con los 3 talones.
   - El **importe del 1er vencimiento es el TOTAL de la DDJJ**, no el saldo (que puede venir con crédito
     aplicado o con intereses).
   - Si el sindicato **no tiene configuración bancaria activa**, el botón **avisa** en pantalla en lugar
@@ -188,6 +198,22 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 - **Pestaña SQL** en el GUI de DSH: sólo lectura, doble candado (lista negra + transacción con ROLLBACK),
   sólo `SIRGA_DB` y `Sindicato`.
 - **Tabla `Ramas`** creada (paso 1 de separar las escalas del sindicato).
+- **Tasas de interés migradas del sistema anterior** (`Sindicato.dbo.Intereses` → `InterestRates`):
+  **74 filas**, **37 por cada serie** (resarcitoria y punitoria), de **1901-01-01** al **2025-07-01**.
+  Script idempotente `script_sirga_db_intereses_desde_sistema_anterior.sql`, respaldo en
+  `dbo._BackupInterestRates`, simulacro en `.dsh-tools/simulacro_intereses.sql`.
+  - **Ojo con el origen**: `dbo.Intereses_` (52 filas) **NO es un subconjunto** de `dbo.Intereses` (70).
+    Aporta **4 filas que tapan huecos** de la escala (2004-06-01 tipo 1; 2004-09-01 tipos 1 y 2;
+    2006-07-01 tipo 2). Las otras 2 (2019-08-01) ya estaban cubiertas por un rango estirado con la misma
+    tasa, así que agregarlas habría creado un solapamiento. Con las dos tablas: **0 huecos, 0
+    solapamientos**, verificado con una consulta.
+  - La tabla de SIRGA se **extendió** (migración `ExtendInterestRates` + `AddInterestRateUniqueIndex`):
+    `TypeOfInterest`, `ValidTo`, `Norm`, `DailyRate`, y **`MonthlyRate` pasó de `decimal(18,2)` a
+    `(18,6)`** (con la escala vieja, 2,75% = 0,0275 se guardaba como **0,03**). Índice único por
+    (fecha, serie) para que "la tasa vigente" no vuelva a ser ambigua.
+  - **Unidades**: en SIRGA la tasa va como **FRACCIÓN** (0,0275 = 2,75%) y en el sistema anterior como
+    **PORCENTAJE** (2,75). La migración divide por 100 y la pantalla ahora **pide el porcentaje** y
+    convierte al guardar.
 - **Mínimo de escala calculado** (la corrección que el usuario reportó el 2026-10-06). La columna
   "Mínimo Escala" de `/declarations/new` ya no muestra el básico pelado ni $0: calcula
   **(básico + antigüedad + NR1 + NR2) × jornada**, con **antigüedad = 1% × años cumplidos** contados
@@ -245,16 +271,26 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    historial de DDJJ. Lo que **falta** es lo del punto 4 (la tasa real), porque el recargo del 2°
    vencimiento sale hoy de la tasa por defecto y el botón lo **advierte** en pantalla.
 4. **Recargo del 2° vencimiento**: 10 días después del 1° (configurable), con la tasa de `InterestRates`.
-   **Dato importante: la tabla de tasas tiene sólo el 3% por defecto; la escala de AFIP NO está cargada.**
    Caso de prueba real: la boleta de GAMMAROTA tenía recargo **$644,96 sobre $72.703,76 = 0,887% en 10
    días** → el cálculo tiene que reproducir ese número.
-   > **ESTADO (2026-10-06)**: el **mecanismo ya está implementado** en `BoletaService.CalcularRecargo`:
-   > prorratea la tasa MENSUAL por los días entre vencimientos (**días / 30**) y lo aplica sobre el total.
-   > Con el 3% por defecto y 10 días da **1,00%**, así que la boleta sale **con un 2° vencimiento
-   > provisorio** y la pantalla lo **advierte** con un cartel. **Lo que falta es cargar la escala real de
-   > AFIP**: con la tasa que implica el caso GAMMAROTA la fórmula reproduce los $644,96 (hay un test que
-   > lo deja anotado). **Falta que el usuario confirme la convención de días (/30)**, que es la única
-   > decisión que se tomó sin preguntar.
+   > **HECHO (2026-10-06)**. Tres cosas quedaron resueltas:
+   > 1. **La escala de AFIP se migró del sistema anterior** (`Sindicato.dbo.Intereses`): **74 filas**, 37
+   >    por cada serie, de 1901 al 2025-07-01. Ver "Hecho".
+   > 2. **La convención de días se MIDIÓ, no se eligió**: el recargo se prorratea por los **días del mes
+   >    del 2° vencimiento** (10/31 en agosto). Con eso el caso real da **644,95 contra 644,96** (falla 1
+   >    centavo, redondeo del sistema anterior). Con **días/30** daba **666,45** y fallaba **$21,49**. La
+   >    columna `Diario` del sistema anterior es `Mensual/30` exacto, así que **tampoco sirve** para esto.
+   > 3. **La serie que aplica es la resarcitoria** (la más baja), confirmado por el usuario.
+   >
+   > **Lo que queda de este punto**:
+   > - La tasa vigente hoy es **2,75% (R (MEC) 823/2025)** desde 2025-07-01 y quedó **abierta**: si el
+   >   sindicato publica una nueva, **hay que cargarla**, porque el sistema va a seguir usando la de julio
+   >   2025 para siempre. Eso es dato, no código.
+   > - **Falta que el usuario confirme la convención de días** contra la realidad del banco: la evidencia
+   >   es **una sola boleta**, y el propio instructivo del banco decía que cuantas más boletas se
+   >   contrasten, mejor. Con más casos se confirma o se corrige.
+   > - `DeclarationService` (la mora de la DDJJ) usa la misma serie resarcitoria, pero sigue calculando
+   >   **por meses enteros**, no por días: son dos conceptos distintos y por ahora conviven.
 5. **Licencia médica** (definido con el usuario): se **marca al cargar la DDJJ**, período a período, con
    **certificado adjunto**. El empleado con licencia genera un **detalle en cero con motivo** (el único
    cero legítimo).
@@ -271,15 +307,14 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     se le inyectó `ILogger<DeclarationService>` y el `catch` vacío pasó a registrar el error con el id
     de la DDJJ, la empresa y el período. La DDJJ **sigue sin fallar** por el mail (eso estaba bien), pero
     el problema ya no queda invisible. Era el **único `catch` vacío de todo el código**.
-12. **La pantalla de tasas (`/admin/interest-rates`) tiene tres cosas para revisar** (van con el
-    pendiente 4, porque es donde se carga la escala de AFIP):
-    - El campo dice **"Tasa Mensual (%)"** y muestra con formato `P2`, pero guarda la **fracción**: para
-      cargar 3% hay que tipear **0,03**. Si alguien tipea `3`, queda una tasa de **300%**. Es la trampa
-      más probable al cargar la escala.
+12. **La pantalla de tasas (`/admin/interest-rates`) tiene una cosa pendiente** (el resto se arregló con
+    la migración, ver "Hecho"):
     - **Borra de forma definitiva** (`RemoveAsync`, y la entidad no tiene `IsActive`), al revés del
       patrón de "desactivar" que sí usan los bancos. Y **no se puede editar**: sólo crear o borrar.
-    - Es **global**, no por sindicato (`InterestRate` no tiene `UnionId`), y la pantalla es **sólo para
-      rol Admin**, no para el estudio contable.
+      **Ojo al usarla: un clic en el tacho borra una tasa de la escala, sin vuelta atrás.**
+    - Sigue siendo **global**, no por sindicato (`InterestRate` no tiene `UnionId`), y **sólo para rol
+      Admin**, no para el estudio contable. Las dos cosas están bien por ahora (el sindicato que factura
+      es uno solo), pero conviene revisarlo cuando entren los otros sindicatos.
 
 ---
 
@@ -292,6 +327,9 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 - **La boleta es una por DDJJ, por período, por el total.** Es **triplicada** (cliente/banco/sindicato).
 - **El recargo del 2° vencimiento** sale de la escala de tasas en base; 1er vencimiento el **15 del mes
   posterior** al período y el 2° **10 días después** (ambos configurables por sindicato).
+  **La tasa que aplica es la RESARCITORIA** (la serie más baja de las dos que trae la escala), y el
+  recargo se prorratea por los **días del mes del 2° vencimiento** (no por 30): medido contra la boleta
+  real de GAMMAROTA, 2,75% × 10/31 = **644,95** contra 644,96 impreso, mientras que con /30 daba 666,45.
 - **El aporte de ley y la cuota socio son 2% cada uno**, y la **cuota socio es por empresa** (el
   pluriempleo paga dos cuotas: es correcto).
 - **La DDJJ se puede presentar con el legajo de pluriempleo pendiente**; el Sindicato aprueba ese legajo.

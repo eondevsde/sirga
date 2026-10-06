@@ -13,9 +13,19 @@
   <MudItem xs="12" md="4">
     <MudPaper Class="pa-4">
       <MudText Typo="Typo.h6">Nueva Tasa Mensual</MudText>
-      <MudNumericField T="decimal" @bind-Value="_newRate.MonthlyRate" Label="Tasa Mensual (%)" Format="P2" Step="0.001m"
-                       Class="mt-4" />
-      <MudDatePicker Label="Fecha de Vigencia" @bind-Date="_newRateDate" Class="mt-4" />
+      @* El campo se carga EN PORCENTAJE (2,75) porque así se lee la escala de ARCA y así viene del
+         sistema anterior. En la base se guarda la FRACCIÓN (0,0275) y la conversión la hace esta
+         pantalla al guardar. Antes el cartel decía "(%)" pero guardaba lo tipeado tal cual como
+         fracción, así que cargar 3 significaba una tasa de 300%. *@
+      <MudNumericField T="decimal" @bind-Value="_nuevaTasaPorcentaje" Label="Tasa mensual en % (ej. 2,75)"
+                       Step="0.01m" Format="0.####" Class="mt-4" />
+      <MudSelect T="InterestType" @bind-Value="_nuevaSerie" Label="Serie" Class="mt-4">
+        <MudSelectItem T="InterestType" Value="InterestType.Resarcitorio">Resarcitorio (la más baja)</MudSelectItem>
+        <MudSelectItem T="InterestType" Value="InterestType.Punitorio">Punitorio (la más alta)</MudSelectItem>
+      </MudSelect>
+      <MudDatePicker Label="Vigencia desde" @bind-Date="_newRateDate" Class="mt-4" />
+      <MudDatePicker Label="Vigencia hasta (opcional)" @bind-Date="_nuevaVigenciaHasta" Class="mt-4" />
+      <MudTextField @bind-Value="_newRate.Norm" Label="Norma (ej. R (MEC) 823/2025)" Class="mt-4" />
       <MudTextField @bind-Value="_newRate.Description" Label="Descripción / Motivo" Class="mt-4" />
       <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-6" FullWidth="true" OnClick="SaveRate">Guardar
         Tasa</MudButton>
@@ -25,15 +35,21 @@
     <MudItem xs="12" md="8">
       <MudTable Items="@_rates" Dense="true" Hover="true" Loading="@_loading">
         <HeaderContent>
-          <MudTh>Vigencia</MudTh>
+          <MudTh>Vigencia desde</MudTh>
+          <MudTh>Vigencia hasta</MudTh>
+          <MudTh>Serie</MudTh>
           <MudTh>Tasa Mensual</MudTh>
-          <MudTh>Descripción</MudTh>
+          <MudTh>Tasa Diaria</MudTh>
+          <MudTh>Norma</MudTh>
           <MudTh>Acciones</MudTh>
         </HeaderContent>
         <RowTemplate>
-          <MudTd>@context.EffectiveDate.ToString("MM/yyyy")</MudTd>
-          <MudTd><b>@((context.MonthlyRate * 100).ToString("N2"))%</b></MudTd>
-          <MudTd>@context.Description</MudTd>
+          <MudTd>@context.EffectiveDate.ToString("dd/MM/yyyy")</MudTd>
+          <MudTd>@(context.ValidTo?.ToString("dd/MM/yyyy") ?? "vigente")</MudTd>
+          <MudTd>@context.TypeOfInterest</MudTd>
+          <MudTd><b>@((context.MonthlyRate * 100).ToString("N4"))%</b></MudTd>
+          <MudTd>@(context.DailyRate is null ? "-" : (context.DailyRate.Value * 100).ToString("N6") + "%")</MudTd>
+          <MudTd>@context.Norm</MudTd>
           <MudTd>
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                            OnClick="@(() => DeleteRate(context.Id))" />
@@ -46,7 +62,10 @@
 @code {
   private List<InterestRate> _rates = new();
   private InterestRate _newRate = new();
+  private decimal _nuevaTasaPorcentaje;
+  private InterestType _nuevaSerie = InterestType.Resarcitorio;
   private DateTime? _newRateDate = DateTime.Today;
+  private DateTime? _nuevaVigenciaHasta;
   private bool _loading = true;
 
   protected override async Task OnInitializedAsync()
@@ -61,7 +80,7 @@
     {
       // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
       _rates = (await InterestRateService.GetAllAsync())
-          .OrderByDescending(x => x.EffectiveDate).ToList();
+          .OrderByDescending(x => x.EffectiveDate).ThenBy(x => x.TypeOfInterest).ToList();
     }
     catch (Exception ex)
     {
@@ -75,22 +94,37 @@
 
   private async Task SaveRate()
   {
-    if (_newRate.MonthlyRate <= 0)
+    if (_nuevaTasaPorcentaje <= 0)
     {
       Snackbar.Add("La tasa debe ser mayor a 0", Severity.Warning);
       return;
     }
 
+    if (_nuevaVigenciaHasta is not null && _newRateDate is not null && _nuevaVigenciaHasta < _newRateDate)
+    {
+      Snackbar.Add("La vigencia hasta no puede ser anterior a la vigencia desde", Severity.Warning);
+      return;
+    }
+
     try
     {
+      // El campo se carga EN PORCENTAJE y en la base va la FRACCIÓN: 2,75 -> 0,0275.
+      _newRate.MonthlyRate = _nuevaTasaPorcentaje / 100m;
       _newRate.EffectiveDate = _newRateDate ?? DateTime.Today;
+      _newRate.ValidTo = _nuevaVigenciaHasta;
+      _newRate.TypeOfInterest = _nuevaSerie;
+
       await InterestRateService.CreateAsync(_newRate);
-      Snackbar.Add("Tasa guardada correctamente", Severity.Success);
+      Snackbar.Add($"Tasa guardada: {_nuevaTasaPorcentaje:0.####}% ({_nuevaSerie}).", Severity.Success);
+
       _newRate = new();
+      _nuevaTasaPorcentaje = 0;
+      _nuevaVigenciaHasta = null;
       await LoadRates();
     }
     catch (Exception ex)
     {
+      // El índice único por (fecha + serie) hace que una tasa repetida falle acá: se muestra el motivo.
       Snackbar.Add("Error al guardar: " + ex.Message, Severity.Error);
     }
   }

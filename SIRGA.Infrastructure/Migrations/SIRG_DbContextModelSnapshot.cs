@@ -941,6 +941,9 @@ namespace SIRGA.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<decimal?>("DailyRate")
+                        .HasColumnType("decimal(18,8)");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -949,9 +952,22 @@ namespace SIRGA.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("MonthlyRate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Norm")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("TypeOfInterest")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ValidTo")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EffectiveDate", "TypeOfInterest")
+                        .IsUnique();
 
                     b.ToTable("InterestRates");
                 });

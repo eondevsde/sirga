@@ -30,6 +30,15 @@ public class BoletaDatosDto
   /// <summary>Días entre el primer y el segundo vencimiento que se usaron para el recargo.</summary>
   public int DiasRecargo { get; set; }
 
+  /// <summary>
+  /// Norma que fija la tasa usada para el recargo (por ejemplo "R (MEC) 823/2025"). Queda impresa en el
+  /// circuito para poder auditar de dónde salió el importe del segundo vencimiento.
+  /// </summary>
+  public string? RecargoNorma { get; set; }
+
+  /// <summary>Serie de la tasa usada para el recargo (hoy siempre resarcitoria).</summary>
+  public string RecargoSerie { get; set; } = string.Empty;
+
   public DateTime PrimerVencimiento { get; set; }
   public decimal ImportePrimerVencimiento { get; set; }
   public DateTime SegundoVencimiento { get; set; }

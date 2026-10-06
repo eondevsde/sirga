@@ -152,5 +152,24 @@ public class SIRG_DbContext : IdentityDbContext
         {
             property.SetColumnType("decimal(18,2)");
         }
+
+        // EXCEPCIÓN a la convención de arriba: las TASAS DE INTERÉS no son importes, son fracciones.
+        // Con decimal(18,2) se redondearían a cero: 0,0275 (2,75% mensual) quedaría 0,03 y una tasa
+        // diaria como 0,00091667 quedaría directamente 0,00. Va DESPUÉS del bucle, si no la pisa.
+        // Se usa HasColumnType (y no HasPrecision) porque el bucle deja fijado el TIPO de columna como
+        // texto y eso le gana a la precisión: con HasPrecision, EF no generaba el cambio de columna.
+        modelBuilder.Entity<InterestRate>()
+            .Property(r => r.MonthlyRate)
+            .HasColumnType("decimal(18,6)");
+
+        modelBuilder.Entity<InterestRate>()
+            .Property(r => r.DailyRate)
+            .HasColumnType("decimal(18,8)");
+
+        // Una sola tasa por fecha y serie. Sin esto puede haber dos filas vigentes para la misma fecha,
+        // y "la tasa vigente" pasa a ser ambigua: el recargo se calcula con cualquiera de las dos.
+        modelBuilder.Entity<InterestRate>()
+            .HasIndex(r => new { r.EffectiveDate, r.TypeOfInterest })
+            .IsUnique();
     }
 }

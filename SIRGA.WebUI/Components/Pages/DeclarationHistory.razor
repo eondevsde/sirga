@@ -157,7 +157,9 @@ else
 
       Snackbar.Add(
           $"Boleta bancaria emitida. 1° venc. {datos.PrimerVencimiento:dd/MM/yyyy}: {datos.ImportePrimerVencimiento:C2} · " +
-          $"2° venc. {datos.SegundoVencimiento:dd/MM/yyyy}: {datos.ImporteSegundoVencimiento:C2}",
+          $"2° venc. {datos.SegundoVencimiento:dd/MM/yyyy}: {datos.ImporteSegundoVencimiento:C2}. " +
+          $"Recargo del 2° venc.: {datos.RecargoPorcentaje:0.####}% por {datos.DiasRecargo} días = {datos.Recargo:C2}" +
+          (string.IsNullOrWhiteSpace(datos.RecargoNorma) ? "." : $" (tasa {datos.RecargoSerie} de {datos.RecargoNorma})."),
           Severity.Success);
 
       // El recargo puede salir de la tasa por defecto (la escala de AFIP no está cargada): se avisa
