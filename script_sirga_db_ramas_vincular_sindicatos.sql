@@ -14,6 +14,9 @@
 -- comparten Comercio 130/75. **Queda pendiente completarle el CctCode.**
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
+-- Por consistencia con los otros scripts: si una tabla llega a tener un indice filtrado, el UPDATE
+-- falla con QUOTED_IDENTIFIER en OFF.
+SET QUOTED_IDENTIFIER ON;
 
 -- ---------------------------------------------------------------------------
 -- 1) La rama

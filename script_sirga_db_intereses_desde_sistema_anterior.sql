@@ -26,6 +26,9 @@
 -- contra columnas datetime (se malinterpretan). El "sin fin" se detecta con YEAR(Hasta) >= 2999.
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
+-- Obligatorio: InterestRates tiene un indice FILTRADO y SQL Server no deja hacer UPDATE sobre una tabla
+-- con indice filtrado si QUOTED_IDENTIFIER esta en OFF (sqlcmd lo trae OFF por defecto).
+SET QUOTED_IDENTIFIER ON;
 
 -- ---------------------------------------------------------------------------
 -- Origen consolidado: la principal + las filas de la copia que tapan huecos

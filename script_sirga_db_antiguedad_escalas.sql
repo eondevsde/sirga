@@ -16,6 +16,9 @@
 --   INNER JOIN dbo._BackupSalaryScalesAntiguedad b ON b.SalaryScaleId = s.Id;
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
+-- Obligatorio: SalaryScales tiene un indice FILTRADO y SQL Server no deja hacer UPDATE sobre una tabla
+-- con indice filtrado si QUOTED_IDENTIFIER esta en OFF (sqlcmd lo trae OFF por defecto).
+SET QUOTED_IDENTIFIER ON;
 
 DECLARE @porcentaje decimal(18,2) = 1.00;
 
@@ -27,14 +30,15 @@ DECLARE @porcentaje decimal(18,2) = 1.00;
 IF OBJECT_ID('dbo._BackupSalaryScalesAntiguedad') IS NULL
 BEGIN
     SELECT
-        Id                                              AS SalaryScaleId,
-        UnionId,
-        Period,
-        AntiguedadPercentage                            AS PorcentajeAnterior,
+        s.Id                                            AS SalaryScaleId,
+        ec.RamaId,
+        s.Period,
+        s.AntiguedadPercentage                          AS PorcentajeAnterior,
         GETDATE()                                       AS FechaRespaldo
     INTO dbo._BackupSalaryScalesAntiguedad
-    FROM dbo.SalaryScales
-    WHERE AntiguedadPercentage = 0;
+    FROM dbo.SalaryScales s
+    INNER JOIN dbo.EmployeeCategories ec ON ec.Id = s.EmployeeCategoryId
+    WHERE s.AntiguedadPercentage = 0;
 
     SELECT 'RESPALDO -> creado con filas = ' + CAST(COUNT(*) AS varchar(9))
     FROM dbo._BackupSalaryScalesAntiguedad;
@@ -71,11 +75,15 @@ SELECT 'DESPUES -> escalas que siguen en 0 = ' + CAST(COUNT(*) AS varchar(9))
 FROM dbo.SalaryScales WHERE AntiguedadPercentage = 0;
 
 PRINT '=== LA PRUEBA: ABDALA LLAMIL (empresa 29656) — minimo de escala por periodo vigente ===';
+-- OJO: desde el modelo de ramas, las categorias y las escalas cuelgan de la RAMA del sindicato, no del
+-- sindicato (`SalaryScales` ya no tiene `UnionId`). Se llega por: asignacion -> sindicato -> rama ->
+-- categoria (por codigo) -> escala del periodo.
 ;WITH ultimo AS (
-    SELECT UnionId, MAX(Period) AS Periodo
-    FROM dbo.SalaryScales
-    WHERE UnionId = 19
-    GROUP BY UnionId
+    SELECT ec.RamaId, MAX(s.Period) AS Periodo
+    FROM dbo.SalaryScales s
+    INNER JOIN dbo.EmployeeCategories ec ON ec.Id = s.EmployeeCategoryId
+    WHERE s.IsActive = 1
+    GROUP BY ec.RamaId
 ),
 base AS (
     SELECT
@@ -97,9 +105,10 @@ base AS (
         CASE WHEN a.Jornada = 2 THEN 0.5 ELSE 1.0 END AS factor_jornada
     FROM dbo.Assignments a
     INNER JOIN dbo.Employees e           ON e.Id = a.EmployeeId
-    INNER JOIN ultimo u                  ON u.UnionId = a.UnionId
-    INNER JOIN dbo.SalaryScales s        ON s.UnionId = a.UnionId AND s.Period = u.Periodo
-    INNER JOIN dbo.EmployeeCategories ec ON ec.Id = s.EmployeeCategoryId AND ec.Code = a.CategoryCode
+    INNER JOIN dbo.Unions un             ON un.Id = a.UnionId
+    INNER JOIN ultimo u                  ON u.RamaId = un.RamaId
+    INNER JOIN dbo.EmployeeCategories ec ON ec.RamaId = un.RamaId AND ec.Code = a.CategoryCode
+    INNER JOIN dbo.SalaryScales s        ON s.EmployeeCategoryId = ec.Id AND s.Period = u.Periodo AND s.IsActive = 1
     WHERE a.CompanyId = 29656 AND a.IsActive = 1
 )
 SELECT

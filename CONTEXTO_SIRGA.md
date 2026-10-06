@@ -140,6 +140,18 @@ puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por
    **La excepción se declara DESPUÉS del bucle y con `HasColumnType`**, no con `HasPrecision`: el bucle deja el
    tipo de columna fijado como texto y le gana a la precisión (con `HasPrecision`, EF no generaba ni el
    cambio de columna).
+15. **Un índice FILTRADO obliga a `SET QUOTED_IDENTIFIER ON` para escribir en esa tabla.** SQL Server
+   rechaza el `UPDATE`/`INSERT` sobre una tabla con índice filtrado si `QUOTED_IDENTIFIER` está en OFF, y
+   **`sqlcmd` lo trae OFF por defecto**: el error es *"Error de UPDATE porque las siguientes opciones SET
+   tienen una configuración incorrecta: 'QUOTED_IDENTIFIER'"*. Le pasó a los scripts que escriben en
+   `SalaryScales` (índice filtrado por `IsActive`) y en `InterestRates` (por `IsActive`). **Todo script que
+   escriba en esas tablas —o en `Companies`, que tiene índice filtrado— lleva `SET QUOTED_IDENTIFIER ON;`
+   al principio.** Verificado corriendo los 4 scripts: sin eso fallan, con eso dan 0 cambios.
+16. **Al cambiar el esquema, revisar los scripts y diagnósticos que consultan esas tablas.** Después de
+   mover las escalas y categorías a la rama, el script de antigüedad y el diagnóstico de DDJJ en cero
+   (`diag_ddjj_cero.sql`) seguían usando `SalaryScales.UnionId`, que ya no existe: **fallaban al
+   compilar** (y un batch no ejecuta nada si no compila). Ya se corrigieron; el que se agregue algo al
+   esquema, que busque `UnionId` en los `.sql` antes de dar por cerrado el cambio.
 
 ---
 
@@ -359,6 +371,12 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     se le inyectó `ILogger<DeclarationService>` y el `catch` vacío pasó a registrar el error con el id
     de la DDJJ, la empresa y el período. La DDJJ **sigue sin fallar** por el mail (eso estaba bien), pero
     el problema ya no queda invisible. Era el **único `catch` vacío de todo el código**.
+13. **Los scripts de esquema generados quedaron viejos tras el modelo de ramas.**
+    `script_sirga_db_produccion.sql` y `script_sirga_db_upgrade_produccion.sql` **crean
+    `SalaryScales.UnionId` y `EmployeeCategories.UnionId`**, columnas que ya no existen, y no crean
+    `RamaId`. Son artefactos generados (no se tocan a mano y **no se corren desde acá**): hay que
+    **regenerarlos** con `dotnet ef migrations script` cuando se prepare un despliegue, si no el esquema
+    que armen no va a coincidir con el modelo. Lo mismo con `.dsh-tools/schema_verify.sql`.
 12. ~~**La pantalla de tasas ya no borra**~~ **HECHO (2026-10-06)**: se cambió el borrado definitivo por
     **desactivar** (el patrón que usan los bancos) y se agregó **edición**. Lo que sigue pendiente acá:
     - Sigue siendo **global**, no por sindicato (`InterestRate` no tiene `UnionId`), y **sólo para rol

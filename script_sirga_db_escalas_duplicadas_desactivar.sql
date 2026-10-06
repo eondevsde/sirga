@@ -17,6 +17,9 @@
 -- RESPALDO: deja las filas afectadas en dbo._BackupSalaryScalesDuplicadas (y lo conserva si ya existe).
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
+-- Obligatorio: SalaryScales tiene un indice FILTRADO y SQL Server no deja hacer UPDATE sobre una tabla
+-- con indice filtrado si QUOTED_IDENTIFIER esta en OFF (sqlcmd lo trae OFF por defecto).
+SET QUOTED_IDENTIFIER ON;
 
 -- ---------------------------------------------------------------------------
 -- RESPALDO: solo las filas que se van a desactivar
