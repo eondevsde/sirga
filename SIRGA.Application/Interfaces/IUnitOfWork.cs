@@ -21,6 +21,7 @@ public interface IUnitOfWork : IDisposable
   IRepository<Company> Companies { get; }
   IRepository<Union> Unions { get; }
   IRepository<DeclarationRegistry> Declarations { get; }
+  IRepository<DeclarationDetail> DeclarationDetails { get; }
   IRepository<SindicataryAssignment> Assignments { get; }
   IRepository<SalaryScale> SalaryScales { get; }
   IRepository<AccountingStudio> AccountingStudios { get; }

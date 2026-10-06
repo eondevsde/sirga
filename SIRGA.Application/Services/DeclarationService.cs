@@ -85,6 +85,20 @@ public class DeclarationService(
 
     var declaration = existingDraft ?? new DeclarationRegistry();
 
+    // Si se REANUDA un borrador hay que borrar sus detalles antes de volver a generarlos. Sin esto, cada
+    // presentación del mismo borrador AGREGA los detalles de nuevo: quedaron 12 detalles para 4 empleados
+    // después de 3 intentos, y la cabecera decía 112.622,46 mientras los detalles sumaban 337.867,38.
+    // Sólo se reanudan BORRADORES: nunca una DDJJ presentada, aprobada, pagada o rechazada.
+    if (existingDraft is not null)
+    {
+      var detallesPrevios = await unitOfWork.DeclarationDetails.FindAsync(d => d.RegistryId == existingDraft.Id);
+      foreach (var previo in detallesPrevios)
+      {
+        await unitOfWork.DeclarationDetails.RemoveAsync(previo);
+      }
+      await unitOfWork.CompleteAsync();
+    }
+
     declaration.CompanyId = request.CompanyId;
     declaration.UnionId = request.UnionId;
     declaration.Period = request.Period;

@@ -16,6 +16,7 @@ public class UnitOfWork : IUnitOfWork
     Companies = new Repository<Company>(_context, dbLock);
     Unions = new Repository<Union>(_context, dbLock);
     Declarations = new Repository<DeclarationRegistry>(_context, dbLock);
+    DeclarationDetails = new Repository<DeclarationDetail>(_context, dbLock);
     Assignments = new Repository<SindicataryAssignment>(_context, dbLock);
     SalaryScales = new Repository<SalaryScale>(_context, dbLock);
     AccountingStudios = new Repository<AccountingStudio>(_context, dbLock);
@@ -49,6 +50,7 @@ public class UnitOfWork : IUnitOfWork
   public IRepository<Company> Companies { get; }
   public IRepository<Union> Unions { get; }
   public IRepository<DeclarationRegistry> Declarations { get; }
+  public IRepository<DeclarationDetail> DeclarationDetails { get; }
   public IRepository<SindicataryAssignment> Assignments { get; }
   public IRepository<SalaryScale> SalaryScales { get; }
   public IRepository<AccountingStudio> AccountingStudios { get; }

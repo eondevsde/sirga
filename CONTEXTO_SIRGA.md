@@ -44,6 +44,7 @@ estudios. Stack: **.NET 10 Blazor Server** (Interactive Server, prerender ON) + 
 | Base de desarrollo | `SIRGA_DB` en `localhost` (Windows auth) |
 | Copia del sistema anterior | `Sindicato` en `localhost` (SQL auth `sqladmin`) — **es una copia local, no producción** |
 | Credenciales | En `.dsh-tools\.sqlpwd` (ignorado por git). **Nunca escribir la contraseña en un comando, código ni informe**: se lee del archivo |
+| Credenciales que **faltan** | **MercadoPago** (`MercadoPago:AccessToken`) y **SMTP** no están configurados en este entorno. Sin el token de MercadoPago, generar el link de pago da **403 UNAUTHORIZED** ("At least one policy returned UNAUTHORIZED") y sin SMTP el mail con la boleta no sale: los dos se avisan, no son bugs del código. La app los lee de configuración (variable de entorno `MercadoPago__AccessToken`, o user-secrets), nunca de un archivo versionado |
 | Pestaña SQL | Plugin de DSH en `C:\Users\drop1\.dsh\profiles\node_modules\@deepseek-ai\dsh-sql-tab` (sólo lectura, dev + legacy, sin producción) |
 
 **Para levantar la app** (job en background, `workdir = SIRGA.WebUI`), **siempre en Development**:
@@ -236,6 +237,13 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     nombre y porque la documentación de `Rama` dice que comparten 130/75. **Falta completarle el CctCode.**
   - Al editar un sindicato, el diálogo tiene que devolver `RamaId` (y los porcentajes): si no, guardar
     **borra la rama** sin avisar. Ya está corregido en `Unions.razor`.
+- **Los detalles de una DDJJ se REEMPLAZAN al re-presentar un borrador** (antes se acumulaban). Era un
+  bug real: `declaration.Details.Add(...)` **agregaba** sobre lo que ya había, así que cada presentación
+  del mismo borrador sumaba los detalles de nuevo. Se detectó con una DDJJ de prueba que quedó con **12
+  detalles para 4 empleados** (3 presentaciones) y la cabecera diciendo **112.622,46** mientras los
+  detalles sumaban **337.867,38**. Ahora, si se reanuda un borrador, se borran sus detalles y se
+  regeneran; se reanudan **sólo borradores**, nunca una DDJJ presentada, aprobada o pagada. Verificado:
+  el mismo borrador pasó de 12 detalles a **4**, con la cabecera igual a la suma de los detalles.
 - **Escalas duplicadas resueltas por DESACTIVACIÓN**: había **42 pares (período, categoría)** con dos
   escalas (84 filas), de **dos meses importados dos veces** (2022-06 y 2022-07) y **copias exactas**. Se
   desactivó la copia sobrante conservando la de menor Id: **1.297 activas, 42 inactivas, 1.339 totales
