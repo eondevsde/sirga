@@ -1,3 +1,5 @@
+using SIRGA.Domain.Entities;
+
 namespace SIRGA.Application.Services;
 
 /// <summary>
@@ -148,4 +150,63 @@ public static class BoletaBse
           importePrimerVencimiento,
           primerVencimiento.AddDays(DiasEntreVencimientos),
           importeSegundoVencimiento);
+
+  /// <summary>
+  /// Talones de la boleta. El banco pide TRIPLICADO: uno para el cliente, uno para el banco y uno
+  /// para el sindicato. Los tres llevan los mismos datos y el mismo código de barras.
+  /// </summary>
+  public static readonly string[] Talones =
+  [
+    "Talón para el CLIENTE",
+    "Talón para el BANCO",
+    "Talón para el SINDICATO"
+  ];
+
+  /// <summary>
+  /// Primer vencimiento: el día configurado del mes siguiente al período.
+  /// Ejemplo acordado con el sindicato: período 09/2026 con día 15 vence el 15/10/2026.
+  /// Se usa AddDays sobre el día 1 del mes en lugar de new DateTime(anio, mes, dia) para que un día
+  /// fuera de rango no rompa: la validación del día (1 a 28) está en la configuración.
+  /// </summary>
+  public static DateTime PrimerVencimiento(string periodo, int diaDelMes)
+  {
+    var partes = (periodo ?? string.Empty).Split('-');
+    if (partes.Length != 2 || !int.TryParse(partes[0], out var anio) || !int.TryParse(partes[1], out var mes))
+      throw new ArgumentException($"Período inválido: \"{periodo}\". Se espera el formato aaaa-MM.", nameof(periodo));
+
+    if (mes < 1 || mes > 12)
+      throw new ArgumentException($"Mes inválido en el período \"{periodo}\".", nameof(periodo));
+
+    return new DateTime(anio, mes, 1).AddMonths(1).AddDays(Math.Max(diaDelMes, 1) - 1);
+  }
+
+  /// <summary>Segundo vencimiento: el primero más los días configurados (10 por defecto).</summary>
+  public static DateTime SegundoVencimiento(DateTime primerVencimiento, int dias)
+      => primerVencimiento.AddDays(Math.Max(dias, 0));
+
+  /// <summary>
+  /// Genera el código a partir de la configuración bancaria del sindicato: el código de ente y los
+  /// vencimientos salen de ahí, no de la lógica. Es la forma correcta de emitir la boleta, porque el
+  /// código de ente cambia por sindicato (0134, 0135, 0136, 0137).
+  /// </summary>
+  public static string GenerarConConfiguracion(
+      UnionBankConfig configuracion,
+      string periodo,
+      string cuit,
+      decimal importePrimerVencimiento,
+      decimal importeSegundoVencimiento)
+  {
+    ArgumentNullException.ThrowIfNull(configuracion);
+
+    var primerVencimiento = PrimerVencimiento(periodo, configuracion.FirstDueDay);
+
+    return Generar(
+        configuracion.EntityCode,
+        periodo,
+        cuit,
+        primerVencimiento,
+        importePrimerVencimiento,
+        SegundoVencimiento(primerVencimiento, configuracion.DaysToSecondDue),
+        importeSegundoVencimiento);
+  }
 }

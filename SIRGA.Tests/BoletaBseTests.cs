@@ -69,4 +69,56 @@ public class BoletaBseTests
     Assert.Equal('4', codigo[4]);
     Assert.Equal('1', codigo[25]);   // código de moneda: pesos
   }
+
+  [Fact]
+  public void El_Primer_Vencimiento_Es_El_Dia_Configurado_Del_Mes_Siguiente()
+  {
+    // Acordado con el sindicato: el período 09/2026 vence el 15/10/2026 y el segundo a los 10 días.
+    var primerVencimiento = BoletaBse.PrimerVencimiento("2026-09", 15);
+    Assert.Equal(new DateTime(2026, 10, 15), primerVencimiento);
+    Assert.Equal(new DateTime(2026, 10, 25), BoletaBse.SegundoVencimiento(primerVencimiento, 10));
+
+    // Y el período de diciembre vence en enero del año siguiente.
+    Assert.Equal(new DateTime(2027, 1, 15), BoletaBse.PrimerVencimiento("2026-12", 15));
+  }
+
+  [Fact]
+  public void La_Boleta_Es_Triplicada_Cliente_Banco_Y_Sindicato()
+  {
+    Assert.Equal(3, BoletaBse.Talones.Length);
+    Assert.Contains("Talón para el CLIENTE", BoletaBse.Talones);
+    Assert.Contains("Talón para el BANCO", BoletaBse.Talones);
+    Assert.Contains("Talón para el SINDICATO", BoletaBse.Talones);
+  }
+
+  [Fact]
+  public void Genera_Con_La_Configuracion_Del_Sindicato()
+  {
+    var configuracion = new SIRGA.Domain.Entities.UnionBankConfig
+    {
+      UnionId = 19,
+      BankId = 1,
+      ClientNumber = "18588639",
+      EntityCode = "0134",
+      DesignFormat = 4,
+      FirstDueDay = 15,
+      DaysToSecondDue = 10,
+      IsActive = true
+    };
+
+    var codigo = BoletaBse.GenerarConConfiguracion(configuracion, "2026-09", "30-71157059-0", 1234567.89m, 1260000m);
+
+    Assert.Equal(BoletaBse.LargoCodigo, codigo.Length);
+    Assert.Equal("0134", codigo[..4]);
+    // 15/10/2026 = día 288 de 2026 -> 26288 ; 25/10/2026 = día 298 -> 26298
+    Assert.Equal("26288", codigo[26..31]);
+    Assert.Equal("26298", codigo[41..46]);
+  }
+
+  [Fact]
+  public void Un_Periodo_Invalido_No_Pasa_Silenciosamente()
+  {
+    Assert.Throws<ArgumentException>(() => BoletaBse.PrimerVencimiento("2026", 15));
+    Assert.Throws<ArgumentException>(() => BoletaBse.PrimerVencimiento("", 15));
+  }
 }
