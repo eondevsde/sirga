@@ -134,6 +134,15 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    > **ESTADO (2026-10-06): el usuario YA LA PROBÓ y reportó que "hay cosas que corregir", sin
    > detallar cuáles.** Lo primero al arrancar la próxima sesión: **pedirle el detalle de esas
    > correcciones** antes de tocar nada. No inventar qué falló ni asumir que funciona.
+   >
+   > **Lo que sí quedó demostrado con datos:** el cálculo **funciona**. La DDJJ **1737080** (ABDALA
+   > LLAMIL, período **2026-08**, creada 2026-10-06 09:13) quedó con **2 detalles y total $51.000,00**,
+   > contra las 1737078/1737079 que habían quedado en 0 con 0 detalles. O sea: la migración de
+   > categorías resolvió el problema de fondo. Las correcciones que menciona el usuario son **otra
+   > cosa** (pantalla, importes exactos, estados, lo que sea): hay que preguntarle.
+   >
+   > Ojo: la 1737080 quedó en estado **borrador (1)**, igual que las anteriores. Vale la pena revisar si
+   > el paso final de presentación completa o si el flujo deja todo en borrador.
 2. **Modelo de ramas, pasos 2 a 4**: vincular `Unions` a `Rama`; pasar `EmployeeCategories` y
    `SalaryScales` a colgar de la **rama**; y recién al final cambiar las consultas que filtran por
    `UnionId` para que filtren por la rama del sindicato. **Las escalas son nacionales y dependen de la
