@@ -48,4 +48,11 @@ public class InterestRate
 
   /// <summary>Descripción libre, para las tasas que se cargan a mano.</summary>
   public string Description { get; set; } = string.Empty;
+
+  /// <summary>
+  /// Si la tasa está vigente para el cálculo. Una tasa que no corresponde se **desactiva**, no se borra:
+  /// es parte de la escala histórica y borrarla dejaría un hueco sin rastro. Los que calculan (la boleta
+  /// y la mora de la DDJJ) sólo miran las activas.
+  /// </summary>
+  public bool IsActive { get; set; } = true;
 }

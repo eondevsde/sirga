@@ -176,12 +176,13 @@ public class DeclarationService(
     decimal interestAmount = 0;
     if (DateTime.Now > dueDate && declaration.BalanceAmount > 0)
     {
-      // Se filtra por serie RESARCITORIA y por rango de vigencia. La tabla de tasas tiene DOS series por
-      // período: sin el filtro, esta consulta devolvía dos filas para la misma fecha y usaba cualquiera
-      // de las dos (no determinista).
+      // Se filtra por serie RESARCITORIA, por rango de vigencia y por ACTIVAS. La tabla de tasas tiene
+      // DOS series por período: sin el filtro, esta consulta devolvía dos filas para la misma fecha y
+      // usaba cualquiera de las dos (no determinista). Las desactivadas no se usan.
       var rates = await unitOfWork.InterestRates.GetAllAsync();
       var currentRate = rates
-          .Where(r => r.TypeOfInterest == InterestType.Resarcitorio
+          .Where(r => r.IsActive
+                   && r.TypeOfInterest == InterestType.Resarcitorio
                    && r.EffectiveDate <= DateTime.Now
                    && (r.ValidTo == null || r.ValidTo >= DateTime.Now))
           .OrderByDescending(r => r.EffectiveDate)

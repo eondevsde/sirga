@@ -951,6 +951,9 @@ namespace SIRGA.Infrastructure.Migrations
                     b.Property<DateTime>("EffectiveDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
                     b.Property<decimal>("MonthlyRate")
                         .HasColumnType("decimal(18,6)");
 
@@ -967,7 +970,8 @@ namespace SIRGA.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("EffectiveDate", "TypeOfInterest")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsActive] = 1");
 
                     b.ToTable("InterestRates");
                 });

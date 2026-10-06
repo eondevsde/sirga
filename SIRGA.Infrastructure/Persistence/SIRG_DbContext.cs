@@ -166,10 +166,13 @@ public class SIRG_DbContext : IdentityDbContext
             .Property(r => r.DailyRate)
             .HasColumnType("decimal(18,8)");
 
-        // Una sola tasa por fecha y serie. Sin esto puede haber dos filas vigentes para la misma fecha,
-        // y "la tasa vigente" pasa a ser ambigua: el recargo se calcula con cualquiera de las dos.
+        // Una sola tasa ACTIVA por fecha y serie. Sin esto puede haber dos filas vigentes para la misma
+        // fecha, y "la tasa vigente" pasa a ser ambigua: el recargo se calcula con cualquiera de las dos.
+        // El índice es FILTRADO por IsActive a propósito: una tasa desactivada no tiene que bloquear la
+        // carga de la que la reemplaza para la misma fecha y serie.
         modelBuilder.Entity<InterestRate>()
             .HasIndex(r => new { r.EffectiveDate, r.TypeOfInterest })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("[IsActive] = 1");
     }
 }

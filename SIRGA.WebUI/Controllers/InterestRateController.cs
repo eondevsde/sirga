@@ -29,10 +29,25 @@ public class InterestRateController(InterestRateService interestRateService) : C
     return CreatedAtAction(nameof(GetAll), new { id = creada.Id }, creada);
   }
 
-  [HttpDelete("{id}")]
-  public async Task<IActionResult> Delete(int id)
+  [HttpPut("{id}")]
+  public async Task<IActionResult> Update(int id, InterestRate rate)
   {
-    if (!await interestRateService.DeleteAsync(id)) return NotFound();
-    return NoContent();
+    if (id != rate.Id) return BadRequest("El id de la ruta no coincide con el de la tasa.");
+
+    var (ok, error) = await interestRateService.UpdateAsync(rate);
+    if (ok) return NoContent();
+    return error == "La tasa no existe." ? NotFound() : BadRequest(error);
+  }
+
+  /// <summary>
+  /// Activa o desactiva una tasa. Reemplaza al DELETE que había: la escala es histórica, así que una tasa
+  /// que no corresponde se desactiva y queda el rastro, en lugar de borrarse.
+  /// </summary>
+  [HttpPost("{id}/estado")]
+  public async Task<IActionResult> SetActive(int id, [FromQuery] bool activa)
+  {
+    var (ok, error) = await interestRateService.SetActiveAsync(id, activa);
+    if (ok) return NoContent();
+    return error == "La tasa no existe." ? NotFound() : BadRequest(error);
   }
 }

@@ -134,7 +134,7 @@ public class BoletaService(IUnitOfWork unitOfWork)
   private async Task<(decimal TasaMensual, string? Norma, bool EsPorDefecto)> ObtenerTasaResarcitoriaAsync(DateTime fecha)
   {
     var tasas = (await unitOfWork.InterestRates.GetAllAsync())
-        .Where(r => r.TypeOfInterest == InterestType.Resarcitorio)
+        .Where(r => r.IsActive && r.TypeOfInterest == InterestType.Resarcitorio)
         .ToList();
 
     var vigente = tasas

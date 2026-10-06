@@ -4,7 +4,7 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 115 commits en `main` · 142/142 tests · build 0 avisos.
+Última actualización: **2026-10-06** · 116 commits en `main` · 143/143 tests · build 0 avisos.
 
 ---
 
@@ -214,6 +214,14 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   - **Unidades**: en SIRGA la tasa va como **FRACCIÓN** (0,0275 = 2,75%) y en el sistema anterior como
     **PORCENTAJE** (2,75). La migración divide por 100 y la pantalla ahora **pide el porcentaje** y
     convierte al guardar.
+  - **Las tasas NO se borran: se desactivan** (`InterestRate.IsActive`). La escala es histórica y una
+    tasa que no corresponde se desactiva dejando rastro; el borrado definitivo se eliminó del servicio,
+    del controlador y de la pantalla. Los cálculos (mora de la DDJJ y recargo de la boleta) **sólo miran
+    las activas**, y el índice único por (fecha, serie) está **filtrado por activas**, así que desactivar
+    una tasa deja cargar la que la reemplaza para la misma fecha. También se puede **corregir** una tasa
+    (editar), que es lo que hay que hacer si quedó mal tipeada.
+  - Verificado guardando y **releyendo de la base con un contexto nuevo**: corregir la tasa y
+    desactivarla se persisten de verdad (no queda sólo en memoria).
 - **Mínimo de escala calculado** (la corrección que el usuario reportó el 2026-10-06). La columna
   "Mínimo Escala" de `/declarations/new` ya no muestra el básico pelado ni $0: calcula
   **(básico + antigüedad + NR1 + NR2) × jornada**, con **antigüedad = 1% × años cumplidos** contados
@@ -307,11 +315,8 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     se le inyectó `ILogger<DeclarationService>` y el `catch` vacío pasó a registrar el error con el id
     de la DDJJ, la empresa y el período. La DDJJ **sigue sin fallar** por el mail (eso estaba bien), pero
     el problema ya no queda invisible. Era el **único `catch` vacío de todo el código**.
-12. **La pantalla de tasas (`/admin/interest-rates`) tiene una cosa pendiente** (el resto se arregló con
-    la migración, ver "Hecho"):
-    - **Borra de forma definitiva** (`RemoveAsync`, y la entidad no tiene `IsActive`), al revés del
-      patrón de "desactivar" que sí usan los bancos. Y **no se puede editar**: sólo crear o borrar.
-      **Ojo al usarla: un clic en el tacho borra una tasa de la escala, sin vuelta atrás.**
+12. ~~**La pantalla de tasas ya no borra**~~ **HECHO (2026-10-06)**: se cambió el borrado definitivo por
+    **desactivar** (el patrón que usan los bancos) y se agregó **edición**. Lo que sigue pendiente acá:
     - Sigue siendo **global**, no por sindicato (`InterestRate` no tiene `UnionId`), y **sólo para rol
       Admin**, no para el estudio contable. Las dos cosas están bien por ahora (el sindicato que factura
       es uno solo), pero conviene revisarlo cuando entren los otros sindicatos.

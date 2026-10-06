@@ -143,8 +143,12 @@ public class ServiceLayerTests
     unitOfWork.Verify(u => u.CompleteAsync(), Times.Once);
   }
 
+  /// <summary>
+  /// La escala de tasas NO se borra: una tasa que no corresponde se desactiva. Este test fija esa regla:
+  /// con un id inexistente no toca nada y devuelve el motivo.
+  /// </summary>
   [Fact]
-  public async Task InterestRateService_DeleteAsync_Inexistente_NoBorraYDevuelveFalse()
+  public async Task InterestRateService_SetActive_Inexistente_NoCambiaNadaYDevuelveElMotivo()
   {
     var repo = new Mock<IRepository<InterestRate>>();
     repo.Setup(r => r.GetByIdAsync(404)).ReturnsAsync((InterestRate?)null);
@@ -153,8 +157,35 @@ public class ServiceLayerTests
 
     var service = new InterestRateService(unitOfWork.Object);
 
-    Assert.False(await service.DeleteAsync(404));
+    var (ok, error) = await service.SetActiveAsync(404, activa: false);
+
+    Assert.False(ok);
+    Assert.Equal("La tasa no existe.", error);
+    repo.Verify(r => r.UpdateAsync(It.IsAny<InterestRate>()), Times.Never);
     repo.Verify(r => r.RemoveAsync(It.IsAny<InterestRate>()), Times.Never);
     unitOfWork.Verify(u => u.CompleteAsync(), Times.Never);
+  }
+
+  [Fact]
+  public async Task InterestRateService_SetActive_DesactivaSinBorrar()
+  {
+    var tasa = new InterestRate { Id = 7, MonthlyRate = 0.0275m, IsActive = true };
+    var repo = new Mock<IRepository<InterestRate>>();
+    repo.Setup(r => r.GetByIdAsync(7)).ReturnsAsync(tasa);
+    repo.Setup(r => r.UpdateAsync(tasa)).Returns(Task.CompletedTask);
+    var unitOfWork = new Mock<IUnitOfWork>();
+    unitOfWork.SetupGet(u => u.InterestRates).Returns(repo.Object);
+    unitOfWork.Setup(u => u.CompleteAsync()).ReturnsAsync(1);
+
+    var service = new InterestRateService(unitOfWork.Object);
+
+    var (ok, error) = await service.SetActiveAsync(7, activa: false);
+
+    Assert.True(ok);
+    Assert.Null(error);
+    Assert.False(tasa.IsActive);
+    // Lo importante: se actualiza, NO se borra.
+    repo.Verify(r => r.UpdateAsync(tasa), Times.Once);
+    repo.Verify(r => r.RemoveAsync(It.IsAny<InterestRate>()), Times.Never);
   }
 }

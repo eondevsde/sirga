@@ -12,7 +12,7 @@
 <MudGrid>
   <MudItem xs="12" md="4">
     <MudPaper Class="pa-4">
-      <MudText Typo="Typo.h6">Nueva Tasa Mensual</MudText>
+      <MudText Typo="Typo.h6">@(_editandoId is null ? "Nueva Tasa Mensual" : $"Corrigiendo la tasa #{_editandoId}")</MudText>
       @* El campo se carga EN PORCENTAJE (2,75) porque así se lee la escala de ARCA y así viene del
          sistema anterior. En la base se guarda la FRACCIÓN (0,0275) y la conversión la hace esta
          pantalla al guardar. Antes el cartel decía "(%)" pero guardaba lo tipeado tal cual como
@@ -27,8 +27,15 @@
       <MudDatePicker Label="Vigencia hasta (opcional)" @bind-Date="_nuevaVigenciaHasta" Class="mt-4" />
       <MudTextField @bind-Value="_newRate.Norm" Label="Norma (ej. R (MEC) 823/2025)" Class="mt-4" />
       <MudTextField @bind-Value="_newRate.Description" Label="Descripción / Motivo" Class="mt-4" />
-      <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-6" FullWidth="true" OnClick="SaveRate">Guardar
-        Tasa</MudButton>
+      <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-6" FullWidth="true" OnClick="SaveRate">
+        @(_editandoId is null ? "Guardar Tasa" : "Guardar corrección")
+      </MudButton>
+      @if (_editandoId is not null)
+      {
+        <MudButton Variant="Variant.Outlined" Color="Color.Default" Class="mt-2" FullWidth="true" OnClick="LimpiarFormulario">
+          Cancelar
+        </MudButton>
+      }
       </MudPaper>
     </MudItem>
 
@@ -41,6 +48,7 @@
           <MudTh>Tasa Mensual</MudTh>
           <MudTh>Tasa Diaria</MudTh>
           <MudTh>Norma</MudTh>
+          <MudTh>Estado</MudTh>
           <MudTh>Acciones</MudTh>
         </HeaderContent>
         <RowTemplate>
@@ -51,11 +59,27 @@
           <MudTd>@(context.DailyRate is null ? "-" : (context.DailyRate.Value * 100).ToString("N6") + "%")</MudTd>
           <MudTd>@context.Norm</MudTd>
           <MudTd>
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                           OnClick="@(() => DeleteRate(context.Id))" />
+            @* Las inactivas se siguen viendo (con su estado) para poder reactivarlas: no se borran. *@
+            <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+              @(context.IsActive ? "Activa" : "Inactiva")
+            </MudChip>
+          </MudTd>
+          <MudTd>
+            <MudTooltip Text="Corregir esta tasa">
+              <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                             OnClick="@(() => EditRate(context))" />
+            </MudTooltip>
+            <MudTooltip Text="@(context.IsActive ? "Desactivar (no se borra)" : "Reactivar")">
+              <MudIconButton Icon="@(context.IsActive ? Icons.Material.Filled.ToggleOn : Icons.Material.Filled.ToggleOff)"
+                             Color="@(context.IsActive ? Color.Warning : Color.Success)" Size="Size.Small"
+                             OnClick="@(() => ToggleRate(context))" />
+            </MudTooltip>
           </MudTd>
         </RowTemplate>
       </MudTable>
+      <MudText Typo="Typo.caption" Class="mt-2">
+        Las tasas no se borran: se desactivan y dejan de usarse en el cálculo. Las inactivas quedan listadas para poder reactivarlas.
+      </MudText>
     </MudItem>
   </MudGrid>
 
@@ -67,6 +91,7 @@
   private DateTime? _newRateDate = DateTime.Today;
   private DateTime? _nuevaVigenciaHasta;
   private bool _loading = true;
+  private int? _editandoId;
 
   protected override async Task OnInitializedAsync()
   {
@@ -114,32 +139,82 @@
       _newRate.ValidTo = _nuevaVigenciaHasta;
       _newRate.TypeOfInterest = _nuevaSerie;
 
-      await InterestRateService.CreateAsync(_newRate);
-      Snackbar.Add($"Tasa guardada: {_nuevaTasaPorcentaje:0.####}% ({_nuevaSerie}).", Severity.Success);
+      if (_editandoId is null)
+      {
+        await InterestRateService.CreateAsync(_newRate);
+        Snackbar.Add($"Tasa creada: {_nuevaTasaPorcentaje:0.####}% ({_nuevaSerie}).", Severity.Success);
+      }
+      else
+      {
+        var (ok, error) = await InterestRateService.UpdateAsync(_newRate);
+        if (!ok)
+        {
+          Snackbar.Add(error ?? "No se pudo guardar la tasa.", Severity.Error);
+          return;
+        }
+        Snackbar.Add($"Tasa corregida: {_nuevaTasaPorcentaje:0.####}% ({_nuevaSerie}).", Severity.Success);
+      }
 
-      _newRate = new();
-      _nuevaTasaPorcentaje = 0;
-      _nuevaVigenciaHasta = null;
+      LimpiarFormulario();
       await LoadRates();
     }
     catch (Exception ex)
     {
-      // El índice único por (fecha + serie) hace que una tasa repetida falle acá: se muestra el motivo.
+      // El índice único por (fecha + serie) entre las ACTIVAS hace que una tasa repetida falle acá.
       Snackbar.Add("Error al guardar: " + ex.Message, Severity.Error);
     }
   }
 
-  private async Task DeleteRate(int id)
+  /// <summary>Carga la tasa en el formulario para corregirla. Es preferible a desactivar y crear otra.</summary>
+  private void EditRate(InterestRate tasa)
+  {
+    _editandoId = tasa.Id;
+    _newRate = new InterestRate
+    {
+      Id = tasa.Id,
+      DailyRate = tasa.DailyRate,
+      Description = tasa.Description,
+      IsActive = tasa.IsActive
+    };
+    _nuevaTasaPorcentaje = tasa.MonthlyRate * 100m;
+    _nuevaSerie = tasa.TypeOfInterest;
+    _newRateDate = tasa.EffectiveDate;
+    _nuevaVigenciaHasta = tasa.ValidTo;
+  }
+
+  private void LimpiarFormulario()
+  {
+    _editandoId = null;
+    _newRate = new();
+    _nuevaTasaPorcentaje = 0;
+    _nuevaSerie = InterestType.Resarcitorio;
+    _newRateDate = DateTime.Today;
+    _nuevaVigenciaHasta = null;
+  }
+
+  /// <summary>
+  /// Activa o desactiva la tasa. NO se borra: la escala es histórica. El cálculo (mora de la DDJJ y
+  /// recargo de la boleta) sólo mira las activas.
+  /// </summary>
+  private async Task ToggleRate(InterestRate tasa)
   {
     try
     {
-      await InterestRateService.DeleteAsync(id);
+      var (ok, error) = await InterestRateService.SetActiveAsync(tasa.Id, !tasa.IsActive);
+      if (!ok)
+      {
+        Snackbar.Add(error ?? "No se pudo cambiar el estado de la tasa.", Severity.Error);
+        return;
+      }
+
       await LoadRates();
-      Snackbar.Add("Tasa eliminada", Severity.Info);
+      Snackbar.Add(
+          $"Tasa del {tasa.EffectiveDate:dd/MM/yyyy} ({tasa.TypeOfInterest}) {(tasa.IsActive ? "desactivada" : "reactivada")}.",
+          Severity.Info);
     }
     catch (Exception ex)
     {
-      Snackbar.Add("Error al eliminar: " + ex.Message, Severity.Error);
+      Snackbar.Add("Error al cambiar el estado: " + ex.Message, Severity.Error);
     }
   }
 }
