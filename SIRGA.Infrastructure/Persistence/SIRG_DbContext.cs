@@ -38,6 +38,12 @@ public class SIRG_DbContext : IdentityDbContext
     public DbSet<UnionSubscription> UnionSubscriptions => Set<UnionSubscription>();
     public DbSet<UnionSubscriptionPayment> UnionSubscriptionPayments => Set<UnionSubscriptionPayment>();
     public DbSet<UnionSubscriptionRequest> UnionSubscriptionRequests => Set<UnionSubscriptionRequest>();
+
+    // Bancos donde los sindicatos cobran las boletas de las DDJJ, y la configuración bancaria de cada
+    // sindicato (número de cliente, código de ente y reglas de vencimiento). Se modela aparte porque
+    // un sindicato puede operar con más de un banco y cada uno tiene su estructura de código de barras.
+    public DbSet<Bank> Banks => Set<Bank>();
+    public DbSet<UnionBankConfig> UnionBankConfigs => Set<UnionBankConfig>();
     public DbSet<CompanyStudioHistory> CompanyStudioHistories => Set<CompanyStudioHistory>();
     public DbSet<UnionAuditor> UnionAuditors => Set<UnionAuditor>();
 

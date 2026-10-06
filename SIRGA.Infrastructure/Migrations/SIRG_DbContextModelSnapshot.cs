@@ -364,6 +364,35 @@ namespace SIRGA.Infrastructure.Migrations
                     b.ToTable("BalanceHistories");
                 });
 
+            modelBuilder.Entity("SIRGA.Domain.Entities.Bank", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Branch")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Banks");
+                });
+
             modelBuilder.Entity("SIRGA.Domain.Entities.City", b =>
                 {
                     b.Property<int>("Id")
@@ -1300,6 +1329,51 @@ namespace SIRGA.Infrastructure.Migrations
                     b.ToTable("UnionAuditors");
                 });
 
+            modelBuilder.Entity("SIRGA.Domain.Entities.UnionBankConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BankId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ClientNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("DaysToSecondDue")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DesignFormat")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EntityCode")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("nvarchar(4)");
+
+                    b.Property<int>("FirstDueDay")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("UnionId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BankId");
+
+                    b.HasIndex("UnionId");
+
+                    b.ToTable("UnionBankConfigs");
+                });
+
             modelBuilder.Entity("SIRGA.Domain.Entities.UnionSubscription", b =>
                 {
                     b.Property<int>("Id")
@@ -1793,6 +1867,25 @@ namespace SIRGA.Infrastructure.Migrations
                         .HasForeignKey("UnionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Union");
+                });
+
+            modelBuilder.Entity("SIRGA.Domain.Entities.UnionBankConfig", b =>
+                {
+                    b.HasOne("SIRGA.Domain.Entities.Bank", "Bank")
+                        .WithMany()
+                        .HasForeignKey("BankId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SIRGA.Domain.Entities.Union", "Union")
+                        .WithMany()
+                        .HasForeignKey("UnionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Bank");
 
                     b.Navigation("Union");
                 });
