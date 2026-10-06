@@ -83,8 +83,18 @@ builder.Services.AddScoped<UnionService>();
 builder.Services.AddScoped<SalaryScaleService>();
 builder.Services.AddScoped<InterestRateService>();
 builder.Services.AddScoped<AuditService>();
-// Bancos y configuración bancaria por sindicato (número de cliente, código de ente y vencimientos).
-builder.Services.AddScoped<BankService>();
+// Bancos y configuración bancaria por sindicato: PENDIENTE de registrar.
+//
+// BankService todavía NO se registra a propósito. El proyecto no registra los repositorios en el
+// contenedor: los construye la UnitOfWork por dentro, con su propio contexto. Al inyectar
+// IRepository<Bank> directo se creaba una SEGUNDA instancia con OTRO contexto, y el CompleteAsync()
+// de la UnitOfWork guardaba en el suyo: las escrituras se perdían en silencio.
+//
+// Para terminarlo hay que agregar, como en el resto del proyecto:
+//   1) IUnitOfWork: IRepository<Bank> Banks { get; } y IRepository<UnionBankConfig> UnionBankConfigs { get; }
+//   2) UnitOfWork: las dos propiedades, construidas con el mismo contexto que las demás
+//   3) BankService: recibir IUnitOfWork y usarlo en lugar de los repositorios sueltos
+//   4) Recién entonces: builder.Services.AddScoped<BankService>();
 builder.Services.AddScoped<InspectionService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<AccountingStudioService>();
