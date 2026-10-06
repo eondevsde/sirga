@@ -131,6 +131,9 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 1. **Probar la DDJJ de ABDALA LLAMIL** (empresa 29656, sindicato 19): sus dos empleados ya tienen
    categoría (13 MAESTRANZA B y 2 ADMINISTRATIVO B) y escala vigente 2026-03. **Tiene que calcular
    importes.** Es la prueba de que el problema de los ceros quedó cerrado para las 2.551 empresas.
+   > **ESTADO (2026-10-06): el usuario YA LA PROBÓ y reportó que "hay cosas que corregir", sin
+   > detallar cuáles.** Lo primero al arrancar la próxima sesión: **pedirle el detalle de esas
+   > correcciones** antes de tocar nada. No inventar qué falló ni asumir que funciona.
 2. **Modelo de ramas, pasos 2 a 4**: vincular `Unions` a `Rama`; pasar `EmployeeCategories` y
    `SalaryScales` a colgar de la **rama**; y recién al final cambiar las consultas que filtran por
    `UnionId` para que filtren por la rama del sindicato. **Las escalas son nacionales y dependen de la
