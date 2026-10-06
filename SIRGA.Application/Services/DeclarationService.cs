@@ -50,16 +50,12 @@ public class DeclarationService(
     var existingDeclarations = await unitOfWork.Declarations.FindAsync(d =>
         d.CompanyId == request.CompanyId && d.Period == request.Period);
 
-    // Bloquear duplicados en borrador: debe finalizarse la existente.
-    // OJO: hoy esto es un callejón sin salida, porque la aplicación no tiene ninguna pantalla para
-    // finalizar ni para borrar un borrador. Para descartarlo hace falta un repositorio de
-    // DeclarationDetail en IUnitOfWork (no existe) y borrar los detalles ANTES que la cabecera,
-    // porque la clave foránea está en Restrict y no arrastra.
+    // Si ya hay un borrador de esta empresa y período (por ejemplo, porque el paso final de un intento
+    // anterior no se completó), se REANUDA ese mismo borrador en lugar de tirar un error: el mensaje
+    // decía "debe finalizarla antes de crear otra" y la aplicación no tiene ninguna pantalla para
+    // finalizar ni borrar un borrador, así que era un callejón sin salida.
+    // Sólo se reanuda un BORRADOR: nunca una DDJJ presentada, aprobada, rechazada o pagada.
     var existingDraft = existingDeclarations.FirstOrDefault(d => d.Status == DeclarationStatus.Draft);
-    if (existingDraft != null)
-    {
-      throw new Exception($"Ya existe una DDJJ en borrador para la empresa y el periodo {request.Period}. Debe finalizarla antes de crear otra.");
-    }
 
     // Si ya hubo una presentada/aprobada/pagada del mismo periodo, es una rectificativa
     var lastPresented = existingDeclarations
@@ -70,17 +66,16 @@ public class DeclarationService(
         .FirstOrDefault();
     bool isRectification = lastPresented != null;
 
-    var declaration = new DeclarationRegistry
-    {
-      CompanyId = request.CompanyId,
-      UnionId = request.UnionId,
-      Period = request.Period,
-      Status = DeclarationStatus.Draft,
-      SubmissionDate = DateTime.Now,
-      IsRectification = isRectification,
-      PreviousAmount = lastPresented?.TotalAmount ?? 0,
-      PresencialReference = $"DDJJ-{request.CompanyId}-{DateTime.Now:ssfff}"
-    };
+    var declaration = existingDraft ?? new DeclarationRegistry();
+
+    declaration.CompanyId = request.CompanyId;
+    declaration.UnionId = request.UnionId;
+    declaration.Period = request.Period;
+    declaration.Status = DeclarationStatus.Draft;
+    declaration.SubmissionDate = DateTime.Now;
+    declaration.IsRectification = isRectification;
+    declaration.PreviousAmount = lastPresented?.TotalAmount ?? 0;
+    declaration.PresencialReference = $"DDJJ-{request.CompanyId}-{DateTime.Now:ssfff}";
 
     decimal totalAmount = 0;
     decimal totalAporteLey = 0;
@@ -191,7 +186,12 @@ public class DeclarationService(
     decimal amountToPay = declaration.BalanceAmount > 0 ? declaration.BalanceAmount : 0;
     declaration.PresencialBarCode = $"001{branch.Cuit}{request.Period.Replace("-", "")}{((int)(amountToPay * 100)):D10}";
 
-    await unitOfWork.Declarations.AddAsync(declaration);
+    // Si se reanudó un borrador existente, la cabecera ya está en la base: se actualiza. Si es nueva,
+    // se inserta. Con AddAsync sobre una entidad ya existente, EF intentaría insertar el mismo Id.
+    if (existingDraft != null)
+      await unitOfWork.Declarations.UpdateAsync(declaration);
+    else
+      await unitOfWork.Declarations.AddAsync(declaration);
     await unitOfWork.CompleteAsync();
 
     // 6. Auditoría de la acción
