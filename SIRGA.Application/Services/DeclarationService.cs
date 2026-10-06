@@ -3,6 +3,7 @@ using SIRGA.Application.Interfaces;
 using SIRGA.Domain.Entities;
 using SIRGA.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Linq;
 using System.Text.Json;
 using ClosedXML.Excel;
@@ -14,7 +15,8 @@ public class DeclarationService(
     IEmailService emailService,
     PdfReportService pdfService,
     BalanceService balanceService,
-    AuditService auditService)
+    AuditService auditService,
+    ILogger<DeclarationService> logger)
 {
   // Estos porcentajes ahora se obtienen dinámicamente del Sindicato
   // private const decimal LawContributionRate = 0.02m;       
@@ -256,7 +258,17 @@ public class DeclarationService(
             $"Boleta_{branch.Cuit}_{request.Period}.pdf");
       }
     }
-    catch { /* Log error but don't fail declaration creation */ }
+    catch (Exception ex)
+    {
+      // La DDJJ ya quedó guardada y no se hace fallar por el mail: eso está bien. Lo que NO está bien
+      // es que el error quede invisible, que es lo que pasaba con el catch vacío que había acá: si la
+      // boleta no se generaba (por ejemplo por la carpeta temporal de QuestPDF) o el mail no salía,
+      // nadie se enteraba. Queda en el log con el id y el período para poder rastrearlo.
+      logger.LogError(ex,
+          "La DDJJ {DeclarationId} (empresa {CompanyId}, período {Period}) se guardó, pero falló la " +
+          "generación o el envío de la boleta al estudio. La declaración NO se vio afectada.",
+          declaration.Id, declaration.CompanyId, declaration.Period);
+    }
 
     return MapToResponse(declaration, branch, union, totalAporteLey, totalCuotaSocio);
   }

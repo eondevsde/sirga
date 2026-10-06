@@ -4,7 +4,7 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 112 commits en `main` · 142/142 tests · build 0 avisos.
+Última actualización: **2026-10-06** · 113 commits en `main` · 142/142 tests · build 0 avisos.
 
 ---
 
@@ -251,11 +251,19 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 9. **Bug del eje Y** en `CollectionsReport.razor:74` (los valores son múltiplos exactos de MiB).
 10. **Calidad de datos**: 7 empleados sin nombre; empresas cuyo `BusinessName` es un CUIT o un fragmento.
     (`AntiguedadPercentage = 0` en las 1.339 escalas **ya está resuelto**: se cargó el 1%.)
-11. **`DeclarationService` se come los errores del PDF y del mail en silencio**: el bloque que genera la
-    boleta y manda el mail al estudio está dentro de `try { ... } catch { }` **sin log ni aviso**. Si la
-    generación del PDF falla (por ejemplo por la carpeta temporal, ver sección 4), **la DDJJ se guarda
-    igual y nadie se entera de que la boleta no salió**. Va contra la regla de "no hay fallos
-    silenciosos": hay que inyectar un logger y dejar el error visible, sin que eso haga fallar la DDJJ.
+11. ~~**`DeclarationService` se come los errores del PDF y del mail en silencio**~~ **HECHO (2026-10-06)**:
+    se le inyectó `ILogger<DeclarationService>` y el `catch` vacío pasó a registrar el error con el id
+    de la DDJJ, la empresa y el período. La DDJJ **sigue sin fallar** por el mail (eso estaba bien), pero
+    el problema ya no queda invisible. Era el **único `catch` vacío de todo el código**.
+12. **La pantalla de tasas (`/admin/interest-rates`) tiene tres cosas para revisar** (van con el
+    pendiente 4, porque es donde se carga la escala de AFIP):
+    - El campo dice **"Tasa Mensual (%)"** y muestra con formato `P2`, pero guarda la **fracción**: para
+      cargar 3% hay que tipear **0,03**. Si alguien tipea `3`, queda una tasa de **300%**. Es la trampa
+      más probable al cargar la escala.
+    - **Borra de forma definitiva** (`RemoveAsync`, y la entidad no tiene `IsActive`), al revés del
+      patrón de "desactivar" que sí usan los bancos. Y **no se puede editar**: sólo crear o borrar.
+    - Es **global**, no por sindicato (`InterestRate` no tiene `UnionId`), y la pantalla es **sólo para
+      rol Admin**, no para el estudio contable.
 
 ---
 
