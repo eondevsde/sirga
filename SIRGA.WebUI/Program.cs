@@ -101,6 +101,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<AccountingStudioService>();
 builder.Services.AddScoped<IPaymentService, MercadoPagoService>();
 builder.Services.AddScoped<PdfReportService>();
+// Boleta de pago del banco, en PDF y por triplicado (talón cliente, banco y sindicato).
+builder.Services.AddScoped<SIRGA.WebUI.Services.BoletaPdfService>();
 builder.Services.AddScoped<IReportService, ExcelReportService>();
 builder.Services.AddScoped<BankReconciliationService>();
 builder.Services.AddScoped<DebtNotificationService>();
