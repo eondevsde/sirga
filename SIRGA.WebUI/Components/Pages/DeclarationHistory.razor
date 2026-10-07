@@ -1,10 +1,12 @@
 @page "/declarations/history"
 @page "/empresa/{CompanyId:int}/historial"
 @using SIRGA.Application.DTOs
+@using SIRGA.Domain.Entities
 @attribute [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
 @inject HttpClient Http
 @inject ISnackbar Snackbar
 @inject SIRGA.Application.Services.DeclarationService DeclarationService
+@inject SIRGA.Application.Services.CompanyService CompanyService
 @inject SIRGA.Application.Services.BoletaService BoletaService
 @inject SIRGA.WebUI.Services.BoletaPdfService BoletaPdfService
 @inject IDialogService DialogService
@@ -13,7 +15,18 @@
 
 <PageTitle>SIRGA - Historial de DDJJ</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-6">Historial de Declaraciones Juradas</MudText>
+<MudText Typo="Typo.h4">Historial de Declaraciones Juradas</MudText>
+
+@* Datos de la empresa: se muestran SIEMPRE (aunque la lista esté vacía), porque viniendo de
+   /empresa/{id}/historial hay que saber de qué empresa es el historial. *@
+@if (Empresa is { } empresa)
+{
+  <MudText Typo="Typo.subtitle1" Class="mt-2">
+    <b>Empresa:</b> @empresa.BusinessName@(string.IsNullOrWhiteSpace(empresa.TradeName) ? "" : $" / {empresa.TradeName}")
+  </MudText>
+  <MudText Typo="Typo.subtitle1"><b>CUIT:</b> @empresa.Cuit</MudText>
+}
+<div class="mb-6"></div>
 
 @if (_loading)
 {
@@ -57,16 +70,10 @@ else
         </MudChip>
       </MudTd>
       <MudTd DataLabel="Acciones" Style="text-align:right">
-        @* Una DDJJ REEMPLAZADA por una rectificativa no tiene NINGUNA acción: su boleta ya no se cobra (la
-           deuda es la de la versión vigente) y tampoco se rectifica. Se dice por qué, en lugar de dejar
-           botones que generarían una boleta por un importe viejo. *@
-        @if (context.Status == "Rectificada")
-        {
-          <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Default">
-            Reemplazada por la versión vigente
-          </MudChip>
-        }
-        else
+        @* Una DDJJ REEMPLAZADA por una rectificativa no tiene NINGUNA acción y tampoco lleva leyenda (el
+           usuario pidió sacarla): la fila se identifica por su estado "Rectificada" y su versión. Lo que NO
+           puede pasar es que se emita su boleta, porque se cobraría dos veces la misma DDJJ. *@
+        @if (context.Status != "Rectificada")
         {
           @* La boleta del BANCO: sólo el ícono de impresión (con el texto ocupaba demasiado ancho en la
              grilla). El comprobante interno se sacó de acá. *@
@@ -101,9 +108,32 @@ else
   private string _searchString = "";
   private IEnumerable<DeclarationResponseDto> _declarations = new List<DeclarationResponseDto>();
 
+  /// <summary>Empresa del historial, para el encabezado. Sólo viene en la ruta /empresa/{id}/historial.</summary>
+  private Company? Empresa { get; set; }
+
   protected override async Task OnInitializedAsync()
   {
+    await CargarEmpresaAsync();
     await LoadData();
+  }
+
+  /// <summary>
+  /// Trae los datos de la empresa para el encabezado (Razón Social, nombre de fantasía y CUIT). Se cargan
+  /// del Id de la ruta, no de la lista de DDJJ: así se muestran aunque el historial esté vacío.
+  /// </summary>
+  private async Task CargarEmpresaAsync()
+  {
+    if (CompanyId <= 0) return;
+
+    try
+    {
+      Empresa = await CompanyService.GetByIdAsync(CompanyId);
+    }
+    catch (Exception ex)
+    {
+      // Sin los datos de la empresa el historial se ve igual: se avisa y no se corta la pantalla.
+      Snackbar.Add("No se pudieron cargar los datos de la empresa: " + ex.Message, Severity.Warning);
+    }
   }
 
   private async Task LoadData()

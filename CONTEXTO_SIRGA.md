@@ -296,6 +296,12 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     > (`downloadFileFromBase64`, en `App.razor`) ya crea un `<a download>` y lo clickea, que es la descarga
     > directa sin visor ni pestaña. Si el navegador igual pregunta, hay que destildar **"Preguntar dónde
     > guardar cada archivo"** en Configuración > Descargas. Se le cambió el tipo MIME a `application/pdf`.
+  - **En el historial, la fila reemplazada se ve VACÍA** (el usuario pidió sacar la leyenda "Reemplazada
+    por la versión vigente"): se identifica por su estado `Rectificada` y su versión. Y el **encabezado del
+    historial muestra siempre los datos de la empresa** (Razón Social / nombre de fantasía y CUIT) cuando se
+    entra por `/empresa/{id}/historial`: se cargan del **Id de la ruta**, no de la lista, así se ven aunque
+    el historial esté vacío. Antes sólo decía "Historial de Declaraciones Juradas" y no se sabía de qué
+    empresa era.
   - **Una versión REEMPLAZADA no tiene NINGUNA acción** (pedido del usuario, 2026-10-07). Antes, la fila
     `Rectificada` seguía ofreciendo **imprimir su boleta**, o sea que se podía cobrar dos veces la misma
     DDJJ. Ahora, en el historial, una fila `Rectificada` **no muestra ningún botón** (ni boleta, ni
