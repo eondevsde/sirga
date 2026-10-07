@@ -253,3 +253,36 @@ viejo). Por eso hay repetidas: la misma DDJJ puede tener varias versiones (`rect
 5. **Símbolo del código de barras** (Code 128 vs Interleaved 2 of 5): afecta que el banco pueda leerlo.
 6. **Verificar que la fila a marcar tenga `titem1 > 0`** (ver la consecuencia crítica del punto 8): hay
    que medirlo en los casos reales antes de escribir.
+
+### MAPEO MEDIDO: qué es cada campo de `ddjjt` (2026-10-07)
+
+Se midieron DDJJ pagadas reales de 2026-08. Resultado:
+
+| periodo | CUIT | titem1 | titem2 | titem3 | titem4 | impban1 | fpago |
+|---|---|---|---|---|---|---|---|
+| 2026-08 | 20442023981 | 28.384,70 | 0 | 0 | 0 | 28.384,70 | 09/09/2026 |
+| 2026-08 | 20061299093 | 31.568,41 | **31.568,41** | 0 | 0 | **63.136,82** | 01/09/2026 |
+| 2026-08 | 20940514186 | 14.859,29 | 0 | 0 | 0 | **15.009,12** | 18/09/2026 |
+| 2026-08 | 20952916751 | 12.221,37 | 0 | 0 | 0 | **12.355,81** | 10/09/2026 |
+
+**Conclusiones:**
+
+1. **`titem1` = APORTE DE LEY** y **`titem2` = CUOTA SINDICAL.** Prueba: la fila 2 tiene los dos
+   iguales (31.568,41 = 2% + 2%) y **`impban1` = 63.136,82 = exactamente la suma de los dos**.
+   Las demás tienen `titem2` = 0 porque no tienen socios.
+2. **`titem3` y `titem4` están SIEMPRE en 0** ⇒ no se usan.
+3. **`impban1` = lo efectivamente pagado, que incluye el INTERÉS.** Prueba: en las filas 3 y 5
+   `impban1` **supera** a `titem1 + titem2` (15.009,12 > 14.859,29 y 12.355,81 > 12.221,37): esa
+   diferencia es la mora.
+4. Por eso la fórmula de deuda de SIGES WEB (`titem1 + titem2 − impban1`) da 0 o **negativo** cuando
+   se pagó con interés ⇒ **no hay deuda** ✓.
+
+**MAPEO A SIRGA (esto es lo que tiene que escribir el registrador):**
+
+| `ddjjt` (legado) | SIRGA | 
+|---|---|
+| `titem1` | `Declaration.AporteLey` |
+| `titem2` | `Declaration.CuotaSindical` |
+| `impban1` | `PaymentTransactions.Amount` (capital + interés) |
+| `fpago` | `PaymentTransactions.PaymentDate` |
+| `fmod` / `usuario` | fecha del proceso / usuario que registró |
