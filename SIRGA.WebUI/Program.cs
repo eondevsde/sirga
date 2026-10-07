@@ -17,6 +17,18 @@ builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddMudServices(); // Agregar servicios de MudBlazor
 
+// TEXTOS DEL FRONT EN ESPAÑOL (regla del proyecto).
+// 1) MudBlazor trae sus textos internos EN INGLÉS y no los toma de la cultura: sin esto se veían
+//    "PREVIOUS"/"NEXT" en los pasos de la DDJJ, "Rows per page:" en el paginador y "Ok"/"Cancel" en los
+//    diálogos. El localizador propio los traduce (la clave es el texto en inglés).
+builder.Services.AddTransient<MudBlazor.MudLocalizer, SIRGA.WebUI.Services.MudLocalizerEspanol>();
+
+// 2) La cultura se fija EXPLÍCITAMENTE en es-AR en lugar de depender de la del servidor: así los nombres de
+//    meses, los separadores de miles y las fechas salen en formato argentino también en producción.
+var culturaAr = new System.Globalization.CultureInfo("es-AR");
+System.Globalization.CultureInfo.DefaultThreadCurrentCulture = culturaAr;
+System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = culturaAr;
+
 // Compresión de respuestas dinámicas (HTML de las páginas y JSON de la API).
 // Los assets estáticos ya viajan precomprimidos por MapStaticAssets.
 // EnableForHttps queda en false (su valor por defecto) para no exponer el patrón BREACH sobre TLS.

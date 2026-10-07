@@ -69,7 +69,7 @@
         <MudTd DataLabel="Empresa">@context.Company?.BusinessName</MudTd>
         <MudTd DataLabel="Fecha">@context.IssueDate.ToShortDateString()</MudTd>
         <MudTd DataLabel="Estado">
-          <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip>
+          <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">@Textos.EstadoActa(context.Status)</MudChip>
         </MudTd>
         <MudTd>
           <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" Size="Size.Small"

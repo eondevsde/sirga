@@ -58,7 +58,7 @@ else
       <MudTd DataLabel="Total">@context.TotalAmount.ToString("C2")</MudTd>
       <MudTd DataLabel="Estado">
         <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small" Variant="Variant.Text">
-          @context.Status
+          @Textos.EstadoDeclaracion(context.Status)
         </MudChip>
       </MudTd>
       <MudTd DataLabel="Versión">

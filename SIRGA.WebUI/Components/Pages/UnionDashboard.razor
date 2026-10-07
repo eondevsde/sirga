@@ -149,7 +149,7 @@
     <MudTd DataLabel="Total"><b>@context.TotalAmount.ToString("C")</b></MudTd>
     <MudTd DataLabel="Estado">
       <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small" Variant="Variant.Text">
-        @context.Status</MudChip>
+        @Textos.EstadoDeclaracion(context.Status)</MudChip>
       </MudTd>
       <MudTd DataLabel="Pago MP">
         @if (!string.IsNullOrEmpty(context.MercadoPagoPaymentId))

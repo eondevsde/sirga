@@ -224,6 +224,23 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     daba 644,95. O sea que esa boleta parece haber usado días del mes, no /30. **Es una sola boleta**: hay
     que contrastar con más (basta el número tipeado) para decidir si el banco/SIRGA usa otra convención.
     Está anotado en `InterestCalculatorTests.BoletaRealGammarota_...` para que no se pierda.
+- **Idioma: TODO EL FRONT VA EN ESPAÑOL** (regla 8 de `AGENTS.md`, pedida por el usuario el 2026-10-07).
+  Se encontraron y corrigieron dos clases de texto en inglés:
+  1. **Estados mostrados crudos**: varias pantallas hacían `@context.Status`, así que se veía **"Paid",
+     "Submitted", "Draft", "Pending"**. Ahora se traducen siempre con **`SIRGA.WebUI.Services.Textos`**
+     (`EstadoDeclaracion`, `EstadoEmpresa`, `EstadoActa`, `EstadoSolicitud`, `EstadoEmpleado`). La
+     comparación interna sigue siendo contra el valor original, nunca contra el texto traducido.
+  2. **Textos internos de MudBlazor**: vienen **en inglés y no los toma de la cultura**, así que se veían
+     **"PREVIOUS"/"NEXT"** (los pasos de la DDJJ), **"Rows per page:"** (paginador) y "Ok"/"Cancel" (diálogos).
+     Se traducen en **`MudLocalizerEspanol`** (`SIRGA.WebUI/Services`), registrado en `Program.cs`. **La
+     clave es el propio texto en inglés** (así funciona MudBlazor por dentro): si una clave no está en el
+     diccionario, se devuelve el original y sólo queda en inglés, no se rompe nada. Las claves se sacaron
+     de la tabla de recursos del ensamblado `MudBlazor.dll`.
+  - Además se fijó la **cultura en `es-AR` explícitamente** en `Program.cs` (antes dependía de la del
+    servidor): meses, separadores de miles y fechas en formato argentino también en producción.
+  - **Verificado por código** (el navegador no lo puede operar el agente): `Next`→Siguiente,
+    `Previous`→Anterior, `Rows per page:`→Filas por página:, `{0}-{1} of {2}`→`{0}-{1} de {2}`,
+    `Paid`→Pagada, `Submitted`→Presentada, `Draft`→Borrador.
 - **RECTIFICATIVAS: una nueva versión del mismo período** (`DeclarationService`, `PaymentService`).
   Reglas confirmadas por el usuario (2026-10-07):
   1. **Se puede rectificar una DDJJ pagada** (el sistema anterior lo hacía: 15.438 rectificativas suyas

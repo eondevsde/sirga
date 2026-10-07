@@ -54,7 +54,7 @@
       <MudTd DataLabel="Último Período">@context.LastPeriodDeclared</MudTd>
       <MudTd DataLabel="Total Declarado">$ @context.TotalLastDeclaration.ToString("N2")</MudTd>
       <MudTd DataLabel="Estado">
-        <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip>
+        <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">@Textos.EstadoEmpresa(context.Status)</MudChip>
       </MudTd>
       <MudTd>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"

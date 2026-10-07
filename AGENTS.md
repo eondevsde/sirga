@@ -26,6 +26,13 @@ Respetá también lo que diga `.github/copilot-instructions.md`.
    quedan sin trackear a propósito: **nunca** `git add -A`.
 7. **La contraseña de SQL se lee de `.dsh-tools\.sqlpwd`** (ignorado por git). Nunca se escribe en un
    comando, en código, en un log ni en un informe.
+8. **TODO EL FRONT VA EN ESPAÑOL.** Todo texto que se agregue o modifique en la interfaz (etiquetas,
+   botones, mensajes, tooltips, columnas, diálogos, nombres de archivo descargados) se escribe **en
+   español**. Incluye los textos que vienen dentro de los componentes de MudBlazor: se traducen en
+   `MudLocalizerEspanol` (el paginador, los botones de los pasos, los diálogos) y los **estados** se
+   traducen siempre con `SIRGA.WebUI.Services.Textos` — **nunca** se muestra el nombre del enum crudo
+   (`@context.Status` mostraba "Paid", "Submitted", "Draft").
+   **Nunca se compara contra el texto traducido**: las comparaciones son contra el valor original.
 
 ---
 
