@@ -35,6 +35,16 @@ public class BoletaService(IUnitOfWork unitOfWork)
     var configuracion = cabecera.Configuracion!;
     var banco = cabecera.Banco!;
 
+    // Una DDJJ reemplazada por una rectificativa NO emite boleta: la deuda es la de la versión vigente, y
+    // emitir la de la versión vieja sería cobrar dos veces la misma DDJJ. Se bloquea acá (servicio) y no
+    // sólo en la pantalla: si no, quedaría evitable por API.
+    if (declaracion.Status == DeclarationStatus.Rectificada)
+    {
+      return new BoletaArmadoResult(null,
+          $"La DDJJ {declaracion.Id} (período {declaracion.Period}) fue reemplazada por una rectificativa: " +
+          "no se emite su boleta. Emití la de la versión vigente.", null);
+    }
+
     DateTime vencimiento;
     try
     {
@@ -159,7 +169,8 @@ public class BoletaService(IUnitOfWork unitOfWork)
             d.Details.Sum(x => x.MemberContribution),
             d.Company.BusinessName,
             d.Company.Cuit,
-            d.Union.Name))
+            d.Union.Name,
+            d.Status))
         .FirstOrDefaultAsync());
 
     if (declaracion is null)
@@ -196,5 +207,6 @@ public class BoletaService(IUnitOfWork unitOfWork)
       decimal CuotaSocio,
       string? RazonSocial,
       string? Cuit,
-      string? Sindicato);
+      string? Sindicato,
+      DeclarationStatus Status);
 }

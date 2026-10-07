@@ -58,24 +58,32 @@ else
         </MudChip>
       </MudTd>
       <MudTd DataLabel="Acciones" Style="text-align:right">
-        @* La boleta del BANCO (la que se paga en el banco) va como botón CON TEXTO, porque es la acción
-           importante. Antes los dos eran íconos parecidos y la diferencia sólo se veía al pasar el mouse:
-           el usuario terminó imprimiendo el comprobante interno creyendo que era la boleta. *@
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-                   StartIcon="@Icons.Material.Filled.Print"
-                   OnClick="@(() => OnImprimirBoletaBancaria(context))">
-          Boleta bancaria (triplicada)
-        </MudButton>
-        <MudTooltip Text="Comprobante interno de SIRGA: NO es la boleta del banco y no lleva su código de barras">
-          <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Default" Size="Size.Small"
-                         OnClick="@(() => OnDownloadPdf(context))" />
-        </MudTooltip>
-        @* RECTIFICAR / CONTINUAR: manda a Nueva DDJJ con la empresa, el sindicato y el período YA elegidos.
-           Sobre una DDJJ en BORRADOR la acción es CONTINUARLA (nunca se presentó, así que presentarla no es
-           una rectificación); sobre una ya presentada, es una RECTIFICATIVA, que se hace siempre contra la
-           versión vigente y por eso no se ofrece sobre una ya reemplazada. *@
-        @if (context.Status != "Rectificada")
+        @* Una DDJJ REEMPLAZADA por una rectificativa no tiene NINGUNA acción: su boleta ya no se cobra (la
+           deuda es la de la versión vigente) y tampoco se rectifica. Se dice por qué, en lugar de dejar
+           botones que generarían una boleta por un importe viejo. *@
+        @if (context.Status == "Rectificada")
         {
+          <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Default">
+            Reemplazada por la versión vigente
+          </MudChip>
+        }
+        else
+        {
+          @* La boleta del BANCO (la que se paga en el banco) va como botón CON TEXTO, porque es la acción
+             importante. Antes los dos eran íconos parecidos y la diferencia sólo se veía al pasar el mouse:
+             el usuario terminó imprimiendo el comprobante interno creyendo que era la boleta. *@
+          <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                     StartIcon="@Icons.Material.Filled.Print"
+                     OnClick="@(() => OnImprimirBoletaBancaria(context))">
+            Boleta bancaria (triplicada)
+          </MudButton>
+          <MudTooltip Text="Comprobante interno de SIRGA: NO es la boleta del banco y no lleva su código de barras">
+            <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Default" Size="Size.Small"
+                           OnClick="@(() => OnDownloadPdf(context))" />
+          </MudTooltip>
+          @* RECTIFICAR / CONTINUAR: manda a Nueva DDJJ con la empresa, el sindicato y el período YA elegidos.
+             Sobre una DDJJ en BORRADOR la acción es CONTINUARLA (nunca se presentó, así que presentarla no es
+             una rectificación); sobre una ya presentada, es una RECTIFICATIVA. *@
           var esBorrador = context.Status == "Draft";
           <MudTooltip Text="@(esBorrador
               ? "Continuar este borrador donde quedó"

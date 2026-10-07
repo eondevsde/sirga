@@ -288,6 +288,18 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
         se guarda `UsaEscala = False` para el primero y `True` para el segundo, y la precarga copia **1 de
         2** (sólo la tipeada). Rectificar cargando lo mismo reproduce el mismo total (no cambia el
         resultado de quien no toca nada).
+  - **Una versión REEMPLAZADA no tiene NINGUNA acción** (pedido del usuario, 2026-10-07). Antes, la fila
+    `Rectificada` seguía ofreciendo **imprimir su boleta**, o sea que se podía cobrar dos veces la misma
+    DDJJ. Ahora, en el historial, una fila `Rectificada` **no muestra ningún botón** (ni boleta, ni
+    comprobante interno, ni rectificar): dice **"Reemplazada por la versión vigente"**.
+    - **El bloqueo está también en el SERVICIO**, no sólo en la pantalla: `BoletaService.ArmarAsync`
+      **rechaza** una DDJJ `Rectificada` con un mensaje que manda a emitir la de la versión vigente. Si
+      estuviera sólo en la pantalla, quedaría evitable por API.
+    - Junto con las guardas de `ApproveDeclarationAsync` y `PaymentService.ConfirmPaymentAsync`, las tres
+      puertas de una DDJJ reemplazada (aprobar, cobrar, emitir boleta) están cerradas.
+    - **Verificado sobre la rectificación real del usuario** (empresa 29718, período 2026-08: v1
+      `Rectificada` y v2 `Submitted`): la v1 **no emite** boleta (devuelve el error) y la v2 sí
+      (vencimiento 20/10/2026 por 30.606,70).
   - **El aviso es obligatorio porque es automático**: la pantalla de Nueva DDJJ muestra el modal
     `RectificationWarningDialog` con la versión anterior, su total, **lo que se pagó** y la
     **comparación EMPLEADO POR EMPLEADO** (base y aporte antes/ahora, y el estado: Igual, Sube, Baja,
