@@ -23,4 +23,11 @@
     <ProjectReference Include="..\SIRGA.Application\SIRGA.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- El logo del sindicato que va impreso en la boleta bancaria va EMBEBIDO en el ensamblado: así se
+         encuentra siempre (en desarrollo, publicado o desde un verificador) sin depender de rutas. Queda
+         además la copia en wwwroot/images por si el front lo necesita. -->
+    <EmbeddedResource Include="wwwroot\images\logo-santiago-del-estero.jpg" />
+  </ItemGroup>
+
 </Project>

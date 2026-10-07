@@ -20,6 +20,37 @@ namespace SIRGA.WebUI.Services;
 /// </summary>
 public class BoletaPdfService
 {
+  /// <summary>
+  /// Logo del sindicato para el encabezado de cada talón.
+  ///
+  /// Va **embebido en el ensamblado** (ver `SIRGA.WebUI.csproj`), no se lee del disco: así se encuentra
+  /// siempre —en desarrollo, publicado o desde un verificador— sin depender de rutas. Queda además la copia
+  /// en `wwwroot/images` por si el front lo necesita.
+  ///
+  /// **Si por algún motivo no estuviera, la boleta se emite igual SIN el logo**: no se puede dejar de emitir
+  /// una boleta por una imagen.
+  /// </summary>
+  private static readonly Lazy<byte[]?> Logo = new(CargarLogo, isThreadSafe: true);
+
+  private const string NombreArchivoLogo = "logo-santiago-del-estero.jpg";
+
+  private static byte[]? CargarLogo()
+  {
+    var ensamblado = typeof(BoletaPdfService).Assembly;
+
+    var recurso = ensamblado.GetManifestResourceNames()
+        .FirstOrDefault(n => n.EndsWith(NombreArchivoLogo, StringComparison.OrdinalIgnoreCase));
+
+    if (recurso is null) return null;
+
+    using var stream = ensamblado.GetManifestResourceStream(recurso);
+    if (stream is null) return null;
+
+    using var memoria = new MemoryStream();
+    stream.CopyTo(memoria);
+    return memoria.ToArray();
+  }
+
   public byte[] Generar(BoletaDatosDto boleta)
   {
     ArgumentNullException.ThrowIfNull(boleta);
@@ -56,10 +87,16 @@ public class BoletaPdfService
     {
       columna.Spacing(4);
 
-      // Encabezado: sindicato, conceptos que se cobran y datos bancarios.
+      // Encabezado: logo del sindicato, conceptos que se cobran y datos bancarios.
       columna.Item().Row(fila =>
       {
-        fila.RelativeItem().Column(datos =>
+        // El logo va primero, a la izquierda del nombre del sindicato. Se dibuja sólo si el archivo está.
+        if (Logo.Value is { } logo)
+        {
+          fila.ConstantItem(44).Image(logo, ImageScaling.FitArea);
+        }
+
+        fila.RelativeItem().PaddingLeft(Logo.Value is null ? 0 : 6).Column(datos =>
         {
           datos.Item().Text(boleta.Sindicato).Bold().FontSize(11);
           datos.Item().Text("Aportes Art. 100°  Convenio 130/75 | Aportes Cuota Sindical |").Italic().FontSize(8);

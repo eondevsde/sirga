@@ -305,6 +305,13 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
         se guarda `UsaEscala = False` para el primero y `True` para el segundo, y la precarga copia **1 de
         2** (sólo la tipeada). Rectificar cargando lo mismo reproduce el mismo total (no cambia el
         resultado de quien no toca nada).
+  - **La boleta lleva el LOGO del sindicato** (emblema de Santiago del Estero, pedido por el usuario):
+    `SIRGA.WebUI/wwwroot/images/logo-santiago-del-estero.jpg`, dibujado en el **encabezado de cada talón**
+    (44×44 pt) a la izquierda del nombre del sindicato.
+    > **Va EMBEBIDO en el ensamblado** (`EmbeddedResource` en `SIRGA.WebUI.csproj`) y se lee del propio
+    > ensamblado, **no del disco**. La primera versión buscaba el archivo subiendo carpetas y **no
+    > funcionaba desde un verificador** (vive en otra rama del árbol): el PDF salía sin logo y sin avisar.
+    > Si la imagen faltara, la boleta se emite igual sin el logo: no se puede dejar de emitir por una imagen.
   - **La acción de la boleta es sólo el ÍCONO de impresión** (pedido del usuario, 2026-10-07: el texto
     "Boleta bancaria (triplicada)" ocupaba demasiado ancho en la grilla) y **el archivo se descarga como
     `aaaa-MM_CUIT_Boleta_Pago.pdf`**. Se sacó el ícono del **comprobante interno** del historial (y se
