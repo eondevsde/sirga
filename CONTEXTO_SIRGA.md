@@ -237,8 +237,17 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     borrador ni rectificada) ES una rectificativa, y `VersionNumber` pasa a 2, 3… Es el criterio del
     sistema anterior (su columna `rect` era el número de versión: 0 la original, 1.. las rectificativas).
   - **El aviso es obligatorio porque es automático**: la pantalla de Nueva DDJJ muestra el modal
-    `RectificationWarningDialog` con la versión anterior, su total y **lo que se pagó**, antes de
-    confirmar. Que sea automático no quiere decir que tenga que ser invisible.
+    `RectificationWarningDialog` con la versión anterior, su total, **lo que se pagó** y la
+    **comparación EMPLEADO POR EMPLEADO** (base y aporte antes/ahora, y el estado: Igual, Sube, Baja,
+    Nuevo o Sale). Que sea automático no quiere decir que tenga que ser invisible. Comparando sólo los
+    totales, si un empleado sube y otro baja la diferencia lo esconde.
+  - **Un solo cálculo para las dos cosas**: `CalcularAsync` es el ÚNICO lugar donde se calculan los
+    renglones, y lo usan tanto el guardado como `PrevisualizarRectificativaAsync`. Si la previsualización
+    calculara por su lado, podría mostrar un importe distinto del que se termina guardando.
+    **Verificado**: se pidió la previsualización y después se presentó la rectificativa **con el mismo
+    pedido**, y el total previsualizado fue **exactamente** el guardado (180.000,00), con los importes por
+    empleado coincidiendo uno a uno (un empleado "Sube" a 9.000.000 y el que "Sale" no queda guardado).
+    Todo dentro de una transacción revertida: la base quedó intacta.
   - **LO MÁS IMPORTANTE — `PreviousAmount` es lo que se PAGÓ, no el total declarado.** El código restaba
     el total de la versión anterior, y eso **cobraba de menos** cuando la anterior no se había pagado.
     Caso real medido en el sistema anterior (EL NENE SRL, período 2026-06): DDJJ presentada por
@@ -506,10 +515,7 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     > **El usuario decidió que se use /30 como dice ARCA, que es lo oficial**, y revisar esto más adelante
     > con más datos. **Queda pendiente, no cerrado.**
 16. **Rectificativas: lo que todavía no está.**
-    - **La comparación empleado por empleado** antes de presentar (mi propuesta original): hoy el modal
-      avisa con los **totales** (versión anterior, total, pagado) y el saldo. Comparar el detalle
-      empleado por empleado permitiría ver *qué* cambió; hoy sólo se compara el total, así que si uno sube
-      y otro baja la diferencia lo esconde.
+    - ~~La comparación empleado por empleado~~ **HECHO (2026-10-07)**: ver "Hecho".
     - **`ApproveDeclarationAsync(id, observation)` y `RejectDeclarationAsync(id, observation)` siguen
       IGNORANDO la observación**: se pide y no se guarda en ningún lado. Ya estaba anotado como pendiente.
     - **No existe "guardar borrador"**: la única acción es presentar, así que el estado `Draft` sólo

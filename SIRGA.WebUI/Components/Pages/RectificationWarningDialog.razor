@@ -2,10 +2,13 @@
 @using SIRGA.Application.DTOs
 
 @*
-  Aviso previo a presentar una RECTIFICATIVA. Presentar una DDJJ de un período que ya tiene una vigente
-  ES una rectificativa (así funciona el sistema anterior y así lo pidió el usuario), pero el estudio
-  tiene que verlo ANTES: la versión anterior queda reemplazada y el saldo se calcula contra lo que se
-  pagó, no contra lo que se declaró. Sin este aviso, la rectificativa ocurriría en silencio.
+  Aviso previo a presentar una RECTIFICATIVA, con la comparación EMPLEADO POR EMPLEADO contra la versión
+  vigente. Presentar una DDJJ de un período que ya tiene una vigente ES una rectificativa (así funciona el
+  sistema anterior y así lo pidió el usuario), pero el estudio tiene que verlo ANTES: la versión anterior
+  queda reemplazada y el saldo se calcula contra lo que se pagó.
+
+  La comparación la arma el SERVICIO con el mismo cálculo que después guarda (`CalcularAsync`), así que no
+  puede mostrar un importe distinto del que se va a guardar. La pantalla no calcula nada.
 *@
 <MudDialog>
   <TitleContent>
@@ -18,31 +21,101 @@
       queda como <b>v@(Anterior.VersionNumber + 1)</b> y la anterior pasa a <b>Rectificada</b>.
     </MudAlert>
 
+    @if (Comparacion is not null)
+    {
+      <MudText Typo="Typo.subtitle2" Class="mb-1">Comparación empleado por empleado</MudText>
+
+      <MudTable Items="@Comparacion.Empleados" Dense="true" Hover="true" Bordered="true"
+                Breakpoint="Breakpoint.Sm" Class="mb-3">
+        <HeaderContent>
+          <MudTh>Empleado</MudTh>
+          <MudTh>Categoría</MudTh>
+          <MudTh Style="text-align:right">Base antes</MudTh>
+          <MudTh Style="text-align:right">Base ahora</MudTh>
+          <MudTh Style="text-align:right">Aporte antes</MudTh>
+          <MudTh Style="text-align:right">Aporte ahora</MudTh>
+          <MudTh Style="text-align:right">Diferencia</MudTh>
+          <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Empleado">
+            @context.Empleado
+            @if (context.UsoEscala)
+            {
+              <MudTooltip Text="No se cargó remuneración: se usó el mínimo de escala (básico + antigüedad)">
+                <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Info" Class="ml-1" />
+              </MudTooltip>
+            }
+          </MudTd>
+          <MudTd DataLabel="Categoría">@context.Categoria</MudTd>
+          @* Al que SALE de la DDJJ se le muestra un guion en los valores nuevos: un 0,00 se lee como
+             "bajó a cero" y no es eso, es que ya no está. *@
+          <MudTd DataLabel="Base antes" Style="text-align:right">@context.BaseAnterior.ToString("N2")</MudTd>
+          <MudTd DataLabel="Base ahora" Style="text-align:right">
+            @(context.Estado == "Sale" ? "—" : context.BaseNueva.ToString("N2"))
+          </MudTd>
+          <MudTd DataLabel="Aporte antes" Style="text-align:right">@context.ImporteAnterior.ToString("N2")</MudTd>
+          <MudTd DataLabel="Aporte ahora" Style="text-align:right">
+            @(context.Estado == "Sale" ? "—" : context.ImporteNuevo.ToString("N2"))
+          </MudTd>
+          <MudTd DataLabel="Diferencia" Style="text-align:right">
+            @{
+              var dif = context.ImporteNuevo - context.ImporteAnterior;
+            }
+            <span class="@(dif > 0 ? "mud-error-text" : dif < 0 ? "mud-success-text" : "")">
+              @dif.ToString("N2")
+            </span>
+          </MudTd>
+          <MudTd DataLabel="Estado">
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                     Color="@ColorEstado(context.Estado)">@context.Estado</MudChip>
+          </MudTd>
+        </RowTemplate>
+      </MudTable>
+    }
+    else
+    {
+      <MudText Typo="Typo.body2" Class="mb-3">
+        No se pudo armar la comparación empleado por empleado; se muestran los totales.
+      </MudText>
+    }
+
     <MudSimpleTable Dense="true" Bordered="true" Class="mb-3">
       <tbody>
         <tr>
           <td>Versión anterior</td>
-          <td><b>v@Anterior.VersionNumber</b> (@Anterior.Status)</td>
+          <td><b>v@Anterior.VersionNumber</b> (@Anterior.Status) · presentada el @Anterior.SubmissionDate.ToString("dd/MM/yyyy HH:mm")</td>
         </tr>
         <tr>
-          <td>Presentada el</td>
-          <td>@Anterior.SubmissionDate.ToString("dd/MM/yyyy HH:mm")</td>
-        </tr>
-        <tr>
-          <td>Total declarado</td>
+          <td>Total anterior</td>
           <td>@Anterior.TotalAmount.ToString("C2")</td>
         </tr>
         <tr>
           <td><b>Pagado</b></td>
           <td><b>@Anterior.Pagado.ToString("C2")</b></td>
         </tr>
+        @if (Comparacion is not null)
+        {
+          <tr>
+            <td>Total nuevo</td>
+            <td>@Comparacion.TotalNuevo.ToString("C2")</td>
+          </tr>
+          <tr>
+            <td>Diferencia de total</td>
+            <td>
+              <b class="@(Comparacion.DiferenciaTotal > 0 ? "mud-error-text" : Comparacion.DiferenciaTotal < 0 ? "mud-success-text" : "")">
+                @Comparacion.DiferenciaTotal.ToString("C2")
+              </b>
+            </td>
+          </tr>
+        }
       </tbody>
     </MudSimpleTable>
 
     <MudText Typo="Typo.body2">
       El saldo de esta rectificativa se calcula como <b>total nuevo − lo pagado</b>
-      (@Anterior.Pagado.ToString("C2")). Si el total nuevo es menor, la diferencia queda como
-      <b>crédito a favor</b> de la empresa.
+      (@Anterior.Pagado.ToString("C2")) más la mora si el período ya venció. Si da negativo, la diferencia
+      queda como <b>crédito a favor</b> de la empresa.
     </MudText>
 
     @if (Anterior.Pagado == 0)
@@ -69,6 +142,18 @@
   [Parameter] public string Empresa { get; set; } = string.Empty;
   [Parameter] public string Periodo { get; set; } = string.Empty;
   [Parameter] public DeclarationAnteriorDto Anterior { get; set; } = null!;
+
+  /// <summary>Comparación empleado por empleado. Puede venir null si no se pudo calcular.</summary>
+  [Parameter] public ComparacionRectificativaDto? Comparacion { get; set; }
+
+  private static Color ColorEstado(string estado) => estado switch
+  {
+    "Nuevo" => Color.Success,
+    "Sube" => Color.Error,
+    "Baja" => Color.Warning,
+    "Sale" => Color.Dark,
+    _ => Color.Default
+  };
 
   private void Cancelar() => MudDialog.Cancel();
 

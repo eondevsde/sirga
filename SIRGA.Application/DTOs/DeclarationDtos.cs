@@ -26,6 +26,30 @@ public record DeclarationAnteriorDto(
     string Status,
     DateTime SubmissionDate);
 
+/// <summary>
+/// Comparación EMPLEADO POR EMPLEADO entre la versión vigente de una DDJJ y lo que daría presentarla de
+/// nuevo. Se arma con el MISMO cálculo que guarda la DDJJ, así no puede diferir de lo que se va a guardar.
+/// </summary>
+public record ComparacionRectificativaDto(
+    int VersionAnterior,
+    decimal TotalAnterior,
+    decimal PagadoAnterior,
+    decimal TotalNuevo,
+    decimal DiferenciaTotal,
+    IReadOnlyList<ComparacionEmpleadoDto> Empleados);
+
+/// <summary>Un empleado en la comparación. <c>Estado</c>: Igual, Sube, Baja, Nuevo o Sale.</summary>
+public record ComparacionEmpleadoDto(
+    string Empleado,
+    string? Dni,
+    string Categoria,
+    decimal BaseAnterior,
+    decimal BaseNueva,
+    decimal ImporteAnterior,
+    decimal ImporteNuevo,
+    string Estado,
+    bool UsoEscala);
+
 public class DeclarationResponseDto
 {
   public int Id { get; set; }

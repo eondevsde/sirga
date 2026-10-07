@@ -615,15 +615,41 @@ else
                             ?? _branches.FirstOrDefault(b => b.Id == _selectedCompanyId)?.BusinessName
                             ?? $"empresa {_selectedCompanyId}";
 
+        // La comparación la arma el SERVICIO con el mismo cálculo que después guarda: la pantalla no
+        // calcula importes. Se muestra ANTES de confirmar para poder ver qué cambió empleado por empleado.
+        ComparacionRectificativaDto? comparacion = null;
+        try
+        {
+          comparacion = await DeclarationService.PrevisualizarRectificativaAsync(new DeclarationRequestDto
+          {
+            CompanyId = _selectedCompanyId,
+            UnionId = _selectedUnionId,
+            Period = periodo,
+            Salaries = _details.Select(d => new EmployeeSalaryDto
+            {
+              EmployeeId = d.EmployeeId,
+              BaseSalary = d.GrossSalary
+            }).ToList()
+          });
+        }
+        catch (Exception exComparacion)
+        {
+          // Si no se puede previsualizar, se avisa igual (la rectificativa ocurre) pero sin la tabla: no
+          // se cancela el aviso por un problema de la comparación.
+          Snackbar.Add("No se pudo armar la comparación empleado por empleado: " + exComparacion.Message,
+                       Severity.Warning);
+        }
+
         var aviso = await DialogService.ShowAsync<RectificationWarningDialog>(
             "Rectificativa",
             new DialogParameters
             {
               { nameof(RectificationWarningDialog.Empresa), nombreEmpresa },
               { nameof(RectificationWarningDialog.Periodo), periodo },
-              { nameof(RectificationWarningDialog.Anterior), anterior }
+              { nameof(RectificationWarningDialog.Anterior), anterior },
+              { nameof(RectificationWarningDialog.Comparacion), comparacion }
             },
-            new DialogOptions { MaxWidth = MaxWidth.Small, CloseButton = true });
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true });
 
         var respuesta = await aviso.Result;
         if (respuesta is null || respuesta.Canceled) return;

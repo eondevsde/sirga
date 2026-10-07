@@ -24,44 +24,12 @@ public class DeclarationService(
 
   public async Task<DeclarationResponseDto> CreateDeclarationAsync(DeclarationRequestDto request)
   {
-    // 1. Validar Periodo, Empresa y Sindicato
-    var branch = await unitOfWork.Companies.GetByIdAsync(request.CompanyId)
-        ?? throw new Exception("La sucursal no existe.");
-
-    var union = await unitOfWork.Unions.GetByIdAsync(request.UnionId)
-        ?? throw new Exception("El sindicato no existe.");
-
-    // Las escalas y las categorías son NACIONALES por RAMA (el convenio), no por sindicato: se resuelven
-    // por la rama del sindicato. Si el sindicato no tiene rama asignada no se puede saber qué escala
-    // aplicarle, y hay que decirlo en vez de liquidar cualquier cosa.
-    int ramaId = union.RamaId
-        ?? throw new Exception(
-            $"El sindicato {union.Name} no tiene una rama de actividad asignada, así que no se puede " +
-            "saber qué escala salarial aplicarle. Asignásela en la pantalla de Sindicatos.");
-
-    // 2. Buscar Escala Salarial para el periodo (Formato YYYY-MM)
-    var periodParts = request.Period.Split("-");
-    int year = int.Parse(periodParts[0]);
-    int month = int.Parse(periodParts[1]);
-    var targetDate = new DateTime(year, month, 1);
-
-    var categories = (await unitOfWork.EmployeeCategories.FindAsync(c => c.RamaId == ramaId))
-        .ToDictionary(c => c.Code);
-
-    // Buscar escala para el periodo; si no hay exacta, congelar la más reciente anterior (fallback).
-    // Sólo las ACTIVAS: una escala desactivada no se usa (antes se ignoraba IsActive, así que
-    // desactivar una escala no hacía nada y podía usarse una dada de baja).
-    var idsCategorias = categories.Values.Select(c => c.Id).ToList();
-    var scales = await unitOfWork.SalaryScales.FindAsync(s =>
-        s.IsActive && s.Period <= targetDate && idsCategorias.Contains(s.EmployeeCategoryId));
-    if (!scales.Any())
-    {
-      throw new Exception(
-          $"No se encontró una escala salarial cargada para el periodo {request.Period} de la rama " +
-          $"{union.Rama?.Name ?? ramaId.ToString()} (sindicato {union.Name}).");
-    }
-    var latestScalePeriod = scales.Max(s => s.Period);
-    scales = scales.Where(s => s.Period == latestScalePeriod).ToList();
+    // El cálculo de los renglones vive en UN SOLO lugar (CalcularAsync), que es el mismo que usa la
+    // previsualización de una rectificativa: así la comparación que ve el estudio no puede diferir de lo
+    // que se guarda.
+    var calculo = await CalcularAsync(request);
+    var branch = calculo.Sucursal;
+    var union = calculo.Sindicato;
 
     // 3. Crear Cabecera de DDJJ
     var existingDeclarations = (await unitOfWork.Declarations.FindAsync(d =>
@@ -123,70 +91,21 @@ public class DeclarationService(
     declaration.PreviousAmount = esRectificativa ? await MontoPagadoAsync(vigente!) : 0;
     declaration.PresencialReference = $"DDJJ-{request.CompanyId}-{DateTime.Now:ssfff}";
 
-    decimal totalAmount = 0;
-    decimal totalAporteLey = 0;
-    decimal totalCuotaSocio = 0;
+    decimal totalAmount = calculo.Total;
+    decimal totalAporteLey = calculo.TotalAporteLey;
+    decimal totalCuotaSocio = calculo.TotalCuotaSocio;
 
-    // 4. Calcular Detalles por cada Empleado Activo de la Sucursal para el Sindicato seleccionado
-    var assignments = await unitOfWork.Assignments.FindAsync(a =>
-        a.CompanyId == request.CompanyId && a.UnionId == request.UnionId && a.IsActive);
-
-    var enteredSalaries = request.Salaries.GroupBy(s => s.EmployeeId).ToDictionary(g => g.Key, g => g.Last().BaseSalary);
-
-    foreach (var assign in assignments)
+    // 4. Los renglones ya vienen calculados por CalcularAsync (mismo cálculo que la previsualización).
+    foreach (var fila in calculo.Filas)
     {
-      // Buscar remuneración básica en la escala para la categoría del empleado
-      var categoryId = assign.CategoryCode != null && categories.TryGetValue(assign.CategoryCode, out var category) ? category.Id : 0;
-      var scale = scales.FirstOrDefault(s => s.EmployeeCategoryId == categoryId);
-      if (scale == null) continue;
-
-      decimal remunerativeTotal;
-      // Antigüedad contada desde el ingreso del empleado A ESTA EMPRESA (Assignments.CreatedAt,
-      // origen SOCEMP_FECHAING). Antes se contaba desde Employees.HireDate, que es la fecha de alta
-      // al sindicato: daba una antigüedad distinta de la real. La fórmula vive en un solo lugar
-      // (SalaryMinimumCalculator) para que la pantalla y este cálculo no puedan divergir.
-      int anios = SalaryMinimumCalculator.AniosAntiguedad(assign.CreatedAt, targetDate);
-      decimal factorJornada = SalaryMinimumCalculator.FactorJornada(assign.Jornada);
-
-      // Si el estudio cargó un salario bruto para este empleado, se usa ese como base de cálculo
-      // (es el importe que figura en el recibo de sueldo); si no (salario 0 o ausente), se usa el
-      // mínimo REMUNERATIVO de escala: básico + antigüedad, prorrateado por jornada.
-      if (enteredSalaries.TryGetValue(assign.EmployeeId, out var enteredBase) && enteredBase > 0)
+      declaration.Details.Add(new DeclarationDetail
       {
-        remunerativeTotal = enteredBase;
-      }
-      else
-      {
-        // Los acuerdos no remunerativos (AgreementNR1/AgreementNR2) NO entran en la base de aportes:
-        // son no remunerativos por definición. Por eso acá va sólo básico + antigüedad, aunque el
-        // mínimo de escala que se muestra en pantalla (que sí los incluye) sea más alto.
-        decimal antiguedadImporte = SalaryMinimumCalculator.Antiguedad(
-            scale.BasicAmount, scale.AntiguedadPercentage, anios);
-        remunerativeTotal = Math.Round(
-            (scale.BasicAmount + antiguedadImporte) * factorJornada, 2, MidpointRounding.AwayFromZero);
-      }
-
-      // Cálculos dinámicos basados en la configuración del Sindicato. Se redondea a 2 decimales
-      // (igual que la pantalla y que las columnas decimal(18,2) de la base): sin esto el importe
-      // que muestra la pantalla y el que queda guardado podían diferir en centavos.
-      decimal lawContribution = Redondear(remunerativeTotal * (union.LawContributionPercentage / 100));
-      decimal socioContribution = assign.IsVoluntaryMember
-          ? Redondear(remunerativeTotal * (union.UnionMemberPercentage / 100))
-          : 0;
-
-      var detail = new DeclarationDetail
-      {
-        AssignmentId = assign.Id,
-        BaseSalary = remunerativeTotal,
-        LawContribution = lawContribution,
-        MemberContribution = socioContribution,
-        TotalWithheld = lawContribution + socioContribution // En SIRGA "TotalWithheld" es el pago al sindicato
-      };
-
-      declaration.Details.Add(detail);
-      totalAmount += detail.TotalWithheld;
-      totalAporteLey += lawContribution;
-      totalCuotaSocio += socioContribution;
+        AssignmentId = fila.AssignmentId,
+        BaseSalary = fila.BaseSalary,
+        LawContribution = fila.LawContribution,
+        MemberContribution = fila.MemberContribution,
+        TotalWithheld = fila.TotalWithheld // En SIRGA "TotalWithheld" es el pago al sindicato
+      });
     }
 
     declaration.TotalAmount = totalAmount;
@@ -251,10 +170,10 @@ public class DeclarationService(
     // entre las categorías del sindicato, o no hay escala para esa categoría) y hay que verlo: una
     // DDJJ presentada en cero la rechaza el sindicato, y guardarla como si estuviera bien es peor que
     // fallar. El único cero legítimo es el de un empleado con licencia médica, que se declara aparte.
-    if (totalAmount == 0 && assignments.Any())
+    if (totalAmount == 0 && calculo.Asignaciones > 0)
     {
       throw new Exception(
-          $"No se guardó la DDJJ: ninguno de los {assignments.Count()} empleados de la empresa tiene " +
+          $"No se guardó la DDJJ: ninguno de los {calculo.Asignaciones} empleados de la empresa tiene " +
           $"categoría con escala salarial para el período {request.Period}. Revisá los códigos de " +
           "categoría de los empleados contra las categorías cargadas del sindicato.");
     }
@@ -581,6 +500,233 @@ public class DeclarationService(
         vigente.Status.ToString(),
         vigente.SubmissionDate);
   }
+
+  /// <summary>
+  /// Calcula los renglones de una DDJJ (uno por empleado activo) <b>sin guardar nada</b>.
+  ///
+  /// Es el ÚNICO lugar donde se calcula: lo usan tanto <see cref="CreateDeclarationAsync"/> como
+  /// <see cref="PrevisualizarRectificativaAsync"/>. Existe una sola implementación a propósito: si la
+  /// previsualización calculara por su lado, podría mostrar un importe distinto del que se termina
+  /// guardando, que es justo lo que no puede pasar.
+  /// </summary>
+  private async Task<CalculoDeclaracion> CalcularAsync(DeclarationRequestDto request)
+  {
+    // 1. Validar Periodo, Empresa y Sindicato
+    var branch = await unitOfWork.Companies.GetByIdAsync(request.CompanyId)
+        ?? throw new Exception("La sucursal no existe.");
+
+    var union = await unitOfWork.Unions.GetByIdAsync(request.UnionId)
+        ?? throw new Exception("El sindicato no existe.");
+
+    // Las escalas y las categorías son NACIONALES por RAMA (el convenio), no por sindicato: se resuelven
+    // por la rama del sindicato. Si el sindicato no tiene rama asignada no se puede saber qué escala
+    // aplicarle, y hay que decirlo en vez de liquidar cualquier cosa.
+    int ramaId = union.RamaId
+        ?? throw new Exception(
+            $"El sindicato {union.Name} no tiene una rama de actividad asignada, así que no se puede " +
+            "saber qué escala salarial aplicarle. Asignásela en la pantalla de Sindicatos.");
+
+    // 2. Buscar Escala Salarial para el periodo (Formato YYYY-MM)
+    var periodParts = request.Period.Split("-");
+    int year = int.Parse(periodParts[0]);
+    int month = int.Parse(periodParts[1]);
+    var targetDate = new DateTime(year, month, 1);
+
+    var categories = (await unitOfWork.EmployeeCategories.FindAsync(c => c.RamaId == ramaId))
+        .ToDictionary(c => c.Code);
+
+    // Buscar escala para el periodo; si no hay exacta, congelar la más reciente anterior (fallback).
+    // Sólo las ACTIVAS: una escala desactivada no se usa (antes se ignoraba IsActive, así que
+    // desactivar una escala no hacía nada y podía usarse una dada de baja).
+    var idsCategorias = categories.Values.Select(c => c.Id).ToList();
+    var scales = (await unitOfWork.SalaryScales.FindAsync(s =>
+        s.IsActive && s.Period <= targetDate && idsCategorias.Contains(s.EmployeeCategoryId))).ToList();
+    if (!scales.Any())
+    {
+      throw new Exception(
+          $"No se encontró una escala salarial cargada para el periodo {request.Period} de la rama " +
+          $"{union.Rama?.Name ?? ramaId.ToString()} (sindicato {union.Name}).");
+    }
+    var latestScalePeriod = scales.Max(s => s.Period);
+    scales = scales.Where(s => s.Period == latestScalePeriod).ToList();
+
+    // 4. Calcular Detalles por cada Empleado Activo de la Sucursal para el Sindicato seleccionado
+    var assignments = (await unitOfWork.Assignments.FindAsync(a =>
+        a.CompanyId == request.CompanyId && a.UnionId == request.UnionId && a.IsActive)).ToList();
+
+    var enteredSalaries = request.Salaries.GroupBy(s => s.EmployeeId).ToDictionary(g => g.Key, g => g.Last().BaseSalary);
+
+    // Los empleados se traen aparte: la asignación guarda el EmployeeId, pero la navegación a Employee no
+    // viene cargada, y sin el nombre la comparación no le sirve a nadie.
+    var idsEmpleados = assignments.Select(a => a.EmployeeId).Distinct().ToList();
+    var empleados = (await unitOfWork.Employees.FindAsync(e => idsEmpleados.Contains(e.Id)))
+        .ToDictionary(e => e.Id);
+
+    var filas = new List<FilaCalculada>();
+    decimal total = 0, totalAporteLey = 0, totalCuotaSocio = 0;
+
+    foreach (var assign in assignments)
+    {
+      // Buscar remuneración básica en la escala para la categoría del empleado
+      var categoria = assign.CategoryCode != null && categories.TryGetValue(assign.CategoryCode, out var c) ? c : null;
+      var scale = categoria is null ? null : scales.FirstOrDefault(s => s.EmployeeCategoryId == categoria.Id);
+      if (scale == null) continue;
+
+      decimal remunerativeTotal;
+      bool usoEscala;
+      // Antigüedad contada desde el ingreso del empleado A ESTA EMPRESA (Assignments.CreatedAt,
+      // origen SOCEMP_FECHAING). Antes se contaba desde Employees.HireDate, que es la fecha de alta
+      // al sindicato: daba una antigüedad distinta de la real. La fórmula vive en un solo lugar
+      // (SalaryMinimumCalculator) para que la pantalla y este cálculo no puedan divergir.
+      int anios = SalaryMinimumCalculator.AniosAntiguedad(assign.CreatedAt, targetDate);
+      decimal factorJornada = SalaryMinimumCalculator.FactorJornada(assign.Jornada);
+
+      // Si el estudio cargó un salario bruto para este empleado, se usa ese como base de cálculo
+      // (es el importe que figura en el recibo de sueldo); si no (salario 0 o ausente), se usa el
+      // mínimo REMUNERATIVO de escala: básico + antigüedad, prorrateado por jornada.
+      if (enteredSalaries.TryGetValue(assign.EmployeeId, out var enteredBase) && enteredBase > 0)
+      {
+        remunerativeTotal = enteredBase;
+        usoEscala = false;
+      }
+      else
+      {
+        // Los acuerdos no remunerativos (AgreementNR1/AgreementNR2) NO entran en la base de aportes:
+        // son no remunerativos por definición. Por eso acá va sólo básico + antigüedad, aunque el
+        // mínimo de escala que se muestra en pantalla (que sí los incluye) sea más alto.
+        decimal antiguedadImporte = SalaryMinimumCalculator.Antiguedad(
+            scale.BasicAmount, scale.AntiguedadPercentage, anios);
+        remunerativeTotal = Math.Round(
+            (scale.BasicAmount + antiguedadImporte) * factorJornada, 2, MidpointRounding.AwayFromZero);
+        usoEscala = true;
+      }
+
+      // Cálculos dinámicos basados en la configuración del Sindicato. Se redondea a 2 decimales
+      // (igual que la pantalla y que las columnas decimal(18,2) de la base): sin esto el importe
+      // que muestra la pantalla y el que queda guardado podían diferir en centavos.
+      decimal lawContribution = Redondear(remunerativeTotal * (union.LawContributionPercentage / 100));
+      decimal socioContribution = assign.IsVoluntaryMember
+          ? Redondear(remunerativeTotal * (union.UnionMemberPercentage / 100))
+          : 0;
+
+      decimal totalWithheld = lawContribution + socioContribution;
+      empleados.TryGetValue(assign.EmployeeId, out var empleado);
+      filas.Add(new FilaCalculada(
+          assign.Id,
+          assign.EmployeeId,
+          empleado?.FullName,
+          empleado?.Dni,
+          assign.CategoryCode,
+          categoria?.Name,
+          remunerativeTotal,
+          lawContribution,
+          socioContribution,
+          totalWithheld,
+          assign.IsVoluntaryMember,
+          usoEscala));
+
+      total += totalWithheld;
+      totalAporteLey += lawContribution;
+      totalCuotaSocio += socioContribution;
+    }
+
+    return new CalculoDeclaracion(branch, union, targetDate, latestScalePeriod, filas, assignments.Count,
+        total, totalAporteLey, totalCuotaSocio);
+  }
+
+  /// <summary>
+  /// Comparación EMPLEADO POR EMPLEADO entre la versión vigente de una DDJJ y lo que daría presentarla de
+  /// nuevo, sin guardar nada. La pantalla la muestra antes de confirmar una rectificativa: comparando sólo
+  /// los totales, si un empleado sube y otro baja la diferencia lo esconde.
+  ///
+  /// Devuelve <c>null</c> si no hay una versión vigente (o sea, si no sería una rectificativa).
+  /// </summary>
+  public async Task<ComparacionRectificativaDto?> PrevisualizarRectificativaAsync(DeclarationRequestDto request)
+  {
+    var anterior = await ObtenerVigenteAsync(request.CompanyId, request.Period);
+    if (anterior is null) return null;
+
+    var calculo = await CalcularAsync(request);
+
+    var anteriores = (await GetDeclarationDetailsAsync(anterior.Id))
+        .GroupBy(d => d.EmployeeId)
+        .ToDictionary(g => g.Key, g => g.First());
+
+    var filas = new List<ComparacionEmpleadoDto>();
+    var vistos = new HashSet<int>();
+
+    foreach (var fila in calculo.Filas)
+    {
+      vistos.Add(fila.EmployeeId);
+      anteriores.TryGetValue(fila.EmployeeId, out var previo);
+
+      decimal importeAnterior = previo?.TotalWithheld ?? 0;
+      decimal baseAnterior = previo?.BaseSalary ?? 0;
+
+      filas.Add(new ComparacionEmpleadoDto(
+          fila.Empleado ?? $"Empleado {fila.EmployeeId}",
+          fila.Dni,
+          fila.CategoriaNombre ?? fila.CategoriaCodigo ?? "Sin categoría",
+          baseAnterior, fila.BaseSalary,
+          importeAnterior, fila.TotalWithheld,
+          EstadoDeComparacion(previo is null, importeAnterior, fila.TotalWithheld),
+          fila.UsoEscala));
+    }
+
+    // Empleados que estaban en la versión anterior y ya no están (baja de la empresa, desvinculación...).
+    foreach (var previo in anteriores.Values.Where(p => !vistos.Contains(p.EmployeeId)))
+    {
+      filas.Add(new ComparacionEmpleadoDto(
+          previo.EmployeeName, previo.Dni, "—",
+          previo.BaseSalary, 0,
+          previo.TotalWithheld, 0,
+          "Sale", false));
+    }
+
+    return new ComparacionRectificativaDto(
+        anterior.VersionNumber,
+        anterior.TotalAmount,
+        anterior.Pagado,
+        calculo.Total,
+        calculo.Total - anterior.TotalAmount,
+        filas.OrderBy(f => f.Empleado, StringComparer.CurrentCultureIgnoreCase).ToList());
+  }
+
+  /// <summary>Cómo cambió el importe de un empleado entre las dos versiones.</summary>
+  private static string EstadoDeComparacion(bool esNuevo, decimal anterior, decimal nuevo)
+  {
+    if (esNuevo) return "Nuevo";
+    if (nuevo > anterior) return "Sube";
+    if (nuevo < anterior) return "Baja";
+    return "Igual";
+  }
+
+  /// <summary>Renglón calculado de un empleado (lo que después se guarda como <see cref="DeclarationDetail"/>).</summary>
+  private record FilaCalculada(
+      int AssignmentId,
+      int EmployeeId,
+      string? Empleado,
+      string? Dni,
+      string? CategoriaCodigo,
+      string? CategoriaNombre,
+      decimal BaseSalary,
+      decimal LawContribution,
+      decimal MemberContribution,
+      decimal TotalWithheld,
+      bool EsSocio,
+      bool UsoEscala);
+
+  /// <summary>Resultado del cálculo de una DDJJ, antes de guardarla.</summary>
+  private record CalculoDeclaracion(
+      Company Sucursal,
+      Union Sindicato,
+      DateTime FechaPeriodo,
+      DateTime PeriodoEscala,
+      IReadOnlyList<FilaCalculada> Filas,
+      int Asignaciones,
+      decimal Total,
+      decimal TotalAporteLey,
+      decimal TotalCuotaSocio);
 
   public async Task ApproveDeclarationAsync(int id, string observation)
   {
