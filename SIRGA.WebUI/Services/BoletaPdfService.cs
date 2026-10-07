@@ -96,8 +96,14 @@ public class BoletaPdfService
 
   private static void Talon(IContainer contenedor, BoletaDatosDto boleta, string etiquetaTalon)
   {
-    contenedor.Border(1).BorderColor(Colors.Grey.Medium).Padding(8).Column(columna =>
+    contenedor.Border(1).BorderColor(Colors.Grey.Medium).Padding(8).Layers(capas =>
     {
+      // El talón se arma en DOS CAPAS: arriba el encabezado y los datos, y PEGADO AL PIE el código de
+      // barras con su número. Se hace con capas y no con un espaciador porque así el pie queda al fondo de
+      // la caja sin depender de cuánto mida el contenido: si no, cualquier línea de más (por ejemplo el
+      // detalle del interés, que sólo aparece cuando la DDJJ está vencida) lo correría.
+      capas.PrimaryLayer().Column(columna =>
+      {
       columna.Spacing(3);
 
       // Encabezado: logo del sindicato, conceptos que se cobran y datos bancarios.
@@ -175,14 +181,17 @@ public class BoletaPdfService
         });
       });
 
-      // OJO: NO poner acá un `Extend()` para empujar el pie hacia abajo. Se expande contra el alto de la
-      // PÁGINA (no el del talón) y manda el código de barras a la hoja siguiente: con eso la boleta se iba a
-      // 4 páginas (probado). El talón ya llena su tercio de hoja con el alto fijo de cada caja.
+      });
 
-      // Código de barras y su número en texto, para poder cargarlo a mano si el lector falla.
-      columna.Item().PaddingTop(6).Element(cont => CodigoDeBarras(cont, boleta.CodigoBarras));
-      columna.Item().AlignCenter().Text(boleta.CodigoBarras).FontSize(8).LetterSpacing(0.05f);
-      columna.Item().AlignCenter().Text("Pagos posteriores al vencimiento, sujetos a actualización.").FontSize(7).Italic();
+      // Capa del PIE: el código de barras, su número en texto (para cargarlo a mano si el lector falla) y la
+      // nota, anclados al fondo del talón.
+      capas.Layer().AlignBottom().Column(pie =>
+      {
+        pie.Spacing(3);
+        pie.Item().Element(cont => CodigoDeBarras(cont, boleta.CodigoBarras));
+        pie.Item().AlignCenter().Text(boleta.CodigoBarras).FontSize(8).LetterSpacing(0.05f);
+        pie.Item().AlignCenter().Text("Pagos posteriores al vencimiento, sujetos a actualización.").FontSize(7).Italic();
+      });
     });
   }
 

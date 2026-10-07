@@ -305,6 +305,16 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
         se guarda `UsaEscala = False` para el primero y `True` para el segundo, y la precarga copia **1 de
         2** (sólo la tipeada). Rectificar cargando lo mismo reproduce el mismo total (no cambia el
         resultado de quien no toca nada).
+  - **El código de barras va PEGADO AL PIE de cada talón**: el talón se arma en **dos capas**
+    (`Layers`): la principal con el encabezado y los datos, y otra con **`AlignBottom()`** que ancla al
+    fondo el código, su número y la nota.
+    > **POR QUÉ CON CAPAS Y NO CON UN ESPACIADOR**: un espaciador de alto fijo se corre en cuanto el
+    > contenido mide una línea más (el detalle del interés, que sólo aparece si la DDJJ está vencida). Con
+    > la capa alineada abajo, el pie queda al fondo **siempre**, sin depender de lo de arriba.
+    > **Medido sobre el PDF** (trackeando la matriz de transformación, porque hay una por talón): en los 3
+    > talones el código queda a **32 pt del piso** de su caja, y las 3 cajas miden **259 pt** (el tercio de
+    > hoja). *(El eje del PDF viene invertido: el dato crudo se lee como la coordenada de arriba.)*
+    > Herramienta: `.dsh-tools/medir_barras.py`.
   - **Los tres talones se reparten TODO el alto de la hoja** (antes quedaban apilados arriba y sobraba un
     tercio de papel): cada talón tiene un **alto fijo** calculado del tamaño de hoja y los márgenes.
     > **TRAMPA DE QUESTPDF (las dos probadas)**: `Extend()` **no sirve para repartir**: con varios elementos
