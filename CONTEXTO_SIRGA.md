@@ -236,6 +236,16 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   - **Cómo se decide**: presentar una DDJJ de un período que ya tiene una versión **vigente** (no
     borrador ni rectificada) ES una rectificativa, y `VersionNumber` pasa a 2, 3… Es el criterio del
     sistema anterior (su columna `rect` era el número de versión: 0 la original, 1.. las rectificativas).
+  - **DE DÓNDE SE GENERA (esto faltaba y el usuario lo preguntó)**: en el **historial de DDJJ** cada fila
+    vigente tiene un botón **"Rectificar"** (ícono de nota, ámbar) que manda a **Nueva DDJJ con la empresa,
+    el sindicato y el período ya elegidos** (`/declarations/new?empresa=&sindicato=&periodo=`). Antes el
+    camino existía pero **no se descubría**: había que ir a Nueva DDJJ y acordarse de elegir la misma
+    empresa y el mismo período a mano. **No se ofrece sobre una versión ya reemplazada**: la rectificativa
+    se hace siempre contra la vigente.
+    - Los **importes no se pre-cargan** a propósito: en la tabla de detalles no queda registrado si un
+      importe se tipeó a mano o salió de la escala, así que pre-cargar el valor anterior **congelaría el
+      mínimo viejo** como si fuera un importe tipeado. Se llega con los empleados cargados y la escala
+      vigente, y se tipea sólo lo que se quiera fijar.
   - **El aviso es obligatorio porque es automático**: la pantalla de Nueva DDJJ muestra el modal
     `RectificationWarningDialog` con la versión anterior, su total, **lo que se pagó** y la
     **comparación EMPLEADO POR EMPLEADO** (base y aporte antes/ahora, y el estado: Igual, Sube, Baja,

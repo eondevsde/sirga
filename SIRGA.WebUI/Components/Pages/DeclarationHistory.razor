@@ -10,6 +10,7 @@
 @inject SIRGA.WebUI.Services.BoletaPdfService BoletaPdfService
 @inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
 
 <PageTitle>SIRGA - Historial de DDJJ</PageTitle>
 
@@ -69,6 +70,16 @@ else
           <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Default" Size="Size.Small"
                          OnClick="@(() => OnDownloadPdf(context))" />
         </MudTooltip>
+        @* RECTIFICAR: manda a Nueva DDJJ con la empresa, el sindicato y el período YA elegidos, así la
+           rectificativa se puede hacer desde acá. No se ofrece sobre una versión ya reemplazada: la
+           rectificativa se hace siempre contra la versión vigente. *@
+        @if (context.Status != "Rectificada")
+        {
+          <MudTooltip Text="Presentar una versión nueva de esta DDJJ (rectificativa)">
+            <MudIconButton Icon="@Icons.Material.Filled.EditNote" Color="Color.Warning" Size="Size.Small"
+                           OnClick="@(() => OnRectificar(context))" />
+          </MudTooltip>
+        }
       </MudTd>
     </RowTemplate>
     <PagerContent>
@@ -116,8 +127,18 @@ else
     return false;
   }
 
-  private Color GetStatusColor(string status)
+  /// <summary>
+  /// Manda a Nueva DDJJ con la empresa, el sindicato y el período ya elegidos, para hacer la rectificativa
+  /// desde acá sin tener que acordarse de cuál era la empresa ni volver a elegir el período. Al presentar,
+  /// el sistema detecta que ya hay una versión vigente, avisa y muestra la comparación.
+  /// </summary>
+  private void OnRectificar(DeclarationResponseDto declaration)
   {
+    Navigation.NavigateTo(
+        $"/declarations/new?empresa={declaration.CompanyId}&sindicato={declaration.UnionId}&periodo={declaration.Period}");
+  }
+
+  private Color GetStatusColor(string status)  {
     return status switch
     {
       "Draft" => Color.Warning,

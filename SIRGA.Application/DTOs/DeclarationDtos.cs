@@ -53,6 +53,13 @@ public record ComparacionEmpleadoDto(
 public class DeclarationResponseDto
 {
   public int Id { get; set; }
+
+  /// <summary>Empresa de la DDJJ. Lo usa el historial para poder mandar a "Rectificar" esta misma DDJJ.</summary>
+  public int CompanyId { get; set; }
+
+  /// <summary>Sindicato de la DDJJ (el mismo dato que necesita la pantalla de Nueva DDJJ).</summary>
+  public int UnionId { get; set; }
+
   public string Period { get; set; } = null!;
   public decimal TotalAmount { get; set; }
   public string Status { get; set; } = null!;

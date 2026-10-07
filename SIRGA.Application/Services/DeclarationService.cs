@@ -294,6 +294,8 @@ public class DeclarationService(
     return new DeclarationResponseDto
     {
       Id = declaration.Id,
+      CompanyId = declaration.CompanyId,
+      UnionId = declaration.UnionId,
       Period = declaration.Period,
       TotalAmount = declaration.TotalAmount,
       Status = declaration.Status.ToString(),
@@ -398,6 +400,8 @@ public class DeclarationService(
     return new DeclarationResponseDto
     {
       Id = d.Id,
+      CompanyId = d.CompanyId,
+      UnionId = d.UnionId,
       Period = d.Period,
       TotalAmount = d.TotalAmount,
       Status = d.Status.ToString(),
@@ -436,6 +440,8 @@ public class DeclarationService(
     return d => new DeclarationResponseDto
     {
       Id = d.Id,
+      CompanyId = d.CompanyId,
+      UnionId = d.UnionId,
       Period = d.Period,
       TotalAmount = d.TotalAmount,
       Status = d.Status.ToString(),

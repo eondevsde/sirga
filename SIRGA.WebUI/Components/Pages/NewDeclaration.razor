@@ -299,6 +299,18 @@ else
   private MudStepper _stepper = null!; // Asignado por @ref en el marcado
   private int _year = DateTime.Now.Year;
   private int _month = DateTime.Now.Month;
+
+  /// <summary>Empresa con la que se abre la pantalla (viene del botón "Rectificar" del historial).</summary>
+  [Parameter, SupplyParameterFromQuery(Name = "empresa")]
+  public int? EmpresaQuery { get; set; }
+
+  /// <summary>Sindicato con el que se abre la pantalla.</summary>
+  [Parameter, SupplyParameterFromQuery(Name = "sindicato")]
+  public int? SindicatoQuery { get; set; }
+
+  /// <summary>Período (aaaa-MM) con el que se abre la pantalla.</summary>
+  [Parameter, SupplyParameterFromQuery(Name = "periodo")]
+  public string? PeriodoQuery { get; set; }
   private int _selectedCompanyId;
   private int _selectedUnionId;
   private bool _loadingBaseData = true;
@@ -353,7 +365,37 @@ else
 
       if (_unions.Any()) _selectedUnionId = _unions.First().Id;
 
+      // PRE-SELECCIÓN desde la query string: la usa el botón "Rectificar" del historial, para llegar con la
+      // empresa, el sindicato y el período ya elegidos. Se aplica DESPUÉS de cargar las escalas (los
+      // mínimos tienen que estar calculados antes de armar los renglones).
+      if (SindicatoQuery is { } sindicatoId && _unions.Any(u => u.Id == sindicatoId))
+        _selectedUnionId = sindicatoId;
+
+      if (!string.IsNullOrWhiteSpace(PeriodoQuery))
+      {
+        var partesPeriodo = PeriodoQuery.Split('-');
+        if (partesPeriodo.Length == 2
+            && int.TryParse(partesPeriodo[0], out var anio) && anio > 2000
+            && int.TryParse(partesPeriodo[1], out var mes) && mes >= 1 && mes <= 12)
+        {
+          _year = anio;
+          _month = mes;
+        }
+      }
+
       await LoadScalesAsync();
+
+      if (EmpresaQuery is { } empresaId && _companies.Any(c => c.Id == empresaId))
+      {
+        var empresa = _companies.First(c => c.Id == empresaId);
+        // Si es una sucursal, primero se elige su casa central y después la sucursal.
+        await OnParentCompanyChanged(empresa.ParentCompanyId ?? empresa.Id);
+        if (empresa.ParentCompanyId is not null)
+        {
+          _selectedCompanyId = empresa.Id;
+          await OnFiltersChanged();
+        }
+      }
     }
     catch (Exception ex)
     {
