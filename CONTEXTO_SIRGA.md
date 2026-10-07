@@ -305,6 +305,17 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
         se guarda `UsaEscala = False` para el primero y `True` para el segundo, y la precarga copia **1 de
         2** (sólo la tipeada). Rectificar cargando lo mismo reproduce el mismo total (no cambia el
         resultado de quien no toca nada).
+  - **La boleta lleva un CÓDIGO QR** con **el mismo contenido del código de barras** (los 58 dígitos), como
+    alternativa de escaneo. Va en el **encabezado de cada talón**, a la derecha.
+    > **OJO CON DÓNDE VA**: se puso en el encabezado y **no** en una línea propia abajo porque agregar una
+    > línea de 50 pt por talón **empujaba la boleta a DOS hojas**, y el triplicado tiene que entrar en una.
+    > En el encabezado está igual de lejos de la línea del código de barras (que un lector láser barre
+    > horizontalmente) y no agrega alto.
+    > **Se arma como IMAGEN**: QuestPDF no tiene API pública de SVG, así que el QR se codifica a mano como
+    > **BMP de 24 bits** (sin compresión, blanco y negro puro) y Skia lo lee. **A 8 px por módulo (232×232) y
+    > con `UseOriginalImage()`** para que NO lo reescale: si lo reescala interpola los píxeles y los bordes de
+    > los módulos quedan borrosos, que es lo que perjudica la lectura.
+    > **Verificado decodificándolo con ZXing**: devuelve los 58 dígitos exactos.
   - **La boleta lleva el LOGO del sindicato** (emblema de Santiago del Estero, pedido por el usuario):
     `SIRGA.WebUI/wwwroot/images/logo-santiago-del-estero.jpg`, dibujado en el **encabezado de cada talón**
     (44×44 pt) a la izquierda del nombre del sindicato.

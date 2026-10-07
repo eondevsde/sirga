@@ -5,6 +5,7 @@ using SIRGA.Application.DTOs;
 using SIRGA.Application.Services;
 using ZXing;
 using ZXing.Common;
+using ZXing.QrCode.Internal;
 
 namespace SIRGA.WebUI.Services;
 
@@ -93,7 +94,7 @@ public class BoletaPdfService
         // El logo va primero, a la izquierda del nombre del sindicato. Se dibuja sólo si el archivo está.
         if (Logo.Value is { } logo)
         {
-          fila.ConstantItem(44).Image(logo, ImageScaling.FitArea);
+          fila.ConstantItem(44).Image(logo).FitArea();
         }
 
         fila.RelativeItem().PaddingLeft(Logo.Value is null ? 0 : 6).Column(datos =>
@@ -104,10 +105,21 @@ public class BoletaPdfService
           datos.Item().Text($"Nota de Crédito para la Cta. Cte. N° {boleta.NumeroCliente}").FontSize(8);
         });
 
-        fila.ConstantItem(150).AlignRight().Column(derecha =>
+        // A la derecha van la etiqueta del talón, la fecha de emisión y el QR. El QR va ACÁ y no al lado del
+        // código de barras a propósito: un lector láser que barre la línea del código de barras no se lo
+        // encuentra en el camino. Es la misma línea del encabezado, así que no agrega alto al talón (y los
+        // tres talones siguen entrando en una hoja).
+        fila.ConstantItem(150).Row(derecha =>
         {
-          derecha.Item().Text(etiquetaTalon).Bold().FontSize(8);
-          derecha.Item().Text($"Emitida: {DateTime.Now:dd/MM/yyyy HH:mm}").FontSize(7);
+          derecha.RelativeItem().Column(texto =>
+          {
+            texto.Item().AlignRight().Text(etiquetaTalon).Bold().FontSize(8);
+            texto.Item().AlignRight().Text($"Emitida: {DateTime.Now:dd/MM/yyyy HH:mm}").FontSize(7);
+          });
+
+          // El QR va SIN reescalar: si QuestPDF lo redimensiona, interpola los píxeles y los bordes de los
+          // módulos quedan borrosos, que es justo lo que perjudica que el lector lo tome.
+          derecha.ConstantItem(44).PaddingLeft(4).Image(CodigoQr(boleta.CodigoBarras)).UseOriginalImage().FitArea();
         });
       });
 
@@ -192,4 +204,90 @@ public class BoletaPdfService
   /// impresora.
   /// </summary>
   private static int AnchoModulos(string contenido) => Math.Max(contenido.Length * 11, 200);
+
+  /// <summary>
+  /// Genera el QR con EL MISMO contenido del código de barras y devuelve una imagen lista para imprimir.
+  ///
+  /// La corrección de errores es M (15%), que es la habitual para un documento impreso: tolera manchas o un
+  /// doblez sin dejar de leerse. El margen de 2 módulos es la zona blanca que el lector necesita alrededor.
+  /// </summary>
+  private static byte[] CodigoQr(string contenido)
+  {
+    var pistas = new Dictionary<EncodeHintType, object>
+    {
+      { EncodeHintType.MARGIN, 2 },
+      { EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M }
+    };
+
+    var matriz = new MultiFormatWriter().encode(contenido, BarcodeFormat.QR_CODE, 0, 0, pistas);
+
+    var modulos = new bool[matriz.Width, matriz.Height];
+    for (var x = 0; x < matriz.Width; x++)
+    {
+      for (var y = 0; y < matriz.Height; y++)
+      {
+        modulos[x, y] = matriz[x, y];
+      }
+    }
+
+    return MatrizABmp(modulos, EscalaQr);
+  }
+
+  /// <summary>
+  /// Cuántos píxeles se dibuja cada módulo del QR. Con 1 el QR queda de 29x29 px y al imprimirlo a 44 pt
+  /// sale borroso (Skia lo suaviza), lo que complica que el lector lo tome: a 8 px por módulo son ~230 px y
+  /// los bordes quedan nítidos.
+  /// </summary>
+  private const int EscalaQr = 8;
+
+  /// <summary>
+  /// Convierte la matriz de módulos del QR (true = oscuro) en un BMP de 24 bits.
+  ///
+  /// Se arma a mano porque QuestPDF recibe las imágenes como bytes y el proyecto no tiene un codificador:
+  /// el BMP **sin compresión** es el más simple de escribir y Skia —el motor que usa QuestPDF— lo lee sin
+  /// problema. Se escribe en blanco y negro puro (sin grises) para que los módulos queden nítidos.
+  /// </summary>
+  private static byte[] MatrizABmp(bool[,] modulos, int escala)
+  {
+    int modulosX = modulos.GetLength(0);
+    int modulosY = modulos.GetLength(1);
+    int ancho = modulosX * escala;
+    int alto = modulosY * escala;
+    int bytesPorFila = (ancho * 3 + 3) / 4 * 4;   // cada fila del BMP se alinea a 4 bytes
+    int tamanoPixeles = bytesPorFila * alto;
+    const int tamanoCabecera = 14 + 40;           // BITMAPFILEHEADER + BITMAPINFOHEADER
+
+    var datos = new byte[tamanoCabecera + tamanoPixeles];
+
+    datos[0] = (byte)'B';
+    datos[1] = (byte)'M';
+    BitConverter.GetBytes(tamanoCabecera + tamanoPixeles).CopyTo(datos, 2);   // tamaño total
+    BitConverter.GetBytes(tamanoCabecera).CopyTo(datos, 10);                  // desde dónde empiezan los píxeles
+
+    BitConverter.GetBytes(40).CopyTo(datos, 14);                              // tamaño de este encabezado
+    BitConverter.GetBytes(ancho).CopyTo(datos, 18);
+    BitConverter.GetBytes(alto).CopyTo(datos, 22);
+    BitConverter.GetBytes((short)1).CopyTo(datos, 26);                        // planos de color
+    BitConverter.GetBytes((short)24).CopyTo(datos, 28);                       // bits por píxel
+    BitConverter.GetBytes(tamanoPixeles).CopyTo(datos, 34);
+
+    // Los píxeles van de ABAJO hacia arriba y en orden BGR. Cada módulo se expande a un bloque de
+    // `escala` x `escala` píxeles.
+    for (var y = 0; y < alto; y++)
+    {
+      var inicioFila = tamanoCabecera + ((alto - 1 - y) * bytesPorFila);
+      var moduloY = y / escala;
+
+      for (var x = 0; x < ancho; x++)
+      {
+        var valor = modulos[x / escala, moduloY] ? (byte)0 : (byte)255;
+        var pixel = inicioFila + (x * 3);
+        datos[pixel] = valor;
+        datos[pixel + 1] = valor;
+        datos[pixel + 2] = valor;
+      }
+    }
+
+    return datos;
+  }
 }
