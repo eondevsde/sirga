@@ -131,14 +131,74 @@ confiables), `ddjj_`, `ddjjt_` (respaldos), ni `ddjj`.
 4. Que ninguna DDJJ haya quedado pagada **dos veces** (idempotencia: reimportar el mismo archivo no debe
    cambiar nada).
 
-## 8. Abierto (no inventar)
+## 8. Lo que dice el código de SIGES WEB (esto es la fuente de verdad)
 
-1. **Firma y formato del archivo del banco**: no se tiene todavía. Cuando llegue, se define el parseo y el
+Relevado en `C:\Proyectos\SIGESWEB` el 2026-10-07. **SIGES WEB lee `ddjjt` DIRECTAMENTE**, con su propio
+`SindicatoDbContext` (`SIGESWEB.Infrastructure\Data\SindicatoDbContext.cs`), y la pantalla es
+`/actas/verificacion-de-deuda` (`Components\Pages\Actas\VerificacionDeDeuda.razor` + `ActasService`).
+
+### La regla de "pagada", textual del código
+
+`SIGESWEB.Infrastructure\Services\ActasService.cs`, línea 198:
+
+```csharp
+Estado = item.fpago.HasValue ? "Pagado" : "Pendiente",
+```
+
+⇒ **Una DDJJ está pagada si y sólo si `fpago` tiene valor.** `estado` **no se mira nunca** (queda
+confirmado por el código, no por deducción).
+
+### La regla de "cuál es la fila buena", textual del código
+
+`EstudiosService.cs` (líneas 61, 205, 252) y `ReportesService.cs` (línea 42) usan **exactamente** esto:
+
+```csharp
+.Select(g => g.FirstOrDefault(x => x.fpago != null && (x.titem1 ?? 0) > 0)
+              ?? g.OrderByDescending(x => x.rect).First())
+```
+
+⇒ **Agrupado por (cuit, período): gana la fila que está PAGADA y tiene `titem1 > 0`**; si no hay
+ninguna, **la de mayor `rect`** (que es lo que indicó el usuario). Las dos condiciones juntas, no
+sólo `rect`.
+
+> **CONSECUENCIA CRÍTICA PARA NUESTRO ESCRITOR:** si escribimos `fpago` en una fila cuyo **`titem1` es
+> 0**, SIGES WEB **NO la va a elegir** y va a seguir viendo la deuda. ⇒ **La fila que marquemos pagada
+> tiene que tener `titem1 > 0`.** Hay que verificarlo fila por fila antes de escribir, no asumirlo.
+
+### La deuda se calcula así
+
+`EstudiosService.cs` línea 72:
+
+```csharp
+Deuda = g.Sum(d => (d.titem1 ?? 0) + (d.titem2 ?? 0) - (d.impban1 ?? 0))
+```
+
+⇒ **`titem1` + `titem2` = lo que se debe; `impban1` = lo que se pagó; deuda = la diferencia.** Con
+`impban1` igual al total, la deuda del período queda en **0** y SIGES lo muestra como pagado.
+
+### Cómo reporta la caja
+
+`CajaService.cs` líneas 240-320: agrupa por **el mes de `fpago`** y suma **`impban1`** ⇒ *"lo recaudado
+del mes"*. Es decir: **`fpago` manda la fecha y `impban1` el importe**, exactamente los dos campos que
+nuestro escritor tiene que llenar.
+
+### La clave primaria de `ddjjt`
+
+Es **`periodo + cuit + rect + repite`** (está en el `FindByperiodocuitrectrepite` del DataSet del sistema
+viejo). Por eso hay repetidas: la misma DDJJ puede tener varias versiones (`rect`) y repeticiones
+(`repite`). **El escritor tiene que apuntar a una sola fila, nunca a todas.**
+
+## 9. Abierto (lo que queda sin cerrar)
+
+1. **Formato del archivo del banco**: no se tiene todavía. Cuando llegue, se define el parseo y el
    catálogo de formas de pago.
 2. **Qué significan `estado` y `medio1/2/3`**: el usuario lo consulta en el sistema legacy. **Tarea
-   pendiente anotada.** Medición actual: `estado` ∈ {0,1,10,11,20,21} y `medio1` ∈ {0,1,2,3}, pero **0 en
-   los pagos recientes**.
-3. **Cuál es la fila buena de `ddjjt` cuando hay repetidas** para la misma clave (la unión no es única).
-4. **Si `ddjj` necesita algo al pagar**: verificado que **no tiene campos de pago**, así que en principio
-   no. Falta confirmar con quien conoce SIGES WEB si al cobrar espera algo más.
+   pendiente anotada.** Dato nuevo: **SIGES WEB no usa ninguno de los dos** (usa `fpago`), así que **no
+   bloquean el escritor** — se pueden dejar intactos.
+3. ~~Cuál es la fila buena de `ddjjt`~~ → **RESUELTO** (punto 8): pagada con `titem1 > 0`, si no la de
+   mayor `rect`.
+4. **Si `ddjj` necesita algo al pagar**: verificado que **no tiene campos de pago**, y **SIGES WEB no lo
+   consulta para el estado de deuda** (usa `ddjjt`). En principio **no se toca**.
 5. **Símbolo del código de barras** (Code 128 vs Interleaved 2 of 5): afecta que el banco pueda leerlo.
+6. **Verificar que la fila a marcar tenga `titem1 > 0`** (ver la consecuencia crítica del punto 8): hay
+   que medirlo en los casos reales antes de escribir.
