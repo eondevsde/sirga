@@ -4,6 +4,34 @@
 > copia local de `Sindicato`; lo que no se pudo medir está marcado como **abierto**.
 > Última actualización: 2026-10-07.
 
+## 0. Arquitectura (definida por el usuario, 2026-10-07)
+
+**El reparto de responsabilidades es este:**
+
+| Sistema | Qué hace |
+|---|---|
+| **SIRGA** | **Maneja las DDJJ (CRUD) y REGISTRA LOS PAGOS.** Es la fuente de verdad. |
+| **SIGES WEB** | **Lee las actualizaciones**, determina qué empresa tiene deuda y cuál no, **emite actas** (fiscalización), y maneja la **administración del sindicato**. |
+
+⇒ **SIRGA tiene que alimentar `ddjj` y `ddjjt`** (y algún dato más que pueda surgir). Nada más.
+**SIGES WEB es consumidor, no socio: no hay que alimentar sus tablas de cobranza.**
+
+**Consecuencia 1 — el "esquema duplicado" de SIGES WEB NO nos bloquea.** Lo que quedó marcado como
+problema abierto en `MAPA_MIGRACION_LEGACY_A_WEB.md` (legacy `Cobro`/`Recibo` vs `Fisc_*`) es sobre
+**cómo SIGES WEB cobra sus actas y planes**, que es **otro dominio**. SIRGA **no** escribe ahí.
+⇒ Queda despejado: **SIRGA escribe `ddjj`/`ddjjt` y listo.**
+
+**Consecuencia 2 — la forma de pago vive en SIRGA, no en el legado.** Como `ddjjt` **no tiene un campo
+confiable de forma de pago** (`medio1` viene en 0), y SIRGA no escribe en las tablas de cobranza de
+SIGES WEB, **el catálogo de formas de pago es interno de SIRGA** (`PaymentTransactions.PaymentMethod`).
+Para los informes "más nutridos" que pidió el usuario, conviene **usar los mismos nombres que las filas
+de `FormaDePago` de SIGES WEB**, así los dos sistemas hablan el mismo idioma aunque no compartan tabla.
+
+**Consecuencia 3 — el CRUD de DDJJ también escribe el legado.** Cuando SIRGA crea o modifica una DDJJ,
+tiene que dejar `ddjj` (detalle por empleado) y `ddjjt` (cabecera con `titem1`/`titem2`) coherentes,
+porque **SIGES WEB lee de ahí para decidir si hay deuda**. Una DDJJ creada sólo en SIRGA y no volcada al
+legado **es invisible para SIGES WEB** y no genera acta.
+
 ## 1. El escenario
 
 El banco manda el **archivo de rendición** con los cobros del día. Hay que:
