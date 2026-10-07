@@ -77,35 +77,36 @@ public static class BoletaBse
   }
 
   /// <summary>
-  /// Dígito verificador: módulo 10 con pesos 2 y 1 alternados de derecha a izquierda, incluyendo el
-  /// propio dígito, de modo que la suma ponderada de las 58 posiciones sea múltiplo de 10.
-  /// Con una sola boleta varias fórmulas dan el mismo resultado, así que esta es la propuesta
-  /// estándar: se confirma con más boletas o en la validación del banco.
+  /// Dígito verificador: módulo 10 con pesos 3 y 1 alternados y suma de los dígitos de cada producto.
+  ///
+  /// POR QUÉ ESTA Y NO LA ANTERIOR: la anterior (pesos 1-2 desde la derecha, complemento a 10 **dividido 2**)
+  /// terminaba dividiendo por 2, así que **sólo podía dar dígitos del 0 al 5**. Un verificador que nunca
+  /// puede ser 6, 7, 8 ni 9 no es un verificador: lo confirman las boletas reales, que tienen dígitos 8.
+  /// Esta reproduce el dígito de la boleta real de 58 posiciones que tenemos **y puede dar los diez**.
+  ///
+  /// OJO, ESTO NO ESTÁ CONFIRMADO: con UNA sola boleta de 58 posiciones, **14 fórmulas distintas (todas
+  /// sanas) reproducen su dígito**, así que no se puede saber cuál usa el banco. Queda declarado en la ficha
+  /// técnica que se le entrega al banco, pidiendo que la confirme. Si el banco confirma otra, se cambia
+  /// **sólo este método** y se reemiten las boletas.
   /// </summary>
   public static int DigitoVerificador(string cuerpo57)
   {
-    var digitos = new List<int>(57);
-    foreach (var c in cuerpo57)
-    {
-      if (!char.IsDigit(c)) continue;
-      digitos.Add(c - '0');
-    }
-
-    // Pesos 1 y 2 alternados desde la derecha del cuerpo, y el dígito verificador ocupa la posición 58
-    // con peso 2, de modo que la suma ponderada de las 58 posiciones sea múltiplo de 10.
-    // Verificado contra la boleta REAL: suma del cuerpo = 216, complemento a 10 = 4, DV = 4 / 2 = 2,
-    // que es exactamente el dígito impreso en la boleta.
-    var peso = 1;
     var suma = 0;
-    for (var i = digitos.Count - 1; i >= 0; i--)
+    var peso = 3;
+
+    // Se recorre de derecha a izquierda: el último dígito del cuerpo lleva peso 3.
+    for (var i = cuerpo57.Length - 1; i >= 0; i--)
     {
-      suma += digitos[i] * peso;
-      peso = peso == 1 ? 2 : 1;
+      if (!char.IsDigit(cuerpo57[i])) continue;
+      suma += SumaDeDigitos((cuerpo57[i] - '0') * peso);
+      peso = peso == 3 ? 1 : 3;
     }
 
-    var complemento = (10 - (suma % 10)) % 10;
-    return complemento / 2;
+    return (10 - (suma % 10)) % 10;
   }
+
+  /// <summary>Suma los dígitos de un número (27 -> 9). Es parte del algoritmo del dígito verificador.</summary>
+  private static int SumaDeDigitos(int numero) => (numero / 10) + (numero % 10);
 
   /// <summary>
   /// Arma el código de 58 dígitos. Los importes se reciben ya calculados.

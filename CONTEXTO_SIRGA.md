@@ -607,6 +607,32 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    > los códigos de barras de las fotos con ZXing (`-- fotos` del verificador) y **no se pudo leer ninguno**
    > (sólo un falso positivo). Hace falta el número, o una foto de frente o un escaneo.
    > Scripts: `.dsh-tools/bse/dv5.py` a `dv8.py` (tabla por boleta y por fórmula).
+   >
+   > **DECISIÓN (2026-10-07): el proyecto usa SÓLO el formato de 58 posiciones** (lo indicó el usuario: el
+   > de 54 no le interesa). Se **cambió la fórmula implementada** porque la anterior era *imposible*, no
+   > sólo dudosa:
+   > - **Antes**: pesos 1-2 desde la derecha, complemento a 10 **dividido 2** ⇒ sólo podía dar **0 a 5**.
+   >   Un verificador que nunca puede ser 6, 7, 8 ni 9 no es un verificador: las boletas reales de 54
+   >   posiciones tienen **8**, así que ninguna puede venir de esa fórmula.
+   > - **Ahora**: `BoletaBse.DigitoVerificador` = **módulo 10 con pesos 3 y 1 alternados y suma de los dígitos
+   >   de cada producto**, DV en la última posición.
+   > - **Verificado**: reproduce el DV de la boleta real de 58 posiciones (suma 188 → DV **2** = el
+   >   impreso) **y puede dar los diez dígitos** (probado sobre 2000 códigos). Build 0 avisos, 146/146 tests.
+   > - **PERO SIGUE SIN CONFIRMAR**: se probaron **subconjuntos de campos** (sin el ente, sin los datos
+   >   generales, sólo fechas e importes) además de las fórmulas: **ninguna combinación acierta las 3
+   >   boletas**, y **14 fórmulas sanas distintas reproducen el dígito de la única boleta de 58**. O sea: no
+   >   hay forma de saber cuál usa el banco con una sola muestra (`.dsh-tools/bse/dv10.py`).
+   > - **La ficha técnica del banco se corrigió** para no afirmar que "funciona": ahora declara la fórmula,
+   >   dice contra qué se verificó, informa el hallazgo de 54 vs 58 y **pide al Banco que la confirme**.
+   >   Si el Banco confirma otra, se cambia **sólo ese método** y se reemiten las boletas.
+   > - **El CUIT no es la clave**: se probó usar el dígito verificador del CUIT (que está dentro del código)
+   >   y aplicar el algoritmo del CUIT al cuerpo. Los CUIT están bien formados (5, 5 y 9) y los códigos
+   >   terminan en 2, 8 y 8 ⇒ descartado (`.dsh-tools/bse/dv9.py`).
+   > - **Leer los códigos de las fotos NO funcionó**: se agregó un lector ZXing (`-- fotos` del verificador,
+   >   con SkiaSharp 3.119.1 que se sumó al csproj del verificador) y **no leyó ninguno de los 11**: las
+   >   fotos están **en ángulo** y un lector 1D necesita la línea del código recta. Hace falta el número, o
+   >   una foto de frente o un escaneo. **Ojo**: en varias fotos el número impreso **está cortado por el
+   >   borde** — eso explica los 54/55/56 dígitos que se venían manejando.
    > **Falta definir si el sistema de Caja puede cobrar boletas vencidas** — el banco lo pregunta.
    >
    > **DESAJUSTE DETECTADO**: `BankReconciliationService.ProcessBankExcelAsync` usa un **"mapeo
