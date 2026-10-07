@@ -95,6 +95,7 @@ public class BoletaService(IUnitOfWork unitOfWork)
     var datos = new BoletaDatosDto
     {
       Sindicato = declaracion.Sindicato ?? string.Empty,
+      Jurisdiccion = declaracion.Jurisdiccion ?? string.Empty,
       Banco = banco!.Name,
       Sucursal = banco.Branch ?? string.Empty,
       NumeroCliente = configuracion!.ClientNumber,
@@ -170,6 +171,7 @@ public class BoletaService(IUnitOfWork unitOfWork)
             d.Company.BusinessName,
             d.Company.Cuit,
             d.Union.Name,
+            d.Union.JurisdictionProvince,
             d.Status))
         .FirstOrDefaultAsync());
 
@@ -208,5 +210,6 @@ public class BoletaService(IUnitOfWork unitOfWork)
       string? RazonSocial,
       string? Cuit,
       string? Sindicato,
+      string? Jurisdiccion,
       DeclarationStatus Status);
 }

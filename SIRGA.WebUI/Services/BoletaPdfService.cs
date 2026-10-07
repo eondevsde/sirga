@@ -21,6 +21,11 @@ namespace SIRGA.WebUI.Services;
 /// </summary>
 public class BoletaPdfService
 {
+  /// <summary>Margen de la hoja, en puntos.</summary>
+  private const float MargenPagina = 24f;
+
+  /// <summary>Separación entre talones, en puntos.</summary>
+  private const float SeparacionTalones = 8f;
   /// <summary>
   /// Logo del sindicato para el encabezado de cada talón.
   ///
@@ -66,17 +71,24 @@ public class BoletaPdfService
       documento.Page(pagina =>
       {
         pagina.Size(PageSizes.A4);
-        pagina.Margin(24);
+        pagina.Margin(MargenPagina);
         pagina.DefaultTextStyle(estilo => estilo.FontSize(9));
+
+        // Los tres talones se reparten TODO el alto de la hoja: antes quedaban apilados arriba y sobraba un
+        // tercio de papel abajo. El alto se calcula del tamaño de hoja y los márgenes —no se pone un número
+        // fijo— así sigue estando bien si cambia el papel o el margen.
+        // OJO: acá NO sirve `Extend()`: con varios elementos, cada uno se queda con la hoja entera y la
+        // boleta se va a 6 páginas (probado).
+        float altoTalon = (PageSizes.A4.Height - (MargenPagina * 2) - (SeparacionTalones * 2)) / BoletaBse.Talones.Length;
 
         pagina.Content().Column(columna =>
         {
-          columna.Spacing(8);
+          columna.Spacing(SeparacionTalones);
 
           // Los talones salen de BoletaBse.Talones (el banco pide triplicado): no se escriben a mano
           // acá para que no se desincronicen si el banco cambia el pedido.
           foreach (var talon in BoletaBse.Talones)
-            columna.Item().Element(contenedor => Talon(contenedor, boleta, talon));
+            columna.Item().Height(altoTalon).Element(contenedor => Talon(contenedor, boleta, talon));
         });
       });
     }).GeneratePdf();
@@ -84,9 +96,9 @@ public class BoletaPdfService
 
   private static void Talon(IContainer contenedor, BoletaDatosDto boleta, string etiquetaTalon)
   {
-    contenedor.Border(1).BorderColor(Colors.Grey.Medium).Padding(10).Column(columna =>
+    contenedor.Border(1).BorderColor(Colors.Grey.Medium).Padding(8).Column(columna =>
     {
-      columna.Spacing(4);
+      columna.Spacing(3);
 
       // Encabezado: logo del sindicato, conceptos que se cobran y datos bancarios.
       columna.Item().Row(fila =>
@@ -99,7 +111,11 @@ public class BoletaPdfService
 
         fila.RelativeItem().PaddingLeft(Logo.Value is null ? 0 : 6).Column(datos =>
         {
+          // El nombre del sindicato y su jurisdicción van en DOS líneas: el nombre ya no incluye la
+          // provincia (si no, se duplicaba).
           datos.Item().Text(boleta.Sindicato).Bold().FontSize(11);
+          if (!string.IsNullOrWhiteSpace(boleta.Jurisdiccion))
+            datos.Item().Text(boleta.Jurisdiccion).Bold().FontSize(10);
           datos.Item().Text("Aportes Art. 100°  Convenio 130/75 | Aportes Cuota Sindical |").Italic().FontSize(8);
           datos.Item().Text($"{boleta.Banco} - {boleta.Sucursal}").FontSize(8);
           datos.Item().Text($"Nota de Crédito para la Cta. Cte. N° {boleta.NumeroCliente}").FontSize(8);
@@ -119,7 +135,7 @@ public class BoletaPdfService
 
           // El QR va SIN reescalar: si QuestPDF lo redimensiona, interpola los píxeles y los bordes de los
           // módulos quedan borrosos, que es justo lo que perjudica que el lector lo tome.
-          derecha.ConstantItem(44).PaddingLeft(4).Image(CodigoQr(boleta.CodigoBarras)).UseOriginalImage().FitArea();
+          derecha.ConstantItem(46).PaddingLeft(4).Image(CodigoQr(boleta.CodigoBarras)).UseOriginalImage().FitArea();
         });
       });
 
@@ -142,11 +158,12 @@ public class BoletaPdfService
           datos.Item().Text($"Total DDJJ $ {boleta.Capital:N2}");
         });
 
-        // UNA sola fecha de vencimiento con el importe que el banco cobra. Si la DDJJ ya estaba vencida
-        // cuando se emitió, esa fecha es la que declaró el cliente y el importe incluye el interés.
+        // UNA sola fecha de vencimiento con el importe que el banco cobra, en DOS líneas: la fecha arriba y
+        // el importe abajo (como pidió el usuario, en lugar de todo en un renglón largo).
         fila.ConstantItem(260).Column(datos =>
         {
-          datos.Item().Text($"Vencimiento {boleta.Vencimiento:dd/MM/yyyy} - Importe Total a Depositar: $ {boleta.ImporteTotal:N2}").Bold();
+          datos.Item().Text($"Vencimiento {boleta.Vencimiento:dd/MM/yyyy}").Bold();
+          datos.Item().Text($"Importe Total a Depositar: $ {boleta.ImporteTotal:N2}").Bold();
 
           if (boleta.Interes > 0)
           {
@@ -157,6 +174,10 @@ public class BoletaPdfService
           }
         });
       });
+
+      // OJO: NO poner acá un `Extend()` para empujar el pie hacia abajo. Se expande contra el alto de la
+      // PÁGINA (no el del talón) y manda el código de barras a la hoja siguiente: con eso la boleta se iba a
+      // 4 páginas (probado). El talón ya llena su tercio de hoja con el alto fijo de cada caja.
 
       // Código de barras y su número en texto, para poder cargarlo a mano si el lector falla.
       columna.Item().PaddingTop(6).Element(cont => CodigoDeBarras(cont, boleta.CodigoBarras));
@@ -187,7 +208,7 @@ public class BoletaPdfService
     var total = grupos.Sum(g => g.Ancho);
     if (total == 0) return;
 
-    contenedor.Height(52).Row(fila =>
+    contenedor.Height(54).Row(fila =>
     {
       fila.Spacing(0);
       foreach (var grupo in grupos)

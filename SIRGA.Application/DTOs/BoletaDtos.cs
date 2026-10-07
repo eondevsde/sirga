@@ -16,6 +16,13 @@ namespace SIRGA.Application.DTOs;
 public class BoletaDatosDto
 {
   public string Sindicato { get; set; } = string.Empty;
+
+  /// <summary>
+  /// Jurisdicción del sindicato (la provincia), que se imprime en su propia línea debajo del nombre. El
+  /// nombre del sindicato ya NO la incluye: tenerla en los dos lados la duplicaba en la boleta.
+  /// </summary>
+  public string Jurisdiccion { get; set; } = string.Empty;
+
   public string Banco { get; set; } = string.Empty;
   public string Sucursal { get; set; } = string.Empty;
   public string NumeroCliente { get; set; } = string.Empty;

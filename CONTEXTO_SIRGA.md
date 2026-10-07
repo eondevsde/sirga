@@ -305,6 +305,21 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
         se guarda `UsaEscala = False` para el primero y `True` para el segundo, y la precarga copia **1 de
         2** (sólo la tipeada). Rectificar cargando lo mismo reproduce el mismo total (no cambia el
         resultado de quien no toca nada).
+  - **Los tres talones se reparten TODO el alto de la hoja** (antes quedaban apilados arriba y sobraba un
+    tercio de papel): cada talón tiene un **alto fijo** calculado del tamaño de hoja y los márgenes.
+    > **TRAMPA DE QUESTPDF (las dos probadas)**: `Extend()` **no sirve para repartir**: con varios elementos
+    > en la columna de la página, **cada uno se queda con la hoja entera** y la boleta se va a **6 páginas**.
+    > Y un `Extend()` **dentro** del talón para empujar el pie hacia abajo se expande contra el alto de la
+    > **PÁGINA**, no el del talón, y **manda el código de barras a la hoja siguiente** (4 páginas). El alto se
+    > calcula: `(PageSizes.A4.Height - márgenes - separaciones) / 3`.
+  - **El nombre del sindicato y su jurisdicción van en DOS líneas** (pedido del usuario), así que **el nombre
+    no debe incluir la provincia**: el sindicato 19 se llamaba "…COMERCIO SANTIAGO DEL ESTERO" y la provincia
+    ya estaba en `Unions.JurisdictionProvince`, o sea salía **duplicada**. Se renombró a "SINDICATO
+    EMPLEADOS DE COMERCIO" (`script_sirga_db_sindicato_nombre_sin_provincia.sql`, idempotente, respaldo
+    `dbo._BackupUnionName`, simulacro previo, 2ª corrida = 0). `BoletaDatosDto.Jurisdiccion` sale de esa
+    columna.
+  - **El vencimiento y el importe van en DOS renglones** (antes era uno largo):
+    `Vencimiento 07/10/2026` / `Importe Total a Depositar: $ 58.995,14`.
   - **La boleta lleva un CÓDIGO QR** con **el mismo contenido del código de barras** (los 58 dígitos), como
     alternativa de escaneo. Va en el **encabezado de cada talón**, a la derecha.
     > **OJO CON DÓNDE VA**: se puso en el encabezado y **no** en una línea propia abajo porque agregar una
