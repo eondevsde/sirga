@@ -581,6 +581,32 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    > validar ⇒ y refutan la fórmula implementada. Ver `.dsh-tools/bse/dv5.py` y `dv6.py`.
    > **Para cerrarlo hace falta**: (a) que el banco confirme la fórmula, o (b) **2-3 boletas reales más de
    > 58 posiciones** con sus importes impresos, para desempatar.
+   >
+   > **AVANCE (2026-10-07, con las fotos de boletas reales que aportó el usuario)**:
+   > 1. **El formato CAMBIÓ con el tiempo**: las boletas de 2024-12 a 2025-02 son de **54 posiciones** y la
+   >    de **07/2025 es de 58**. O sea que el "formato propuesto" (58) **ya está en uso** desde mediados de
+   >    2025, y las viejas eran el "formato actual" (54). Es la evidencia de que el 58 es el vigente.
+   > 2. **La implementada es imposible, no sólo "no ajusta"**: termina en `/2`, así que **sólo puede dar
+   >    dígitos 0 a 5**, y las dos boletas reales de 54 tienen **DV 8** ⇒ ninguna puede venir de esa fórmula.
+   > 3. Tabla real (3 boletas verificadas: sus campos —período, CUIT, fechas e importes— coinciden EXACTO
+   >    con lo impreso):
+   >
+   >    | Fórmula | 58 (07/2025) | 54 (12/2024) | 54 (01/2025) | Aciertos |
+   >    |---|---|---|---|---|
+   >    | **La implementada** | **2 ✓** | 0 ✗ | 3 ✗ | **1/3** |
+   >    | pesos 2-1 / mód. 11 / sumando dígitos | 0 ✗ | **8 ✓** | **8 ✓** | **2/3** |
+   >    | pesos 3-1 / mód. 10 / sumando dígitos | 2 ✓ | 3 ✗ | 8 ✓ | 2/3 (ruido) |
+   >    | *impreso* | *2* | *8* | *8* | |
+   > 4. **La dirección del anclaje NO explica la diferencia**: los cuerpos son de 53 y 57 dígitos (impares
+   >    los dos), así que anclar los pesos a la izquierda o a la derecha da lo mismo.
+   > 5. **Queda UN solo testigo del formato de 58** — el mismo problema que al principio: cualquier fórmula
+   >    ajustada a un único ejemplo no prueba nada. Las dos de 54, en cambio, coinciden entre sí en
+   >    **Luhn/mód. 11**.
+   > **PRÓXIMO PASO**: conseguir **2-3 boletas de 58 posiciones posteriores a 06/2025** (las de la carpeta
+   > del usuario son casi todas del formato viejo). Y **no sirven fotos en ángulo**: se intentó decodificar
+   > los códigos de barras de las fotos con ZXing (`-- fotos` del verificador) y **no se pudo leer ninguno**
+   > (sólo un falso positivo). Hace falta el número, o una foto de frente o un escaneo.
+   > Scripts: `.dsh-tools/bse/dv5.py` a `dv8.py` (tabla por boleta y por fórmula).
    > **Falta definir si el sistema de Caja puede cobrar boletas vencidas** — el banco lo pregunta.
    >
    > **DESAJUSTE DETECTADO**: `BankReconciliationService.ProcessBankExcelAsync` usa un **"mapeo
