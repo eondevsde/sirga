@@ -70,13 +70,18 @@ else
           <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Default" Size="Size.Small"
                          OnClick="@(() => OnDownloadPdf(context))" />
         </MudTooltip>
-        @* RECTIFICAR: manda a Nueva DDJJ con la empresa, el sindicato y el período YA elegidos, así la
-           rectificativa se puede hacer desde acá. No se ofrece sobre una versión ya reemplazada: la
-           rectificativa se hace siempre contra la versión vigente. *@
+        @* RECTIFICAR / CONTINUAR: manda a Nueva DDJJ con la empresa, el sindicato y el período YA elegidos.
+           Sobre una DDJJ en BORRADOR la acción es CONTINUARLA (nunca se presentó, así que presentarla no es
+           una rectificación); sobre una ya presentada, es una RECTIFICATIVA, que se hace siempre contra la
+           versión vigente y por eso no se ofrece sobre una ya reemplazada. *@
         @if (context.Status != "Rectificada")
         {
-          <MudTooltip Text="Presentar una versión nueva de esta DDJJ (rectificativa)">
-            <MudIconButton Icon="@Icons.Material.Filled.EditNote" Color="Color.Warning" Size="Size.Small"
+          var esBorrador = context.Status == "Draft";
+          <MudTooltip Text="@(esBorrador
+              ? "Continuar este borrador donde quedó"
+              : "Presentar una versión nueva de esta DDJJ (rectificativa)")">
+            <MudIconButton Icon="@(esBorrador ? Icons.Material.Filled.PlayArrow : Icons.Material.Filled.EditNote)"
+                           Color="@(esBorrador ? Color.Info : Color.Warning)" Size="Size.Small"
                            OnClick="@(() => OnRectificar(context))" />
           </MudTooltip>
         }

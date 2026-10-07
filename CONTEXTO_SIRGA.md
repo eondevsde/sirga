@@ -251,6 +251,26 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     camino existía pero **no se descubría**: había que ir a Nueva DDJJ y acordarse de elegir la misma
     empresa y el mismo período a mano. **No se ofrece sobre una versión ya reemplazada**: la rectificativa
     se hace siempre contra la vigente.
+    - **UN BORRADOR NO ES UNA RECTIFICATIVA, y esto confundió al usuario (2026-10-07)**: el botón del
+      historial decía "Rectificar" también sobre las filas en **borrador**, y al presionarlo la pantalla no
+      avisaba nada (correcto: un borrador **nunca se presentó**, así que presentarlo es su primera
+      presentación, no una rectificativa). Ahora la acción se llama por su nombre: sobre un borrador es
+      **"Continuar este borrador donde quedó"** (ícono ▶, azul) y sobre una presentada es
+      **"Presentar una versión nueva (rectificativa)"** (ícono de nota, ámbar).
+    - **Y había un bug real detrás**: al reanudar un borrador se **borran sus detalles y se recalculan**, así
+      que **los sueldos que el estudio ya había cargado se perdían**. Por eso ahora hay
+      **`ObtenerBaseAsync`** = el **borrador** si existe, si no la **versión vigente**, y la precarga usa la
+      base (no la vigente). Criterio de qué se copia:
+      - de un **borrador**: **todos** los importes (es trabajo en curso del estudio, y en las filas
+        anteriores a la columna `UsaEscala` la procedencia no está registrada, así que copiar sólo las
+        marcadas como tipeadas perdería lo cargado);
+      - de una versión **vigente** (rectificación): **sólo las cargadas a mano**, porque las de escala se
+        recalculan solas y en las DDJJ migradas están **todas** marcadas como escala (copiarlas sería copiar
+        importes viejos).
+      - Verificado con el caso del reporte (empresa 28469, período 2026-08, en borrador): `ObtenerVigenteAsync`
+        devuelve **null** (no es rectificativa) y `ObtenerBaseAsync` devuelve **el borrador**, y la precarga
+        copia **3 de 3**. Para un período presentado (2026-07) la vigente es `Submitted` y la precarga copia
+        **0 de 3** (DDJJ migrada): no se copian importes viejos.
     - **Las remuneraciones cargadas A MANO SÍ se precargan** (pedido del usuario, 2026-10-07), así en una
       rectificativa **sólo se cambia lo que hace falta** y no hay que volver a cargar todos los sueldos.
       Para poder hacerlo se guarda **`DeclarationDetail.UsaEscala`**: si el importe salió de la escala o se

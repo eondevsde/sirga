@@ -738,6 +738,41 @@ public class DeclarationService(
       decimal TotalAporteLey,
       decimal TotalCuotaSocio);
 
+  /// <summary>
+  /// La DDJJ que sirve de BASE para lo que se está por presentar en ese período: el <b>borrador</b> si
+  /// existe (porque se reanuda y sus importes tienen que volver a la pantalla), o la versión <b>vigente</b>
+  /// si no hay borrador (que es la que se rectifica). Devuelve <c>null</c> si no hay ninguna.
+  ///
+  /// Es distinto de <see cref="ObtenerVigenteAsync"/> a propósito: una DDJJ en <b>borrador NO es una
+  /// rectificativa</b> (nunca se presentó, así que presentarla es su primera presentación), pero sus
+  /// importes SÍ tienen que precargarse: si no, continuar un borrador perdería lo que el estudio ya había
+  /// cargado, porque al presentar se recalculan los renglones.
+  /// </summary>
+  public async Task<DeclarationAnteriorDto?> ObtenerBaseAsync(int companyId, string period)
+  {
+    var delPeriodo = (await unitOfWork.Declarations.FindAsync(d =>
+        d.CompanyId == companyId && d.Period == period)).ToList();
+
+    var baseDdjj = delPeriodo
+        .Where(d => d.Status == DeclarationStatus.Draft)
+        .OrderByDescending(d => d.VersionNumber)
+        .FirstOrDefault()
+        ?? delPeriodo
+            .Where(d => d.Status != DeclarationStatus.Rectificada)
+            .OrderByDescending(d => d.VersionNumber)
+            .FirstOrDefault();
+
+    if (baseDdjj is null) return null;
+
+    return new DeclarationAnteriorDto(
+        baseDdjj.Id,
+        baseDdjj.VersionNumber,
+        baseDdjj.TotalAmount,
+        await MontoPagadoAsync(baseDdjj),
+        baseDdjj.Status.ToString(),
+        baseDdjj.SubmissionDate);
+  }
+
   public async Task ApproveDeclarationAsync(int id, string observation)
   {
     var declaration = await unitOfWork.Declarations.GetByIdAsync(id);
