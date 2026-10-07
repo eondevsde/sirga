@@ -236,6 +236,15 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
   - **Cómo se decide**: presentar una DDJJ de un período que ya tiene una versión **vigente** (no
     borrador ni rectificada) ES una rectificativa, y `VersionNumber` pasa a 2, 3… Es el criterio del
     sistema anterior (su columna `rect` era el número de versión: 0 la original, 1.. las rectificativas).
+  - **EL ENCABEZADO DICE QUÉ ES Y DE QUÉ EMPRESA (pedido del usuario, 2026-10-07)**: arriba de los tres
+    pasos —está **fuera del stepper**, así se ve siempre— la pantalla muestra el título **"Nueva DDJJ
+    (Rectificación)"** cuando ya hay una versión vigente del período, y debajo **Empresa: Razón Social /
+    Nombre de fantasía** y **CUIT**, más un aviso con la versión anterior y cómo va a quedar. Antes decía
+    siempre "Nueva Declaración Jurada" y no mostraba de qué empresa era. El dato se recalcula al cambiar
+    empresa, sindicato o período (`ActualizarRectificacionAsync`), no recién al presentar.
+    > **OJO con el nombre de fantasía**: el campo existe (`Company.TradeName`) y **lo tienen las 0 de las
+    > 4.507 empresas** (medido). Así que hoy el encabezado muestra sólo la Razón Social; el `/ Nombre de
+    > fantasía` aparece solo cuando el dato esté cargado. **No es un bug**: es un dato que falta.
   - **DE DÓNDE SE GENERA (esto faltaba y el usuario lo preguntó)**: en el **historial de DDJJ** cada fila
     vigente tiene un botón **"Rectificar"** (ícono de nota, ámbar) que manda a **Nueva DDJJ con la empresa,
     el sindicato y el período ya elegidos** (`/declarations/new?empresa=&sindicato=&periodo=`). Antes el

@@ -19,9 +19,34 @@
 @inject SIRGA.WebUI.Services.BoletaPdfService BoletaPdfService
 @inject IJSRuntime JSRuntime
 
-<PageTitle>SIRGA - Nueva DDJJ</PageTitle>
+<PageTitle>@(_esRectificacion ? "SIRGA - Nueva DDJJ (Rectificación)" : "SIRGA - Nueva DDJJ")</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-6">Nueva Declaración Jurada</MudText>
+@* El título y los datos de la empresa van FUERA del stepper, así se ven en los tres pasos. Si ya hay una
+   DDJJ vigente del período elegido, esto va a ser una rectificativa y se dice desde el principio, no recién
+   al presentar. *@
+<MudText Typo="Typo.h4">@(_esRectificacion ? "Nueva DDJJ (Rectificación)" : "Nueva Declaración Jurada")</MudText>
+
+@if (EmpresaSeleccionada is { } empresa)
+{
+  <MudText Typo="Typo.subtitle1" Class="mt-2">
+    <b>Empresa:</b> @empresa.BusinessName@(string.IsNullOrWhiteSpace(empresa.TradeName) ? "" : $" / {empresa.TradeName}")
+  </MudText>
+  <MudText Typo="Typo.subtitle1">
+    <b>CUIT:</b> @empresa.Cuit
+  </MudText>
+  @if (_esRectificacion)
+  {
+    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3 mb-2">
+      Ya hay una DDJJ presentada de esta empresa para el período @_year-@_month.ToString("D2"). Al
+      presentar, esta queda como <b>@_proximaVersion</b> y la anterior pasa a <b>Rectificada</b>.
+    </MudAlert>
+  }
+  <div class="mb-6"></div>
+}
+else
+{
+  <div class="mb-6"></div>
+}
 
 @if (_loadingBaseData)
 {
@@ -300,6 +325,15 @@ else
   private int _year = DateTime.Now.Year;
   private int _month = DateTime.Now.Month;
 
+  /// <summary>
+  /// Si la DDJJ que se está por presentar es una RECTIFICATIVA (ya hay una versión vigente de esa empresa y
+  /// ese período). Se recalcula cuando cambia la empresa, el sindicato o el período.
+  /// </summary>
+  private bool _esRectificacion;
+
+  /// <summary>Número de versión que le va a tocar (v2, v3...). Sólo tiene sentido si es rectificativa.</summary>
+  private int _proximaVersion = 1;
+
   /// <summary>Empresa con la que se abre la pantalla (viene del botón "Rectificar" del historial).</summary>
   [Parameter, SupplyParameterFromQuery(Name = "empresa")]
   public int? EmpresaQuery { get; set; }
@@ -459,6 +493,10 @@ else
       }).ToList();
 
       foreach (var detail in _details) Recalculate(detail);
+
+      // Con la empresa y el período ya elegidos se sabe si esto va a ser una rectificativa: el título y el
+      // aviso tienen que decirlo desde el primer paso, no recién al presentar.
+      await ActualizarRectificacionAsync();
     }
     catch (Exception ex)
     {
@@ -508,6 +546,45 @@ else
     foreach (var detail in _details)
     {
       UpdateMinSalary(detail);
+    }
+
+    // Cambió el período: puede pasar de ser una DDJJ nueva a una rectificativa (o al revés).
+    await ActualizarRectificacionAsync();
+  }
+
+  /// <summary>
+  /// La empresa elegida, con su Razón Social, su Nombre de fantasía y su CUIT. Es lo que se muestra en el
+  /// encabezado, en los tres pasos.
+  /// </summary>
+  private Company? EmpresaSeleccionada => _companies.FirstOrDefault(c => c.Id == _selectedCompanyId);
+
+  /// <summary>
+  /// Si la DDJJ que se está por presentar es una RECTIFICATIVA (ya hay una versión vigente de esa empresa y
+  /// ese período) y cuál sería su número de versión. Se consulta cuando cambia la empresa, el sindicato o el
+  /// período, así el título y el aviso lo dicen desde el principio y no recién al presentar.
+  /// </summary>
+  private async Task ActualizarRectificacionAsync()
+  {
+    _esRectificacion = false;
+    _proximaVersion = 1;
+
+    if (_selectedCompanyId == 0) return;
+
+    try
+    {
+      var vigente = await DeclarationService.ObtenerVigenteAsync(_selectedCompanyId, $"{_year}-{_month:D2}");
+      if (vigente is not null)
+      {
+        _esRectificacion = true;
+        _proximaVersion = vigente.VersionNumber + 1;
+      }
+    }
+    catch
+    {
+      // Si no se puede consultar, se muestra como DDJJ nueva. El aviso de rectificativa igual aparece al
+      // presentar, que es donde se decide de verdad: no se pierde la advertencia.
+      _esRectificacion = false;
+      _proximaVersion = 1;
     }
   }
 
