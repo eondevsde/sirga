@@ -59,11 +59,34 @@ sobre 1.350.524 de `ddjj` ⇒ **hay `ddjjt` repetidos para la misma clave** (pro
 
 Para poder emitir informes más nutridos y no guardar texto libre:
 
+> ⚠️ **ANTES DE CREAR NADA: LA PARAMETRIZACIÓN YA EXISTE EN SIGES WEB.**
+> Relevado en `C:\Proyectos\SIGESWEB` (2026-10-07). SIGES WEB tiene **47 entidades mapeadas** y entre ellas
+> **ya están las de pagos**: **`FormaDePago`**, **`TipoDePago`**, `Cheque`, `Transferencia`, `Cobro`,
+> `Recibo`, `ReciboDetalle`, `ReciboCuota`, `CondonacionInteres`, `LoteCobranza`, `PlanDePago`,
+> `CuotaPlan`, `SecuenciaPeriodo` — y todo el bloque nuevo **`Fisc_*`** (`FiscPago` + `FiscPagoEfectivo`
+> / `+Transferencia` / `+Cheque`, `FiscConcepto`, `FiscApiKey`).
+> ⇒ **NO hay que inventar un catálogo de formas de pago en SIRGA: hay que usar `FormaDePago`/`TipoDePago`
+> de SIGES WEB**, si no quedan dos catálogos que dicen lo mismo y tarde o temprano no coinciden.
+>
+> **Y ojo con esto, que es un problema ABIERTO en el propio SIGES WEB**: su documento
+> `MAPA_MIGRACION_LEGACY_A_WEB.md` dice textualmente que *"conviven el modelo legacy (`Cobros`,
+> `Recibos`, `FormasDePago`, `PlanDePagoActas`) y el nuevo `Fisc_*`"* y lista como pendiente
+> *"definir y documentar la fuente de verdad de pagos: legacy vs `Fisc_*`"*.
+> ⇒ **SIGES WEB todavía no decidió dónde vive un pago.** Entonces, antes de escribir el registrador de
+> SIRGA, hay que **preguntar cuál de los dos modelos es el vigente**: de eso depende qué tabla tiene que
+> alimentar SIRGA, y no se puede adivinar desde SIRGA.
+
 | Tabla nueva | Para qué | Contenido inicial |
 |---|---|---|
-| `PaymentMethods` | catálogo de formas de pago | Efectivo, Transferencia, Cheque, **Rendición bancaria**, MercadoPago, Débito |
+| ~~`PaymentMethods`~~ | **usar `FormaDePago`/`TipoDePago` de SIGES WEB** | ver arriba |
 | `Banks` | ya existe (se agregó para la boleta) | BSE |
 | `PaymentOrigins` (opcional) | de dónde vino el registro | Manual, Importación del banco, MercadoPago |
+
+> **Dato adicional**: `SIGESWEB` **tampoco escribe `fpago`/`impban1`** — se verificó que no hay ninguna
+> asignación a esos campos en todo el proyecto (sólo los lee). Es decir: **el escritor de `ddjjt` no
+> existe en ningún lado; SIRGA sería el primero.** Y `SindicatoDbContext` mapea `ddjjt` con
+> **`HasKey(x => x.Id)`**, no con la clave compuesta, así que al escribir hay que ser explícito con el
+> `Id` de la fila elegida.
 
 `PaymentTransactions.PaymentMethod` (hoy `nvarchar`) pasa a apuntar al catálogo por `PaymentMethodId`,
 **conservando el texto viejo** para no perder historia (se migra: los valores existentes se mapean al
