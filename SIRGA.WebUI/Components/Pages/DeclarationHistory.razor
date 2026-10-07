@@ -4,7 +4,6 @@
 @attribute [Authorize(Roles = "EstudioContable,Sindicato,Auditor,Admin")]
 @inject HttpClient Http
 @inject ISnackbar Snackbar
-@inject SIRGA.Application.Services.PdfReportService PdfService
 @inject SIRGA.Application.Services.DeclarationService DeclarationService
 @inject SIRGA.Application.Services.BoletaService BoletaService
 @inject SIRGA.WebUI.Services.BoletaPdfService BoletaPdfService
@@ -69,17 +68,11 @@ else
         }
         else
         {
-          @* La boleta del BANCO (la que se paga en el banco) va como botón CON TEXTO, porque es la acción
-             importante. Antes los dos eran íconos parecidos y la diferencia sólo se veía al pasar el mouse:
-             el usuario terminó imprimiendo el comprobante interno creyendo que era la boleta. *@
-          <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-                     StartIcon="@Icons.Material.Filled.Print"
-                     OnClick="@(() => OnImprimirBoletaBancaria(context))">
-            Boleta bancaria (triplicada)
-          </MudButton>
-          <MudTooltip Text="Comprobante interno de SIRGA: NO es la boleta del banco y no lleva su código de barras">
-            <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Default" Size="Size.Small"
-                           OnClick="@(() => OnDownloadPdf(context))" />
+          @* La boleta del BANCO: sólo el ícono de impresión (con el texto ocupaba demasiado ancho en la
+             grilla). El comprobante interno se sacó de acá. *@
+          <MudTooltip Text="Imprimir la boleta bancaria (triplicada, con el código de barras del banco)">
+            <MudIconButton Icon="@Icons.Material.Filled.Print" Color="Color.Primary" Size="Size.Small"
+                           OnClick="@(() => OnImprimirBoletaBancaria(context))" />
           </MudTooltip>
           @* RECTIFICAR / CONTINUAR: manda a Nueva DDJJ con la empresa, el sindicato y el período YA elegidos.
              Sobre una DDJJ en BORRADOR la acción es CONTINUARLA (nunca se presentó, así que presentarla no es
@@ -166,24 +159,6 @@ else
     };
   }
 
-  private async Task OnDownloadPdf(DeclarationResponseDto declaration)
-  {
-    try
-    {
-      // Llamada directa al servicio de PDF: el endpoint ahora exige rol y el HttpClient del
-      // componente no lleva la cookie de sesión.
-      var pdfBytes = PdfService.GeneratePaymentBoleta(declaration);
-      var fileName = $"Boleta_SIRGA_{declaration.Period}_{declaration.CompanyCuit}.pdf";
-      var base64 = Convert.ToBase64String(pdfBytes);
-      await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
-      Snackbar.Add("Boleta generada con éxito", Severity.Success);
-    }
-    catch (Exception ex)
-    {
-      Snackbar.Add("Error al generar PDF: " + ex.Message, Severity.Error);
-    }
-  }
-
   /// <summary>
   /// Imprime la boleta BANCARIA: la que va al banco con el código de barras de 58 dígitos, por
   /// triplicado. Los datos los arma BoletaService (Application) y los dibuja BoletaPdfService: la
@@ -212,7 +187,8 @@ else
 
       var datos = armado.Datos;
       var pdfBytes = BoletaPdfService.Generar(datos);
-      var fileName = $"BoletaBancaria_{datos.Periodo}_{datos.Cuit}.pdf";
+      // Nombre pedido por el usuario: aaaa-MM_CUIT_Boleta_Pago.pdf
+      var fileName = $"{datos.Periodo}_{datos.Cuit}_Boleta_Pago.pdf";
       await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, Convert.ToBase64String(pdfBytes));
 
       var detalleInteres = datos.Interes > 0

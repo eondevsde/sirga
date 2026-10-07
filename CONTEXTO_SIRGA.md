@@ -288,6 +288,14 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
         se guarda `UsaEscala = False` para el primero y `True` para el segundo, y la precarga copia **1 de
         2** (sólo la tipeada). Rectificar cargando lo mismo reproduce el mismo total (no cambia el
         resultado de quien no toca nada).
+  - **La acción de la boleta es sólo el ÍCONO de impresión** (pedido del usuario, 2026-10-07: el texto
+    "Boleta bancaria (triplicada)" ocupaba demasiado ancho en la grilla) y **el archivo se descarga como
+    `aaaa-MM_CUIT_Boleta_Pago.pdf`**. Se sacó el ícono del **comprobante interno** del historial (y se
+    limpió su método y su inyección, que quedaron sin uso).
+    > **"Que no pregunte dónde guardar" es una PREFERENCIA DEL NAVEGADOR, no del sistema.** El JS
+    > (`downloadFileFromBase64`, en `App.razor`) ya crea un `<a download>` y lo clickea, que es la descarga
+    > directa sin visor ni pestaña. Si el navegador igual pregunta, hay que destildar **"Preguntar dónde
+    > guardar cada archivo"** en Configuración > Descargas. Se le cambió el tipo MIME a `application/pdf`.
   - **Una versión REEMPLAZADA no tiene NINGUNA acción** (pedido del usuario, 2026-10-07). Antes, la fila
     `Rectificada` seguía ofreciendo **imprimir su boleta**, o sea que se podía cobrar dos veces la misma
     DDJJ. Ahora, en el historial, una fila `Rectificada` **no muestra ningún botón** (ni boleta, ni

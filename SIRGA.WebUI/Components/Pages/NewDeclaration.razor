@@ -1027,7 +1027,8 @@ else
 
       var datos = armado.Datos;
       var pdfBytes = BoletaPdfService.Generar(datos);
-      var fileName = $"BoletaBancaria_{datos.Periodo}_{datos.Cuit}.pdf";
+      // Mismo nombre que en el historial: aaaa-MM_CUIT_Boleta_Pago.pdf
+      var fileName = $"{datos.Periodo}_{datos.Cuit}_Boleta_Pago.pdf";
       await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, Convert.ToBase64String(pdfBytes));
 
       var detalleInteres = datos.Interes > 0

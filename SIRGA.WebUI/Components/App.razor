@@ -20,10 +20,14 @@
   <script src="@Assets["_framework/blazor.web.js"]"></script>
   <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
   <script>
+    // Descarga directa: crea un <a download> y lo clickea, así el navegador NO abre un visor ni una
+    // pestaña nueva (sólo guarda el archivo). Con el nombre que se le pasa.
+    // OJO: si el navegador pregunta dónde guardar, es una PREFERENCIA del navegador, no del sistema:
+    // en Chrome hay que destildar "Preguntar dónde guardar cada archivo" en Configuración > Descargas.
     window.downloadFileFromBase64 = (fileName, base64String) => {
       const link = document.createElement('a');
       link.download = fileName;
-      link.href = 'data:application/octet-stream;base64,' + base64String;
+      link.href = 'data:application/pdf;base64,' + base64String;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
