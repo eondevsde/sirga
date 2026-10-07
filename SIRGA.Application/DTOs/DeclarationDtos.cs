@@ -14,6 +14,18 @@ public class EmployeeSalaryDto
   public decimal BaseSalary { get; set; }
 }
 
+/// <summary>
+/// La DDJJ VIGENTE de una empresa y período: la que quedaría reemplazada si se presenta otra. La pantalla
+/// la usa para AVISAR que presentar va a ser una rectificativa (y contra cuánto se calcula el saldo).
+/// </summary>
+public record DeclarationAnteriorDto(
+    int Id,
+    int VersionNumber,
+    decimal TotalAmount,
+    decimal Pagado,
+    string Status,
+    DateTime SubmissionDate);
+
 public class DeclarationResponseDto
 {
   public int Id { get; set; }
@@ -24,6 +36,11 @@ public class DeclarationResponseDto
   public string UnionName { get; set; } = null!;
   public DateTime SubmissionDate { get; set; }
   public bool IsRectification { get; set; }
+
+  /// <summary>Número de versión: 1 es la original, 2 la primera rectificativa, y así.</summary>
+  public int VersionNumber { get; set; }
+
+  /// <summary>En una rectificativa, lo que se había PAGADO de la versión anterior.</summary>
   public decimal PreviousAmount { get; set; }
   public decimal BalanceAmount { get; set; }
   public string? MercadoPagoPaymentId { get; set; }

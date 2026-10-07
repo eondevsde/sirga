@@ -224,6 +224,44 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     daba 644,95. O sea que esa boleta parece haber usado días del mes, no /30. **Es una sola boleta**: hay
     que contrastar con más (basta el número tipeado) para decidir si el banco/SIRGA usa otra convención.
     Está anotado en `InterestCalculatorTests.BoletaRealGammarota_...` para que no se pierda.
+- **RECTIFICATIVAS: una nueva versión del mismo período** (`DeclarationService`, `PaymentService`).
+  Reglas confirmadas por el usuario (2026-10-07):
+  1. **Se puede rectificar una DDJJ pagada** (el sistema anterior lo hacía: 15.438 rectificativas suyas
+     están pagadas).
+  2. La versión anterior se marca **`Rectificada`** y **la vigente es la nueva**. No se borra nada.
+  3. Una DDJJ **rechazada también cuenta como presentada**: corregirla es una rectificativa.
+  4. **"Presentada" (`Submitted`) se usa de verdad**: presentar deja la DDJJ en ese estado. Antes
+     `CreateDeclarationAsync` la dejaba en `Draft` aunque la pantalla dijera "presentada con éxito", y
+     **ninguna parte del código ponía `Submitted` nunca**.
+  - **Cómo se decide**: presentar una DDJJ de un período que ya tiene una versión **vigente** (no
+    borrador ni rectificada) ES una rectificativa, y `VersionNumber` pasa a 2, 3… Es el criterio del
+    sistema anterior (su columna `rect` era el número de versión: 0 la original, 1.. las rectificativas).
+  - **El aviso es obligatorio porque es automático**: la pantalla de Nueva DDJJ muestra el modal
+    `RectificationWarningDialog` con la versión anterior, su total y **lo que se pagó**, antes de
+    confirmar. Que sea automático no quiere decir que tenga que ser invisible.
+  - **LO MÁS IMPORTANTE — `PreviousAmount` es lo que se PAGÓ, no el total declarado.** El código restaba
+    el total de la versión anterior, y eso **cobraba de menos** cuando la anterior no se había pagado.
+    Caso real medido en el sistema anterior (EL NENE SRL, período 2026-06): DDJJ presentada por
+    **418,95**, rectificada a **20.947,42**, y la original **nunca se pagó** (su `impban1` = 0). Restar
+    418,95 cobraba 20.528,47 en lugar de **20.947,42**.
+  - **OJO con el "pagado" en los datos migrados**: `PaymentTransactions` se migró **vacía**, así que una
+    DDJJ migrada está `Paid` pero **sin transacciones**. `MontoPagadoAsync` usa la suma de las
+    transacciones y, **si no hay ninguna y la DDJJ está Pagada, cae a su `TotalAmount`**. Sin ese
+    fallback, rectificar una DDJJ migrada cobraría el total completo otra vez.
+  - **Guardas para no cobrar dos veces**: `ApproveDeclarationAsync` y `PaymentService.ConfirmPaymentAsync`
+    **rechazan** una DDJJ `Rectificada` (con mensaje en el primer caso, `false` + log en el segundo).
+  - **Verificado contra la base real sin dejar rastro** (transacción revertida al final): v1 queda
+    `Submitted` y versión 1; se paga **la mitad**; la segunda presentación da **rectificativa versión 2**
+    con `PreviousAmount` = **exactamente la mitad pagada** (no el total); la v1 pasa a `Rectificada`;
+    aprobar y cobrar la v1 se **rechaza**; cobrar la v2 se **acepta**.
+  - **La migración**: EF propuso `defaultValue: 0` para `VersionNumber`, que habría dejado las **248.158**
+    DDJJ existentes en versión 0. Corregido a mano a **1**.
+  - **MIGRACIÓN DE DATOS — limitación conocida**: las **20.977 rectificativas** que vinieron del sistema
+    anterior quedaron **sin su original** y con `PreviousAmount = 0` (SIRGA tiene **una sola** DDJJ por
+    empresa y período: 248.158 pares, todos con una). Verificado que la migración conservó **la última
+    versión** (EL NENE: quedó en 20.947,42 y Pagada, o sea el importe correcto para facturar) y que lo
+    que se perdió es el **historial de versiones**, no el importe. El sistema anterior sí conservaba
+    todas (`rect` 0 a 33).
 - **Botón para imprimir la boleta bancaria** (la que va al banco): está en el **historial de DDJJ** y también
   en el paso final de **Nueva DDJJ**. El armado de los datos está en `BoletaService` (Application), **no**
   en la pantalla: junta la DDJJ, la empresa, el sindicato y su **configuración bancaria** (`UnionBankConfigs`
@@ -462,6 +500,22 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     para decidir si esa boleta usó otra convención o si el número impreso está mal. **Ya no afecta al 2°
     vencimiento** (se eliminó), pero **sí afecta a la mora y al interés de la boleta**, o sea a lo que se
     cobra. Pidiendo 2 o 3 boletas más (basta el importe, las fechas y el total) se cierra.
+    > **Se encontró un SEGUNDO caso real que usa días del mes, no /30** (2026-10-07): la DDJJ de EL NENE
+    > SRL del período 2026-06 pagó **21.133,24** sobre un total de **20.947,42**, o sea **185,82** de
+    > interés, que es exactamente `20.947,42 × 2,75% × 10/31`. Dos casos exactos apuntan a "días del mes".
+    > **El usuario decidió que se use /30 como dice ARCA, que es lo oficial**, y revisar esto más adelante
+    > con más datos. **Queda pendiente, no cerrado.**
+16. **Rectificativas: lo que todavía no está.**
+    - **La comparación empleado por empleado** antes de presentar (mi propuesta original): hoy el modal
+      avisa con los **totales** (versión anterior, total, pagado) y el saldo. Comparar el detalle
+      empleado por empleado permitiría ver *qué* cambió; hoy sólo se compara el total, así que si uno sube
+      y otro baja la diferencia lo esconde.
+    - **`ApproveDeclarationAsync(id, observation)` y `RejectDeclarationAsync(id, observation)` siguen
+      IGNORANDO la observación**: se pide y no se guarda en ningún lado. Ya estaba anotado como pendiente.
+    - **No existe "guardar borrador"**: la única acción es presentar, así que el estado `Draft` sólo
+      aparece si una presentación queda a medias.
+    - **Las 20.977 rectificativas migradas** no tienen original ni `PreviousAmount`: su saldo es el total
+      completo (que es lo correcto si la original no se pagó, pero no se puede verificar caso por caso).
 
 ---
 

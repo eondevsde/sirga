@@ -23,7 +23,18 @@ public class DeclarationRegistry
 
   public bool IsRectification { get; set; }
 
-  public decimal PreviousAmount { get; set; } // Monto pagado anteriormente (si es rectificativa)
+  /// <summary>
+  /// Número de versión de la DDJJ para esa empresa y período: 1 es la original, 2 la primera
+  /// rectificativa, 3 la segunda, y así. Es el mismo criterio del sistema anterior (su columna `rect`
+  /// era el número de versión, no un booleano) y permite mostrar la cadena de versiones.
+  /// </summary>
+  public int VersionNumber { get; set; } = 1;
+
+  /// <summary>
+  /// En una rectificativa, lo que se había PAGADO de la versión anterior (no su total declarado): si la
+  /// anterior no se pagó, se debe el total nuevo completo. Ver <c>DeclarationService</c>.
+  /// </summary>
+  public decimal PreviousAmount { get; set; }
   public decimal BalanceAmount { get; set; }   // Saldo Deudor/Acreedor (Diferencia)
 
   public DateTime SubmissionDate { get; set; }

@@ -602,11 +602,38 @@ else
     _submitting = true;
     try
     {
+      var periodo = $"{_year}-{_month:D2}";
+
+      // AVISO DE RECTIFICATIVA: si ya hay una DDJJ vigente de esta empresa y período, presentar esto la
+      // reemplaza. Es automático por definición (una nueva versión de un período ya presentado es una
+      // rectificativa), pero NO puede ser invisible: el estudio tiene que ver contra qué se calcula el
+      // saldo antes de confirmar.
+      var anterior = await DeclarationService.ObtenerVigenteAsync(_selectedCompanyId, periodo);
+      if (anterior is not null)
+      {
+        var nombreEmpresa = _parentCompanies.FirstOrDefault(c => c.Id == _selectedCompanyId)?.BusinessName
+                            ?? _branches.FirstOrDefault(b => b.Id == _selectedCompanyId)?.BusinessName
+                            ?? $"empresa {_selectedCompanyId}";
+
+        var aviso = await DialogService.ShowAsync<RectificationWarningDialog>(
+            "Rectificativa",
+            new DialogParameters
+            {
+              { nameof(RectificationWarningDialog.Empresa), nombreEmpresa },
+              { nameof(RectificationWarningDialog.Periodo), periodo },
+              { nameof(RectificationWarningDialog.Anterior), anterior }
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Small, CloseButton = true });
+
+        var respuesta = await aviso.Result;
+        if (respuesta is null || respuesta.Canceled) return;
+      }
+
       var request = new DeclarationRequestDto
       {
         CompanyId = _selectedCompanyId,
         UnionId = _selectedUnionId,
-        Period = $"{_year}-{_month:D2}",
+        Period = periodo,
         Salaries = _details.Select(d => new EmployeeSalaryDto
         {
           EmployeeId = d.EmployeeId,
@@ -618,7 +645,18 @@ else
       // HttpClient del componente no lleva la cookie de sesión, el endpoint [Authorize]
       // respondía 401: la DDJJ nunca se guardaba.
       _lastResult = await DeclarationService.CreateDeclarationAsync(request);
-      Snackbar.Add("¡Declaración Jurada presentada con éxito!", Severity.Success);
+
+      if (_lastResult.IsRectification)
+      {
+        Snackbar.Add(
+            $"Rectificativa v{_lastResult.VersionNumber} presentada. Total {_lastResult.TotalAmount:C2}, " +
+            $"pagado antes {_lastResult.PreviousAmount:C2} → saldo {_lastResult.BalanceAmount:C2}.",
+            Severity.Success);
+      }
+      else
+      {
+        Snackbar.Add("¡Declaración Jurada presentada con éxito!", Severity.Success);
+      }
 
       // Generar preferencia de pago si hay saldo positivo. Llamada directa al servicio: el
       // endpoint ahora exige rol y el HttpClient no lleva cookie. Si falla (por ejemplo, sin

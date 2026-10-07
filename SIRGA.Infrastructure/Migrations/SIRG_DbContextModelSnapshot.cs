@@ -704,6 +704,9 @@ namespace SIRGA.Infrastructure.Migrations
                     b.Property<int>("UnionId")
                         .HasColumnType("int");
 
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Period");

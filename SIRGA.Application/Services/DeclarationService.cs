@@ -64,26 +64,33 @@ public class DeclarationService(
     scales = scales.Where(s => s.Period == latestScalePeriod).ToList();
 
     // 3. Crear Cabecera de DDJJ
-    var existingDeclarations = await unitOfWork.Declarations.FindAsync(d =>
-        d.CompanyId == request.CompanyId && d.Period == request.Period);
+    var existingDeclarations = (await unitOfWork.Declarations.FindAsync(d =>
+        d.CompanyId == request.CompanyId && d.Period == request.Period)).ToList();
 
     // Si ya hay un borrador de esta empresa y período (por ejemplo, porque el paso final de un intento
     // anterior no se completó), se REANUDA ese mismo borrador en lugar de tirar un error: el mensaje
     // decía "debe finalizarla antes de crear otra" y la aplicación no tiene ninguna pantalla para
     // finalizar ni borrar un borrador, así que era un callejón sin salida.
-    // Sólo se reanuda un BORRADOR: nunca una DDJJ presentada, aprobada, rechazada o pagada.
     var existingDraft = existingDeclarations.FirstOrDefault(d => d.Status == DeclarationStatus.Draft);
 
-    // Si ya hubo una presentada/aprobada/pagada del mismo periodo, es una rectificativa
-    var lastPresented = existingDeclarations
-        .Where(d => d.Status == DeclarationStatus.Submitted
-                 || d.Status == DeclarationStatus.Approved
-                 || d.Status == DeclarationStatus.Paid)
-        .OrderByDescending(d => d.SubmissionDate)
+    // La versión VIGENTE es la última que no sea un borrador ni esté ya reemplazada. Presentar una DDJJ
+    // de un período que ya tiene una vigente ES una rectificativa: es el mismo criterio del sistema
+    // anterior, donde la columna `rect` era el número de versión (0 la original, 1.. la rectificativa) y
+    // TODAS las versiones se conservaban. Una rechazada también cuenta como DDJJ presentada.
+    var vigente = existingDeclarations
+        .Where(d => d.Status != DeclarationStatus.Draft && d.Status != DeclarationStatus.Rectificada)
+        .OrderByDescending(d => d.VersionNumber)
         .FirstOrDefault();
-    bool isRectification = lastPresented != null;
+
+    bool esRectificativa = vigente is not null;
 
     var declaration = existingDraft ?? new DeclarationRegistry();
+
+    // La versión 2 es la primera rectificativa, la 3 la segunda, y así.
+    if (existingDraft is null)
+    {
+      declaration.VersionNumber = (existingDeclarations.Max(d => (int?)d.VersionNumber) ?? 0) + 1;
+    }
 
     // Si se REANUDA un borrador hay que borrar sus detalles antes de volver a generarlos. Sin esto, cada
     // presentación del mismo borrador AGREGA los detalles de nuevo: quedaron 12 detalles para 4 empleados
@@ -102,10 +109,18 @@ public class DeclarationService(
     declaration.CompanyId = request.CompanyId;
     declaration.UnionId = request.UnionId;
     declaration.Period = request.Period;
-    declaration.Status = DeclarationStatus.Draft;
+
+    // Se PRESENTA: la DDJJ queda en estado Presentada (antes quedaba como Borrador aunque la pantalla
+    // dijera "presentada con éxito", y ninguna parte del código ponía el estado Presentada nunca).
+    declaration.Status = DeclarationStatus.Submitted;
     declaration.SubmissionDate = DateTime.Now;
-    declaration.IsRectification = isRectification;
-    declaration.PreviousAmount = lastPresented?.TotalAmount ?? 0;
+    declaration.IsRectification = esRectificativa;
+
+    // La base de una rectificativa es lo que se PAGÓ de la versión anterior, NO su total declarado: si la
+    // anterior no se pagó, se debe el total nuevo completo. Restar el total declarado cobraba de menos
+    // (caso real medido en el sistema anterior: una DDJJ presentada por 418,95 y rectificada a 20.947,42
+    // nunca pagada; restar 418,95 cobraba 20.528,47 en lugar de 20.947,42).
+    declaration.PreviousAmount = esRectificativa ? await MontoPagadoAsync(vigente!) : 0;
     declaration.PresencialReference = $"DDJJ-{request.CompanyId}-{DateTime.Now:ssfff}";
 
     decimal totalAmount = 0;
@@ -252,14 +267,26 @@ public class DeclarationService(
       await unitOfWork.Declarations.AddAsync(declaration);
     await unitOfWork.CompleteAsync();
 
+    // La versión anterior queda reemplazada: se marca como Rectificada y NO se borra (es el antecedente).
+    // Marcarla es lo que impide que se pueda aprobar o cobrar dos veces la misma DDJJ. Se hace DESPUÉS de
+    // guardar la nueva, para que un fallo no deje el período sin ninguna versión vigente.
+    if (vigente is not null)
+    {
+      vigente.Status = DeclarationStatus.Rectificada;
+      await unitOfWork.Declarations.UpdateAsync(vigente);
+      await unitOfWork.CompleteAsync();
+    }
+
     // 6. Auditoría de la acción
     await auditService.LogActionAsync(
         entityName: "DeclarationRegistry",
         entityId: declaration.Id,
         action: declaration.IsRectification ? "Rectificativa" : "Presentación",
         userId: "0", // TODO: Obtener GUID del contexto de autenticación
-        oldValues: declaration.IsRectification ? new { lastPresented?.TotalAmount, lastPresented?.Period } : null,
-        newValues: new { declaration.TotalAmount, declaration.Period, detailCount = declaration.Details.Count }
+        oldValues: declaration.IsRectification
+            ? new { vigente?.TotalAmount, vigente?.Period, pagadoAntes = declaration.PreviousAmount, versionAnterior = vigente?.VersionNumber }
+            : null,
+        newValues: new { declaration.TotalAmount, declaration.Period, declaration.VersionNumber, detailCount = declaration.Details.Count }
     );
 
     // PROCESAR BALANCE: Si fue rectificativa negativa (genera crédito) 
@@ -357,6 +384,7 @@ public class DeclarationService(
       SubmissionDate = declaration.SubmissionDate,
       ExpirationDate = declaration.SubmissionDate.AddDays(15),
       IsRectification = declaration.IsRectification,
+      VersionNumber = declaration.VersionNumber,
       PreviousAmount = declaration.PreviousAmount,
       BalanceAmount = declaration.BalanceAmount,
       PresencialBarCode = declaration.PresencialBarCode,
@@ -460,6 +488,7 @@ public class DeclarationService(
       SubmissionDate = d.SubmissionDate,
       ExpirationDate = d.SubmissionDate.AddDays(15),
       IsRectification = d.IsRectification,
+      VersionNumber = d.VersionNumber,
       PresencialBarCode = d.PresencialBarCode,
       PresencialReference = d.PresencialReference,
       AporteLey = totalAporteLey,
@@ -497,6 +526,7 @@ public class DeclarationService(
       SubmissionDate = d.SubmissionDate,
       ExpirationDate = d.SubmissionDate.AddDays(15),
       IsRectification = d.IsRectification,
+      VersionNumber = d.VersionNumber,
       PreviousAmount = d.PreviousAmount,
       BalanceAmount = d.BalanceAmount,
       MercadoPagoPaymentId = d.MercadoPagoPaymentId,
@@ -528,13 +558,64 @@ public class DeclarationService(
         .ToListAsync());
   }
 
+  /// <summary>
+  /// La DDJJ VIGENTE de una empresa y período (la que quedaría reemplazada si se presenta otra), o
+  /// <c>null</c> si no hay ninguna. La pantalla la usa para avisar que presentar va a ser una
+  /// rectificativa: que la rectificativa sea automática no quiere decir que tenga que ser invisible.
+  /// </summary>
+  public async Task<DeclarationAnteriorDto?> ObtenerVigenteAsync(int companyId, string period)
+  {
+    var vigente = (await unitOfWork.Declarations.FindAsync(d =>
+            d.CompanyId == companyId && d.Period == period
+            && d.Status != DeclarationStatus.Draft && d.Status != DeclarationStatus.Rectificada))
+        .OrderByDescending(d => d.VersionNumber)
+        .FirstOrDefault();
+
+    if (vigente is null) return null;
+
+    return new DeclarationAnteriorDto(
+        vigente.Id,
+        vigente.VersionNumber,
+        vigente.TotalAmount,
+        await MontoPagadoAsync(vigente),
+        vigente.Status.ToString(),
+        vigente.SubmissionDate);
+  }
+
   public async Task ApproveDeclarationAsync(int id, string observation)
   {
     var declaration = await unitOfWork.Declarations.GetByIdAsync(id);
     if (declaration == null) throw new Exception("Declaración no encontrada");
 
+    // Una DDJJ reemplazada por una rectificativa NO se aprueba: quedaría como aprobada una versión vieja y
+    // se podría terminar cobrando dos veces la misma DDJJ.
+    if (declaration.Status == DeclarationStatus.Rectificada)
+    {
+      throw new Exception(
+          $"La DDJJ {id} (período {declaration.Period}, versión {declaration.VersionNumber}) fue reemplazada " +
+          "por una rectificativa: no se puede aprobar. Aprobá la versión vigente.");
+    }
+
     declaration.Status = DeclarationStatus.Approved;
     await unitOfWork.CompleteAsync();
+  }
+
+  /// <summary>
+  /// Lo que se PAGÓ de una DDJJ: la suma de sus transacciones de pago. Si no tiene ninguna pero está
+  /// marcada como Pagada, se toma su total.
+  ///
+  /// El fallback es necesario y no es un capricho: las DDJJ que vinieron del sistema anterior están en
+  /// estado Pagada pero **sin transacciones** (la tabla `PaymentTransactions` se migró vacía). Sin esto,
+  /// rectificar una DDJJ migrada cobraría el total completo otra vez, como si nunca se hubiera pagado.
+  /// </summary>
+  private async Task<decimal> MontoPagadoAsync(DeclarationRegistry declaration)
+  {
+    var pagos = (await unitOfWork.PaymentTransactions
+        .FindAsync(p => p.DeclarationId == declaration.Id)).ToList();
+
+    if (pagos.Count > 0) return pagos.Sum(p => p.Amount);
+
+    return declaration.Status == DeclarationStatus.Paid ? declaration.TotalAmount : 0m;
   }
 
   public async Task RejectDeclarationAsync(int id, string observation)

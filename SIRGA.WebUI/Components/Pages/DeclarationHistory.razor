@@ -35,6 +35,7 @@ else
       <MudTh>Sindicato</MudTh>
       <MudTh>Total</MudTh>
       <MudTh>Estado</MudTh>
+      <MudTh>Versión</MudTh>
       <MudTh Style="text-align:right">Acciones</MudTh>
     </HeaderContent>
     <RowTemplate>
@@ -45,6 +46,14 @@ else
       <MudTd DataLabel="Estado">
         <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small" Variant="Variant.Text">
           @context.Status
+        </MudChip>
+      </MudTd>
+      <MudTd DataLabel="Versión">
+        @* La v1 es la original; de la v2 en adelante son rectificativas. La versión reemplazada queda
+           como antecedente con su número, así se ve la cadena. *@
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined"
+                 Color="@(context.VersionNumber > 1 ? Color.Warning : Color.Default)">
+          v@(context.VersionNumber)
         </MudChip>
       </MudTd>
       <MudTd DataLabel="Acciones" Style="text-align:right">
@@ -113,8 +122,12 @@ else
     {
       "Draft" => Color.Warning,
       "Submitted" => Color.Info,
+      "Approved" => Color.Primary,
       "Paid" => Color.Success,
-      "Cancelled" => Color.Error,
+      "Rejected" => Color.Error,
+      // Reemplazada por una rectificativa: queda como antecedente, en gris para que no se confunda con
+      // una DDJJ vigente.
+      "Rectificada" => Color.Default,
       _ => Color.Default
     };
   }

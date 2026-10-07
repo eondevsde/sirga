@@ -58,6 +58,15 @@ public class PaymentService(IUnitOfWork unitOfWork, ILogger<PaymentService> logg
       return true;
     }
 
+    // Una DDJJ reemplazada por una rectificativa NO se cobra: la deuda es la de la versión vigente, y
+    // cobrar la vieja sería cobrar dos veces la misma DDJJ.
+    if (declaration.Status == DeclarationStatus.Rectificada)
+    {
+      logger.LogWarning(
+          "Se intentó registrar un pago de la DDJJ {Id}, que fue reemplazada por una rectificativa", declarationId);
+      return false;
+    }
+
     var transaction = new PaymentTransaction
     {
       DeclarationId = declarationId,

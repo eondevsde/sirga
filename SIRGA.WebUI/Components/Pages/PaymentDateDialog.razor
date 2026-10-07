@@ -19,7 +19,7 @@
     </MudText>
 
     <MudDatePicker @bind-Date="_fecha" Label="Fecha de pago" Required="true"
-                   Min="@Vencimiento" DateFormat="dd/MM/yyyy"
+                   MinDate="@Vencimiento" DateFormat="dd/MM/yyyy"
                    HelperText="Puede ser una fecha ya pasada, si el pago ya se registró." />
 
     @if (_fecha is { } elegida)
