@@ -104,6 +104,8 @@ public class BoletaService(IUnitOfWork unitOfWork)
       Periodo = declaracion.Period,
       AporteLey = declaracion.AporteLey,
       CuotaSindical = declaracion.CuotaSocio,
+      AporteLeyPorcentaje = declaracion.AporteLeyPorcentaje,
+      CuotaSindicalPorcentaje = declaracion.CuotaSindicalPorcentaje,
       Vencimiento = vencimientoBoleta,
       Capital = capital,
       Interes = interes.Interes,
@@ -172,6 +174,8 @@ public class BoletaService(IUnitOfWork unitOfWork)
             d.Company.Cuit,
             d.Union.Name,
             d.Union.JurisdictionProvince,
+            d.Union.LawContributionPercentage,
+            d.Union.UnionMemberPercentage,
             d.Status))
         .FirstOrDefaultAsync());
 
@@ -211,5 +215,7 @@ public class BoletaService(IUnitOfWork unitOfWork)
       string? Cuit,
       string? Sindicato,
       string? Jurisdiccion,
+      decimal AporteLeyPorcentaje,
+      decimal CuotaSindicalPorcentaje,
       DeclarationStatus Status);
 }

@@ -33,6 +33,12 @@ public class BoletaDatosDto
   public decimal AporteLey { get; set; }
   public decimal CuotaSindical { get; set; }
 
+  /// <summary>Porcentaje del aporte de ley según el sindicato (no se escribe a mano: cambia por convenio).</summary>
+  public decimal AporteLeyPorcentaje { get; set; }
+
+  /// <summary>Porcentaje de la cuota sindical según el sindicato.</summary>
+  public decimal CuotaSindicalPorcentaje { get; set; }
+
   /// <summary>
   /// Fecha de vencimiento que lleva impresa la boleta: la del banco si está en término, o la fecha de
   /// pago declarada por el cliente si la DDJJ ya estaba vencida.

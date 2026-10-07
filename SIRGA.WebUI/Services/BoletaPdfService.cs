@@ -147,20 +147,24 @@ public class BoletaPdfService
 
       columna.Item().LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
 
-      // Datos del contribuyente y del período.
+      // RAZÓN SOCIAL SOLA, a todo el ancho del talón: es el dato más largo y, metido en una columna, se
+      // cortaba o se partía en varias líneas.
+      columna.Item().Text($"Razón Social: {boleta.RazonSocial}").Bold();
+
+      // Debajo, los datos en tres columnas: el contribuyente, los aportes y el vencimiento con el importe.
       columna.Item().Row(fila =>
       {
         fila.RelativeItem().Column(datos =>
         {
-          datos.Item().Text($"Razón Social: {boleta.RazonSocial}").Bold();
           datos.Item().Text($"C.U.I.T.: {boleta.Cuit}");
           datos.Item().Text($"Período: {boleta.Periodo}");
         });
 
         fila.RelativeItem().Column(datos =>
         {
-          datos.Item().Text($"Ap. 2% $ {boleta.AporteLey:N2}");
-          datos.Item().Text($"Ap. C.S. $ {boleta.CuotaSindical:N2}");
+          // El porcentaje sale del sindicato, no está escrito a mano: cambia por convenio.
+          datos.Item().Text($"Ap. {boleta.AporteLeyPorcentaje:0.##}% $ {boleta.AporteLey:N2}");
+          datos.Item().Text($"Ap. CS {boleta.CuotaSindicalPorcentaje:0.##}% $ {boleta.CuotaSindical:N2}");
           datos.Item().Text($"Total DDJJ $ {boleta.Capital:N2}");
         });
 
@@ -168,7 +172,7 @@ public class BoletaPdfService
         // el importe abajo (como pidió el usuario, en lugar de todo en un renglón largo).
         fila.ConstantItem(260).Column(datos =>
         {
-          datos.Item().Text($"Vencimiento {boleta.Vencimiento:dd/MM/yyyy}").Bold();
+          datos.Item().Text($"Vencimiento: {boleta.Vencimiento:dd/MM/yyyy}").Bold();
           datos.Item().Text($"Importe Total a Depositar: $ {boleta.ImporteTotal:N2}").Bold();
 
           if (boleta.Interes > 0)
