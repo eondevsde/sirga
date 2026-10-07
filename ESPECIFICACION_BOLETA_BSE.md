@@ -33,10 +33,31 @@ Código de la boleta: `013440725000002712102232512522400072703762523400073348720
 
 **4. Entre el 1° y el 2° vencimiento hay 10 días** (12/08 → 22/08), y **el segundo lleva recargo**, que la boleta muestra como "Imp. Rec." ($ 644,96 en el ejemplo): importe 2° = importe 1° + recargo.
 
-**5. Dígito verificador — RESUELTO y verificado.** La fórmula es: **pesos 1 y 2 alternados desde la derecha del cuerpo, y el dígito verificador con peso 2**, de modo que la suma ponderada de las 58 posiciones sea múltiplo de 10; el DV resulta de tomar el complemento a 10 y dividirlo por 2.
-Verificado contra la boleta real: suma del cuerpo = **216** → complemento = **4** → DV = **2**, que es exactamente el dígito impreso. **Implementado y cubierto por una prueba que reproduce el código completo de esa boleta, carácter por carácter.**
+**5. Dígito verificador — ⚠️ CORREGIDO EL 2026-10-07: LO QUE DECÍA ACÁ ERA FALSO.**
 
-> **Pendiente de confirmar con más boletas:** el usuario envió 9 fotos más de boletas reales, pero **no se pudieron leer los números con fiabilidad** (al transcribirlos daban 54-56 dígitos donde tienen que haber 58, lo que prueba que la lectura de las imágenes falló). Sirven igual, pero hay que **pasarlas escritas** (o el número tipeado debajo del código) para contrastar la fórmula contra más casos: cuantos más importes distintos, mejor. La primera boleta, que sí se leyó bien, **se validó sola**: los importes decodificados coincidían con los impresos.
+Hasta el 2026-10-07 este punto decía *"RESUELTO y verificado"* y proponía **pesos 1 y 2 desde la derecha,
+complemento a 10 y dividido por 2**. **Esa fórmula es imposible y quedó descartada**: termina dividiendo
+por 2, así que **sólo puede dar dígitos del 0 al 5**, y las boletas reales del formato de 54 posiciones
+tienen **8**. Se había ajustado a **una sola** boleta.
+
+**Estado actual:** `BoletaBse.DigitoVerificador` usa **módulo 10 con pesos 3 y 1 alternados y suma de los
+dígitos de cada producto**. Reproduce el dígito de la boleta real de 58 posiciones (suma 188 → DV 2) **y
+puede dar los diez dígitos** (probado sobre 2000 códigos).
+
+**PERO SIGUE SIN CONFIRMAR, y con una salvedad importante:** se probaron ~50 fórmulas, subconjuntos de
+campos y las dos direcciones de anclaje, y **14 fórmulas distintas (todas sanas) reproducen el dígito de la
+única boleta de 58 que tenemos**. No se puede saber cuál usa el banco con una sola muestra. Además, las
+boletas del formato de 54 posiciones responden a **otro** algoritmo.
+
+**Por eso la fórmula está declarada en la ficha técnica que se le entrega al banco, pidiendo confirmación.**
+Si el banco confirma otra, se cambia **sólo ese método** y se reemiten las boletas.
+**El detalle completo y la evidencia están en `CONTEXTO_SIRGA.md` (pendiente 0).**
+
+> **CORRECCIÓN de lo que decía el punto anterior:** las 9 fotos **no fallaron al leerse**. Los códigos de
+> 54, 55 y 56 dígitos eran **boletas reales del formato VIEJO de 54 posiciones** (el banco documenta los dos
+> formatos), y varias fotos además **cortan el número impreso por el borde**. Eso explica los largos, y es
+> lo que permitió descubrir que **el formato cambió a 58 a mediados de 2025** y que los dos formatos usan
+> dígitos verificadores distintos. **El proyecto usa sólo el de 58** (decisión del usuario, 2026-10-07).
 
 **6. Datos fijos tomados del ejemplo:** Banco Santiago del Estero – **Sucursal Central**; **Nota de Crédito Cta. Cte. N° 18588639**; encabezado *"Sindicato de Empleados de Comercio de Santiago del Estero"* y *"Aportes Art. 100° Convenio 130/75 | Aportes Cuota Sindical"*.
 
