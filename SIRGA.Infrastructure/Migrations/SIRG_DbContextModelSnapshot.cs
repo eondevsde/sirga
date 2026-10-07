@@ -639,6 +639,9 @@ namespace SIRGA.Infrastructure.Migrations
                     b.Property<decimal>("TotalWithheld")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<bool>("UsaEscala")
+                        .HasColumnType("bit");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AssignmentId");

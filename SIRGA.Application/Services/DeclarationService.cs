@@ -104,7 +104,10 @@ public class DeclarationService(
         BaseSalary = fila.BaseSalary,
         LawContribution = fila.LawContribution,
         MemberContribution = fila.MemberContribution,
-        TotalWithheld = fila.TotalWithheld // En SIRGA "TotalWithheld" es el pago al sindicato
+        TotalWithheld = fila.TotalWithheld, // En SIRGA "TotalWithheld" es el pago al sindicato
+        // Se guarda el ORIGEN del importe: es lo que permite pre-cargar una rectificativa copiando sólo los
+        // que se cargaron a mano, sin congelar los mínimos viejos.
+        UsaEscala = fila.UsoEscala
       });
     }
 
@@ -478,7 +481,8 @@ public class DeclarationService(
           LawContribution = dt.LawContribution,
           MemberContribution = dt.MemberContribution,
           TotalWithheld = dt.TotalWithheld,
-          IsSocio = dt.Assignment.IsVoluntaryMember
+          IsSocio = dt.Assignment.IsVoluntaryMember,
+          UsaEscala = dt.UsaEscala
         })
         .ToListAsync());
   }

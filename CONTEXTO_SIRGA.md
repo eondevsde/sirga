@@ -251,10 +251,23 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
     camino existía pero **no se descubría**: había que ir a Nueva DDJJ y acordarse de elegir la misma
     empresa y el mismo período a mano. **No se ofrece sobre una versión ya reemplazada**: la rectificativa
     se hace siempre contra la vigente.
-    - Los **importes no se pre-cargan** a propósito: en la tabla de detalles no queda registrado si un
-      importe se tipeó a mano o salió de la escala, así que pre-cargar el valor anterior **congelaría el
-      mínimo viejo** como si fuera un importe tipeado. Se llega con los empleados cargados y la escala
-      vigente, y se tipea sólo lo que se quiera fijar.
+    - **Las remuneraciones cargadas A MANO SÍ se precargan** (pedido del usuario, 2026-10-07), así en una
+      rectificativa **sólo se cambia lo que hace falta** y no hay que volver a cargar todos los sueldos.
+      Para poder hacerlo se guarda **`DeclarationDetail.UsaEscala`**: si el importe salió de la escala o se
+      cargó a mano. **Sin ese dato no se pueden distinguir** (en `BaseSalary` está el resultado, no el
+      origen) y copiar todo **congelaría el mínimo viejo como si fuera un importe tipeado**.
+      - **Las que salieron de la escala NO se copian**: se recalculan solas con la escala vigente. Se
+        precargan sólo las tipeadas, y la pantalla **dice cuántas** y de dónde salieron
+        (`_importesDeVersionAnterior`), con la aclaración de que los importes no cargados salen de la escala.
+      - **Trampa de EF otra vez**: la migración proponía `defaultValue: false` para `UsaEscala`, que es el
+        valor **INSEGURO**: marcaría los **1.269.993** detalles que ya existen como "cargados a mano" y una
+        rectificativa de una DDJJ migrada copiaría importes viejos como si fueran tipeados. Corregido a
+        mano a **`true`** (la escala) y verificado después de aplicar.
+      - Si la precarga falla, se avisa y se cargan a mano: no puede impedir rectificar.
+      - **Verificado** (transacción revertida): con un empleado con remuneración tipeada y otro por escala,
+        se guarda `UsaEscala = False` para el primero y `True` para el segundo, y la precarga copia **1 de
+        2** (sólo la tipeada). Rectificar cargando lo mismo reproduce el mismo total (no cambia el
+        resultado de quien no toca nada).
   - **El aviso es obligatorio porque es automático**: la pantalla de Nueva DDJJ muestra el modal
     `RectificationWarningDialog` con la versión anterior, su total, **lo que se pagó** y la
     **comparación EMPLEADO POR EMPLEADO** (base y aporte antes/ahora, y el estado: Igual, Sube, Baja,

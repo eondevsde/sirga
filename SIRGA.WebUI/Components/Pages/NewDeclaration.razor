@@ -160,6 +160,35 @@ else
               <InputFile id="salaries-upload" OnChange="OnExcelFileSelected" style="display:none" accept=".xlsx" />
             </div>
           </MudStack>
+
+          @* ACLARACIÓN DE RECTIFICACIÓN: los importes que se habían cargado A MANO vienen precargados de la
+             versión anterior, así el estudio cambia sólo lo que necesita. Los que salieron de la escala NO se
+             copian a propósito: se recalculan solos con la escala vigente (copiarlos congelaría el mínimo
+             viejo como si fuera un importe tipeado). *@
+          @if (_esRectificacion)
+          {
+            <MudAlert Severity="Severity.Warning" Class="mb-4">
+              <b>Estás rectificando la versión anterior (v@(_proximaVersion - 1)).</b>
+              @if (_importesDeVersionAnterior > 0)
+              {
+                <text>
+                  Se precargaron <b>@_importesDeVersionAnterior</b> remuneración(es) que se habían cargado a
+                  mano: <b>cambiá solamente el o los empleados que necesites</b> y dejá el resto como está.
+                </text>
+              }
+              else
+              {
+                <text>
+                  No había remuneraciones cargadas a mano en la versión anterior, así que los importes salen
+                  todos de la escala vigente: cargá sólo los que quieras fijar a mano.
+                </text>
+              }
+              <br />
+              Los importes que <b>no</b> cargues se calculan solos con la escala vigente (básico + antigüedad
+              según categoría y jornada), así que no se repiten valores viejos.
+            </MudAlert>
+          }
+
           <MudTable Items="@_details" Hover="true" Dense="true" Elevation="0">
             <HeaderContent>
               <MudTh>Empleado</MudTh>
@@ -334,6 +363,9 @@ else
   /// <summary>Número de versión que le va a tocar (v2, v3...). Sólo tiene sentido si es rectificativa.</summary>
   private int _proximaVersion = 1;
 
+  /// <summary>Cuántas remuneraciones se precargaron de la versión anterior (para la aclaración en pantalla).</summary>
+  private int _importesDeVersionAnterior;
+
   /// <summary>Empresa con la que se abre la pantalla (viene del botón "Rectificar" del historial).</summary>
   [Parameter, SupplyParameterFromQuery(Name = "empresa")]
   public int? EmpresaQuery { get; set; }
@@ -497,6 +529,10 @@ else
       // Con la empresa y el período ya elegidos se sabe si esto va a ser una rectificativa: el título y el
       // aviso tienen que decirlo desde el primer paso, no recién al presentar.
       await ActualizarRectificacionAsync();
+
+      // RECTIFICATIVA: se precargan las remuneraciones que se habían cargado A MANO en la versión anterior,
+      // así el estudio cambia sólo lo que necesita en lugar de volver a cargar todos los sueldos.
+      await PreCargarRemuneracionesAsync();
     }
     catch (Exception ex)
     {
@@ -557,6 +593,50 @@ else
   /// encabezado, en los tres pasos.
   /// </summary>
   private Company? EmpresaSeleccionada => _companies.FirstOrDefault(c => c.Id == _selectedCompanyId);
+
+  /// <summary>
+  /// Precarga las remuneraciones de la versión anterior que se habían <b>cargado a mano</b>, para que en una
+  /// rectificativa sólo haya que cambiar lo que hace falta en vez de volver a cargar todos los sueldos.
+  ///
+  /// NO copia las que salieron de la escala: esas se recalculan solas con la escala vigente. Si se copiaran,
+  /// quedarían congeladas como si fueran importes tipeados y la rectificativa saldría con el mínimo viejo.
+  /// Para poder distinguirlas se guarda <c>DeclarationDetail.UsaEscala</c> al presentar.
+  /// </summary>
+  private async Task PreCargarRemuneracionesAsync()
+  {
+    _importesDeVersionAnterior = 0;
+
+    if (!_esRectificacion || _selectedCompanyId == 0) return;
+
+    try
+    {
+      var vigente = await DeclarationService.ObtenerVigenteAsync(_selectedCompanyId, $"{_year}-{_month:D2}");
+      if (vigente is null) return;
+
+      var anteriores = (await DeclarationService.GetDeclarationDetailsAsync(vigente.Id))
+          .Where(d => !d.UsaEscala && d.BaseSalary > 0)
+          .GroupBy(d => d.EmployeeId)
+          .ToDictionary(g => g.Key, g => g.First().BaseSalary);
+
+      if (anteriores.Count == 0) return;
+
+      foreach (var detalle in _details)
+      {
+        if (anteriores.TryGetValue(detalle.EmployeeId, out var importeAnterior))
+        {
+          detalle.GrossSalary = importeAnterior;
+          Recalculate(detalle);
+          _importesDeVersionAnterior++;
+        }
+      }
+    }
+    catch (Exception ex)
+    {
+      // Que no se pueda precargar no puede impedir rectificar: se avisa y se cargan a mano.
+      Snackbar.Add("No se pudieron precargar las remuneraciones de la versión anterior: " + ex.Message,
+                   Severity.Warning);
+    }
+  }
 
   /// <summary>
   /// Si la DDJJ que se está por presentar es una RECTIFICATIVA (ya hay una versión vigente de esa empresa y

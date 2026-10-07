@@ -110,6 +110,12 @@ public class DeclarationDetailDto
   public decimal MemberContribution { get; set; }
   public decimal TotalWithheld { get; set; }
   public bool IsSocio { get; set; }
+
+  /// <summary>
+  /// <c>true</c> si el importe salió de la escala (no se cargó remuneración a mano). Lo usa la pantalla para
+  /// pre-cargar una rectificativa copiando SÓLO los importes cargados a mano.
+  /// </summary>
+  public bool UsaEscala { get; set; }
 }
 
 public class PagedDeclarationsDto
