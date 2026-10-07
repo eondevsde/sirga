@@ -11,158 +11,234 @@ namespace SIRGA.WebUI.Services;
 /// las pantallas se veían "PREVIOUS"/"NEXT" (los pasos de la DDJJ), "Rows per page:" (el paginador) y
 /// "Ok"/"Cancel" (los diálogos), aunque el resto de la aplicación esté en español.
 ///
-/// La CLAVE es el propio texto en inglés (así funciona MudBlazor por dentro), por eso el diccionario se lee
-/// "texto en inglés" -> "texto en español". Si una clave no está traducida, se devuelve el original: no se
-/// rompe nada, sólo queda en inglés.
+/// **OJO CON LA CLAVE**: MudBlazor NO pasa el texto en inglés, pasa el **NOMBRE del recurso** (por ejemplo
+/// `MudStepper_Next`). Se comprobó por reflexión: los miembros de `MudBlazor.Resources.LanguageResource`
+/// son constantes cuyo VALOR es el nombre, no el texto traducible. Traducir por el texto en inglés
+/// ("Next") no tiene ningún efecto: por eso las claves de acá son los nombres (`MudStepper_Next`).
+/// Al final hay además un puñado de alias por texto, por si algún componente usa el texto directo.
+///
+/// Si una clave no está traducida, se devuelve el original: queda en inglés, pero no se rompe nada.
 ///
 /// **REGLA DEL PROYECTO: TODO EL FRONT VA EN ESPAÑOL.** Los textos propios de cada pantalla se escriben en
 /// español directamente en el marcado; esto es sólo para lo que viene dentro de los componentes.
 /// </summary>
 public class MudLocalizerEspanol : MudLocalizer
 {
-  private static readonly Dictionary<string, string> Traducciones = new(StringComparer.Ordinal)
+  /// <summary>
+  /// Claves = NOMBRES de recurso de MudBlazor (`MudBlazor.Resources.LanguageResource`), que es lo que los
+  /// componentes le pasan al localizador.
+  /// </summary>
+  private static readonly Dictionary<string, string> PorNombreDeRecurso = new(StringComparer.Ordinal)
   {
-    // ---- Tablas: paginador y estados ----
-    ["Rows per page:"] = "Filas por página:",
-    ["{0}-{1} of {2}"] = "{0}-{1} de {2}",
-    ["First page"] = "Primera página",
-    ["Last page"] = "Última página",
-    ["Next page"] = "Página siguiente",
-    ["Previous page"] = "Página anterior",
-    ["Current page {0}"] = "Página actual {0}",
-    ["Page {0}"] = "Página {0}",
-    ["Loading..."] = "Cargando...",
-    ["No matching records found"] = "Sin resultados",
+    // ---------- Pasos (MudStepper) ----------
+    ["MudStepper_Next"] = "Siguiente",
+    ["MudStepper_Previous"] = "Anterior",
+    ["MudStepper_Skip"] = "Omitir",
+    ["MudStepper_Reset"] = "Reiniciar",
+    ["MudStepper_Complete"] = "Finalizar",
 
-    // ---- Pasos (MudStepper) ----
+    // ---------- Paginador ----------
+    ["MudTablePager_FirstPage"] = "Primera página",
+    ["MudTablePager_LastPage"] = "Última página",
+    ["MudTablePager_NextPage"] = "Página siguiente",
+    ["MudTablePager_PreviousPage"] = "Página anterior",
+    ["MudDataGridPager_FirstPage"] = "Primera página",
+    ["MudDataGridPager_LastPage"] = "Última página",
+    ["MudDataGridPager_NextPage"] = "Página siguiente",
+    ["MudDataGridPager_PreviousPage"] = "Página anterior",
+    ["MudDataGridPager_RowsPerPage"] = "Filas por página:",
+    ["MudDataGridPager_AllItems"] = "Todas",
+    ["MudDataGridPager_InfoFormat"] = "{0}-{1} de {2}",
+    ["MudPagination_FirstPage"] = "Primera página",
+    ["MudPagination_LastPage"] = "Última página",
+    ["MudPagination_NextPage"] = "Página siguiente",
+    ["MudPagination_PreviousPage"] = "Página anterior",
+    ["MudPagination_CurrentPage"] = "Página actual {0}",
+    ["MudPagination_PageIndex"] = "Página {0}",
+
+    // ---------- Tabla ----------
+    ["MudTable_Loading"] = "Cargando…",
+    ["MudTable_ExpandGroup"] = "Expandir grupo",
+    ["MudTable_CollapseGroup"] = "Contraer grupo",
+    ["MudTable_EditRow"] = "Editar fila",
+    ["MudTable_CancelEditRow"] = "Cancelar edición",
+    ["MudTable_CommitRow"] = "Confirmar edición",
+
+    // ---------- Grilla de datos (MudDataGrid) ----------
+    ["MudDataGrid_Apply"] = "Aplicar",
+    ["MudDataGrid_Clear"] = "Limpiar",
+    ["MudDataGrid_AddFilter"] = "Agregar filtro",
+    ["MudDataGrid_Cancel"] = "Cancelar",
+    ["MudDataGrid_Loading"] = "Cargando…",
+    ["MudDataGrid_Save"] = "Guardar",
+    ["MudDataGrid_HideAll"] = "Ocultar todo",
+    ["MudDataGrid_ShowAll"] = "Mostrar todo",
+    ["MudDataGrid_Columns"] = "Columnas",
+    ["MudDataGrid_ExpandAllGroups"] = "Expandir todos los grupos",
+    ["MudDataGrid_CollapseAllGroups"] = "Contraer todos los grupos",
+    ["MudDataGrid_RefreshData"] = "Actualizar datos",
+    ["MudDataGrid_True"] = "sí",
+    ["MudDataGrid_False"] = "no",
+    ["MudDataGrid_Unsort"] = "Quitar orden",
+    ["MudDataGrid_Filter"] = "Filtro",
+    ["MudDataGrid_Hide"] = "Ocultar",
+    ["MudDataGrid_Ungroup"] = "Desagrupar",
+    ["MudDataGrid_CollapseGroup"] = "Contraer grupo",
+    ["MudDataGrid_ExpandGroup"] = "Expandir grupo",
+    ["MudDataGrid_Group"] = "Agrupar",
+    ["MudDataGrid_FilterValue"] = "Valor del filtro",
+    ["MudDataGrid_Contains"] = "contiene",
+    ["MudDataGrid_NotContains"] = "no contiene",
+    ["MudDataGrid_Equals"] = "es igual a",
+    ["MudDataGrid_NotEquals"] = "es distinto de",
+    ["MudDataGrid_StartsWith"] = "empieza con",
+    ["MudDataGrid_EndsWith"] = "termina con",
+    ["MudDataGrid_IsEmpty"] = "está vacío",
+    ["MudDataGrid_IsNotEmpty"] = "no está vacío",
+    ["MudDataGrid_Is"] = "es",
+    ["MudDataGrid_IsNot"] = "no es",
+    ["MudDataGrid_IsAfter"] = "es posterior a",
+    ["MudDataGrid_IsOnOrAfter"] = "es igual o posterior a",
+    ["MudDataGrid_IsBefore"] = "es anterior a",
+    ["MudDataGrid_IsOnOrBefore"] = "es igual o anterior a",
+    ["MudDataGrid_Column"] = "Columna",
+    ["MudDataGrid_Operator"] = "Operador",
+    ["MudDataGrid_Value"] = "Valor",
+    ["MudDataGrid_MoveDown"] = "Bajar",
+    ["MudDataGrid_MoveUp"] = "Subir",
+    ["MudDataGrid_Sort"] = "Ordenar",
+    ["MudDataGrid_ClearFilter"] = "Limpiar filtro",
+    ["MudDataGrid_OpenFilters"] = "Abrir filtros",
+    ["MudDataGrid_ToggleGroupExpansion"] = "Mostrar u ocultar grupo",
+    ["MudDataGrid_RemoveFilter"] = "Quitar filtro",
+    ["MudDataGrid_SelectRow"] = "Seleccionar fila",
+    ["MudDataGrid_SelectAllRows"] = "Seleccionar todas las filas",
+    ["MudDataGrid_ShowColumnOptions"] = "Opciones de columna",
+    // Los signos (=, !=, >, >=, <, <=) no se traducen: se usan como símbolos.
+
+    // ---------- Diálogos, chips, avisos ----------
+    ["MudDialog_Close"] = "Cerrar",
+    ["MudAlert_Close"] = "Cerrar",
+    ["MudChip_Close"] = "Cerrar",
+    ["MudSnackbar_Close"] = "Cerrar",
+    ["MudColorPicker_Close"] = "Cerrar",
+
+    // ---------- Entradas y selectores ----------
+    ["MudInput_Clear"] = "Limpiar",
+    ["MudInput_Decrement"] = "Disminuir",
+    ["MudInput_Increment"] = "Aumentar",
+    ["MudNavGroup_ToggleExpand"] = "Alternar {0}",
+    ["MudTimePicker_Open"] = "Abrir",
+    ["MudBaseDatePicker_Open"] = "Abrir",
+    ["MudColorPicker_Open"] = "Abrir",
+    ["MudBaseDatePicker_PrevYear"] = "Año anterior {0}",
+    ["MudBaseDatePicker_NextYear"] = "Año siguiente {0}",
+    ["MudBaseDatePicker_PrevMonth"] = "Mes anterior {0}",
+    ["MudBaseDatePicker_NextMonth"] = "Mes siguiente {0}",
+    ["MudRangeInput_Start"] = "Inicio",
+    ["MudRangeInput_End"] = "Fin",
+    ["MudDateRangePicker_Start"] = "Fecha desde",
+    ["MudDateRangePicker_End"] = "Fecha hasta",
+
+    // ---------- Selector de color, carrusel, calificación, mapa de calor ----------
+    ["MudColorPicker_SpectrumView"] = "Espectro",
+    ["MudColorPicker_GridView"] = "Cuadrícula",
+    ["MudColorPicker_PaletteView"] = "Paleta",
+    ["MudColorPicker_ShowSwatches"] = "Mostrar muestras",
+    ["MudColorPicker_HideSwatches"] = "Ocultar muestras",
+    ["MudColorPicker_HueSlider"] = "Control de tono",
+    ["MudColorPicker_AlphaSlider"] = "Control de transparencia",
+    ["MudColorPicker_ModeSwitch"] = "Cambiar modo",
+    ["MudCarousel_Index"] = "Índice {0}",
+    ["MudCarousel_Next"] = "Siguiente",
+    ["MudCarousel_Previous"] = "Anterior",
+    ["MudRatingItem_Label"] = "Puntaje {0}",
+    ["HeatMap_Less"] = "Menos",
+    ["HeatMap_More"] = "Más",
+
+    // ---------- Pestañas y árbol ----------
+    ["MudTabs_ScrollLeft"] = "Desplazar pestañas a la izquierda",
+    ["MudTabs_ScrollRight"] = "Desplazar pestañas a la derecha",
+    ["MudTabs_ScrollUp"] = "Desplazar pestañas arriba",
+    ["MudTabs_ScrollDown"] = "Desplazar pestañas abajo",
+    ["MudTabs_CloseTab"] = "Cerrar pestaña",
+    ["MudTabs_AddTab"] = "Agregar pestaña",
+    ["MudTreeView_ExpandItem"] = "Expandir",
+    ["MudTreeView_CollapseItem"] = "Contraer",
+    ["MudPageContentNavigation_NavMenu"] = "Contenido",
+
+    // ---------- Carga de archivos ----------
+    ["MudFileUpload_DragAndDrop"] = "Arrastrá los archivos acá o hacé clic para elegirlos",
+    ["MudFileUpload_Button"] = "Elegir archivos",
+    ["MudFileUpload_FileSizeError"] = "El archivo '{0}' supera el tamaño máximo permitido de {1} bytes.",
+    ["MudFileUpload_MaximumFileCountExceeded"] = "Se eligieron {0} archivos, que supera el máximo de {1}",
+
+    // ---------- Aviso al salir con cambios sin guardar ----------
+    ["MudExitPrompt_Title"] = "Confirmar la salida",
+    ["MudExitPrompt_Text"] = "¿Salir del sitio? Puede que los cambios no se guarden.",
+    ["MudExitPrompt_Exit"] = "Aceptar",
+    ["MudExitPrompt_Cancel"] = "Cancelar",
+
+    // ---------- Validación y conversión ----------
+    ["Converter_InvalidBoolean"] = "No es un valor válido",
+    ["Converter_InvalidNumber"] = "No es un número válido",
+    ["Converter_InvalidGUID"] = "No es un identificador válido",
+    ["Converter_NotValueOf"] = "No es un valor de {0}",
+    ["Converter_InvalidDateTime"] = "No es una fecha y hora válida",
+    ["Converter_InvalidTimeSpan"] = "No es un intervalo de tiempo válido",
+    ["Converter_InvalidType"] = "No es un valor válido de {0}",
+    ["Converter_ConversionNotImplemented"] = "La conversión al tipo {0} no está implementada",
+    ["Converter_ConversionError"] = "Error de conversión: {0}",
+    ["Converter_ConversionFailed"] = "Falló la conversión de {0} a {1}: {2}",
+    ["Converter_UnableToConvert"] = "No se puede convertir a {0} desde el tipo {1}"
+  };
+
+  /// <summary>
+  /// Alias por TEXTO en inglés. MudBlazor usa los nombres de recurso, pero por si algún componente pasa el
+  /// texto directo se cubren también los más visibles. No molesta: sólo son claves de más.
+  /// </summary>
+  private static readonly Dictionary<string, string> PorTexto = new(StringComparer.Ordinal)
+  {
     ["Next"] = "Siguiente",
     ["Previous"] = "Anterior",
     ["Complete"] = "Finalizar",
     ["Reset"] = "Reiniciar",
     ["Skip"] = "Omitir",
-    ["Start"] = "Inicio",
-    ["End"] = "Fin",
-    ["Contents"] = "Contenido",
-
-    // ---- Diálogos y formularios ----
     ["Close"] = "Cerrar",
     ["Cancel"] = "Cancelar",
     ["Ok"] = "Aceptar",
     ["Save"] = "Guardar",
     ["Apply"] = "Aplicar",
     ["Clear"] = "Limpiar",
-    ["Open"] = "Abrir",
+    ["Loading..."] = "Cargando...",
+    ["Rows per page:"] = "Filas por página:",
+    ["{0}-{1} of {2}"] = "{0}-{1} de {2}",
+    ["First page"] = "Primera página",
+    ["Last page"] = "Última página",
+    ["Next page"] = "Página siguiente",
+    ["Previous page"] = "Página anterior",
+    ["No matching records found"] = "Sin resultados",
     ["Browse files"] = "Elegir archivos",
-    ["Drag files here or click to browse"] = "Arrastrá los archivos acá o hacé clic para elegirlos",
-    ["File '{0}' exceeds the maximum allowed size of {1} bytes."] = "El archivo '{0}' supera el tamaño máximo permitido de {1} bytes.",
-    ["Selected {0} files, which exceeds the maximum of {1}"] = "Se eligieron {0} archivos, que supera el máximo de {1}",
-    ["Decrement"] = "Disminuir",
-    ["Increment"] = "Aumentar",
-    ["Toggle {0}"] = "Alternar {0}",
-
-    // ---- Selectores de fecha ----
-    ["Next month {0}"] = "Mes siguiente {0}",
-    ["Next year {0}"] = "Año siguiente {0}",
-    ["Previous month {0}"] = "Mes anterior {0}",
-    ["Previous year {0}"] = "Año anterior {0}",
-    ["Start date"] = "Fecha desde",
-    ["End date"] = "Fecha hasta",
-
-    // ---- Filtros y columnas (grillas) ----
-    ["Add filter"] = "Agregar filtro",
-    ["Clear filter"] = "Limpiar filtro",
-    ["Open filters"] = "Abrir filtros",
-    ["Remove filter"] = "Quitar filtro",
-    ["Filter"] = "Filtro",
-    ["Filter value"] = "Valor del filtro",
-    ["Operator"] = "Operador",
+    ["Open"] = "Abrir",
     ["Column"] = "Columna",
     ["Columns"] = "Columnas",
-    ["Column options"] = "Opciones de columna",
-    ["Sort"] = "Ordenar",
-    ["Unsort"] = "Quitar orden",
-    ["Group"] = "Agrupar",
-    ["Ungroup"] = "Desagrupar",
-    ["Toggle group"] = "Mostrar u ocultar grupo",
-    ["Expand group"] = "Expandir grupo",
-    ["Collapse group"] = "Contraer grupo",
-    ["Expand all groups"] = "Expandir todos los grupos",
-    ["Collapse all groups"] = "Contraer todos los grupos",
+    ["Filter"] = "Filtro",
     ["Hide"] = "Ocultar",
     ["Hide all"] = "Ocultar todo",
     ["Show all"] = "Mostrar todo",
-    ["Move up"] = "Subir",
-    ["Move down"] = "Bajar",
-    ["Refresh data"] = "Actualizar datos",
-    ["Select row"] = "Seleccionar fila",
-    ["Select all rows"] = "Seleccionar todas las filas",
-    ["Edit row"] = "Editar fila",
-    ["Commit edit"] = "Confirmar edición",
-    ["Cancel edit"] = "Cancelar edición",
-    ["Value"] = "Valor",
     ["true"] = "sí",
-    ["false"] = "no",
-
-    // ---- Condiciones de filtro ----
-    ["contains"] = "contiene",
-    ["not contains"] = "no contiene",
-    ["starts with"] = "empieza con",
-    ["ends with"] = "termina con",
-    ["equals"] = "es igual a",
-    ["not equals"] = "es distinto de",
-    ["is"] = "es",
-    ["is not"] = "no es",
-    ["is empty"] = "está vacío",
-    ["is not empty"] = "no está vacío",
-    ["is after"] = "es posterior a",
-    ["is before"] = "es anterior a",
-    ["is on or after"] = "es igual o posterior a",
-    ["is on or before"] = "es igual o anterior a",
-
-    // ---- Pestañas ----
-    ["Add tab"] = "Agregar pestaña",
-    ["Close tab"] = "Cerrar pestaña",
-    ["Scroll tabs down"] = "Desplazar pestañas abajo",
-    ["Scroll tabs left"] = "Desplazar pestañas a la izquierda",
-    ["Scroll tabs right"] = "Desplazar pestañas a la derecha",
-    ["Scroll tabs up"] = "Desplazar pestañas arriba",
-    ["Collapse"] = "Contraer",
-    ["Expand"] = "Expandir",
-
-    // ---- Selector de color ----
-    ["Alpha slider"] = "Control de transparencia",
-    ["Grid"] = "Cuadrícula",
-    ["Hide swatches"] = "Ocultar muestras",
-    ["Show swatches"] = "Mostrar muestras",
-    ["Hue slider"] = "Control de tono",
-    ["Switch mode"] = "Cambiar modo",
-    ["Palette"] = "Paleta",
-    ["Spectrum"] = "Espectro",
-    ["All"] = "Todos",
-    ["Less"] = "Menos",
-    ["More"] = "Más",
-    ["Index {0}"] = "Índice {0}",
-    ["{0} rating"] = "Puntaje {0}",
-
-    // ---- Validación y conversión ----
-    ["Not a valid number"] = "No es un número válido",
-    ["Not a valid boolean"] = "No es un valor válido",
-    ["Not a valid date time"] = "No es una fecha y hora válida",
-    ["Not a valid time span"] = "No es un intervalo de tiempo válido",
-    ["Not a valid {0}"] = "No es un valor válido de {0}",
-    ["Conversion error: {0}"] = "Error de conversión: {0}",
-
-    // ---- Aviso al salir con cambios sin guardar ----
-    [".Leave site? Changes you made may not be saved."] = ".¿Salir del sitio? Puede que los cambios no se guarden.",
-    ["Confirm Navigation"] = "Confirmar la salida"
+    ["false"] = "no"
   };
 
   public override LocalizedString this[string key]
   {
     get
     {
-      if (Traducciones.TryGetValue(key, out var traduccion))
+      if (PorNombreDeRecurso.TryGetValue(key, out var traduccion) ||
+          PorTexto.TryGetValue(key, out traduccion))
+      {
         return new LocalizedString(key, traduccion);
+      }
 
       // Sin traducción: se devuelve el original (queda en inglés, no se rompe).
       return new LocalizedString(key, key, resourceNotFound: true);
