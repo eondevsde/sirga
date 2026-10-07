@@ -543,6 +543,27 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 
 ## 7. Pendiente, en orden
 
+0. **PAQUETE PARA EL BANCO (BSE)** — armado el 2026-10-07 en `.dsh-tools/paquete-banco/` (ignorado por
+   git): las **5 boletas de prueba** + la **ficha técnica en PDF** + un `README.md` con el índice.
+   Se regenera con `dotnet run --project .dsh-tools/verif-boleta -- paquete` y después `-- ficha`.
+   **Lo que el banco pide** (su documentación, *Etapas de implementación*): estructura del código de
+   barras, estructura del archivo de rendición y **boletas de prueba (mínimo 5)**.
+   > **LA DOCUMENTACIÓN DEL BANCO NO DICE A DÓNDE ENVIARLO**: no hay dirección, correo, teléfono ni
+   > área responsable. Hay que averiguarlo con el banco. **Es el bloqueante para enviar.**
+   > **El circuito va al revés de lo que suena**: el ENTE le entrega al BANCO la estructura + las 5
+   > boletas de prueba (para que el banco desarrolle en su sistema de Caja), y es el **BANCO el que le
+   > manda al ENTE el archivo de rendición** de esas boletas **para que el ENTE lo apruebe**.
+   > **Falta confirmar la fórmula del dígito verificador** (el banco la pide explícitamente y es el
+   > único campo sin especificar; la nuestra es una propuesta verificada contra una boleta real).
+   > **Falta definir si el sistema de Caja puede cobrar boletas vencidas** — el banco lo pregunta.
+   >
+   > **DESAJUSTE DETECTADO**: `BankReconciliationService.ProcessBankExcelAsync` usa un **"mapeo
+   > tentativo" propio** (Col A fecha, B referencia, C importe, D CUIT/ID) que **NO coincide** con el
+   > archivo de rendición documentado por el banco (Sucursal, Comprobante, Moneda, Tipo movimiento,
+   > Importe, Fecha de proceso, CUIL del usuario, Usuario, Hora, **Código de Barra**, Grupo de
+   > Terminal…) y **no usa el código de barras**, que es la clave más confiable. Para poder aprobar la
+   > rendición hay que leer el formato real del banco.
+
 1. **Probar la DDJJ de ABDALA LLAMIL** (empresa 29656, sindicato 19): sus dos empleados ya tienen
    categoría (13 MAESTRANZA B y 2 ADMINISTRATIVO B) y escala vigente 2026-03. **Tiene que calcular
    importes.** Es la prueba de que el problema de los ceros quedó cerrado para las 2.551 empresas.
