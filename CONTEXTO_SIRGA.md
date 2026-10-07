@@ -555,6 +555,32 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    > manda al ENTE el archivo de rendición** de esas boletas **para que el ENTE lo apruebe**.
    > **Falta confirmar la fórmula del dígito verificador** (el banco la pide explícitamente y es el
    > único campo sin especificar; la nuestra es una propuesta verificada contra una boleta real).
+   >
+   > **⚠️ HALLAZGO (2026-10-07): LA FÓRMULA IMPLEMENTADA MUY PROBABLEMENTE ESTÁ MAL.**
+   > `BoletaBse.DigitoVerificador` (pesos 1-2 desde la derecha, complemento a 10 **dividido 2**) se
+   > ajustó a **UNA SOLA** boleta. Probada contra **3 boletas reales**:
+   >
+   > | Boleta real | DV impreso | Implementada | Luhn / mód. 11 |
+   > |---|---|---|---|
+   > | 58 posiciones (GAMMAROTA) | 2 | **2 ✓** | 0 ✗ |
+   > | 54 posiciones (impr. $93.792,92) | 8 | 0 ✗ | **8 ✓** |
+   > | 54 posiciones (impr. $20.283,86) | 8 | 3 ✗ | **8 ✓** |
+   >
+   > **Ninguna fórmula acierta las 3.** Las dos de 54 posiciones (formato *actual*) tienen importes que
+   > coinciden EXACTO con los impresos ⇒ transcripciones confiables ⇒ **la implementada falla en las dos**.
+   > Y el `/2` final no es un algoritmo estándar: es la firma de haber ajustado a un solo ejemplo.
+   > **Luhn/mód.11** (pesos 2-1 desde la derecha **sumando los dígitos** de cada producto, DV con peso 1,
+   > total múltiplo de 11) acierta **2 de 2** boletas independientes.
+   > **Si la fórmula real es la de Luhn, TODAS las boletas que SIRGA imprime hoy llevan un dígito
+   > verificador que el banco va a rechazar.**
+   > **CÓMO SE LLEGÓ ACÁ (y el error de proceso)**: el banco **no** da la fórmula, así que se dedujo de una
+   > boleta real. Después el usuario aportó 9 códigos más, pero `dv4.py` **los descartó a TODOS** por tener
+   > 54/55/56 dígitos en vez de 58, así que imprimió *"ninguna formula acierta en todas"* habiendo probado
+   > **CERO** boletas: **la validación fue vacía y nadie lo notó** (justo el fallo silencioso que las reglas
+   > prohíben). Revisando esos 9 hoy: **2 son boletas reales válidas del formato de 54** ⇒ sirven para
+   > validar ⇒ y refutan la fórmula implementada. Ver `.dsh-tools/bse/dv5.py` y `dv6.py`.
+   > **Para cerrarlo hace falta**: (a) que el banco confirme la fórmula, o (b) **2-3 boletas reales más de
+   > 58 posiciones** con sus importes impresos, para desempatar.
    > **Falta definir si el sistema de Caja puede cobrar boletas vencidas** — el banco lo pregunta.
    >
    > **DESAJUSTE DETECTADO**: `BankReconciliationService.ProcessBankExcelAsync` usa un **"mapeo
