@@ -634,6 +634,26 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    >   fotos están **en ángulo** y un lector 1D necesita la línea del código recta. Hace falta el número, o
    >   una foto de frente o un escaneo. **Ojo**: en varias fotos el número impreso **está cortado por el
    >   borde** — eso explica los 54/55/56 dígitos que se venían manejando.
+   >
+   > **ESTADO AL CIERRE DEL 2026-10-07: EL PAQUETE ESTÁ LISTO PARA ENVIAR.** Las 5 boletas + la ficha
+   > técnica + el cuerpo del correo están en el escritorio (`Boletas de prueba para el banco`) y en
+   > `.dsh-tools/paquete-banco`. **El usuario lo envía y espera la respuesta del banco (2026-10-08).**
+   >
+   > **QUÉ HACER CUANDO CONTESTEN (no improvisar):**
+   > - **Si validan el dígito y pasan la fórmula** → cambiar **sólo** `BoletaBse.DigitoVerificador`, correr
+   >   los tests, y reemitir con `-- paquete` y `-- ficha`. Nada más.
+   > - **Si dicen que NO validan el dígito** → enviar la posición 58 en **0** (el método devuelve 0) y
+   >   reemitir igual.
+   > - **Si piden cambios en la estructura** → revisar `ESPECIFICACION_BOLETA_BSE.md` (ya corregido: decía
+   >   que el dígito estaba "RESUELTO y verificado" con la fórmula vieja, que es imposible).
+   >
+   > **QUEDA UNA PREGUNTA SIN AGREGAR (decisión pendiente del usuario):** además del dígito verificador y
+   > de las boletas vencidas, **falta consultar la SIMBOLOGÍA del código de barras**. La especificación la
+   > deja pendiente: *"no está en los instructivos; el formato es compatible con Interleaved 2 of 5 o
+   > Code 128"*. **SIRGA usa Code 128**; si el banco espera Interleaved 2 of 5, **su lector no lee ninguna
+   > boleta nuestra** (peor que el dígito: el código entero sería ilegible). Se le ofreció al usuario
+   > agregarla a la ficha y al correo y **quedó sin responder**. Tampoco hay evidencia propia: no se pudo
+   > decodificar ninguna foto de boleta real con ZXing (están en ángulo).
    > **Falta definir si el sistema de Caja puede cobrar boletas vencidas** — el banco lo pregunta.
    >
    > **DESAJUSTE DETECTADO**: `BankReconciliationService.ProcessBankExcelAsync` usa un **"mapeo
