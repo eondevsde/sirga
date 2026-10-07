@@ -549,7 +549,8 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    **Lo que el banco pide** (su documentación, *Etapas de implementación*): estructura del código de
    barras, estructura del archivo de rendición y **boletas de prueba (mínimo 5)**.
    > **LA DOCUMENTACIÓN DEL BANCO NO DICE A DÓNDE ENVIARLO**: no hay dirección, correo, teléfono ni
-   > área responsable. Hay que averiguarlo con el banco. **Es el bloqueante para enviar.**
+   > área responsable. **A pedido del usuario, la ficha NO le pregunta eso al banco**: el destinatario se
+   > resuelve por fuera (se lo pregunta él).
    > **El circuito va al revés de lo que suena**: el ENTE le entrega al BANCO la estructura + las 5
    > boletas de prueba (para que el banco desarrolle en su sistema de Caja), y es el **BANCO el que le
    > manda al ENTE el archivo de rendición** de esas boletas **para que el ENTE lo apruebe**.
