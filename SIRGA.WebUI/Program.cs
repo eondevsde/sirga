@@ -94,6 +94,10 @@ builder.Services.AddScoped(_ => new SemaphoreSlim(1, 1));
 builder.Services.AddScoped(_ => new SIRGA.Infrastructure.Legacy.LegacySindicatoRepository(
     builder.Configuration.GetConnectionString("Legacy") ?? string.Empty));
 
+// Orquesta la conciliación completa: registra el pago en SIRGA y después lo vuelca al legado. Va en
+// Infrastructure porque es la única capa que ve las dos bases; la lógica de cada lado vive en su servicio.
+builder.Services.AddScoped<SIRGA.Infrastructure.Legacy.BankRenditionProcessor>();
+
 // Registro de UnitOfWork y Servicios
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<DeclarationService>();
