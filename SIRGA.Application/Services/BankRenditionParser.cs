@@ -152,7 +152,10 @@ public class BankRenditionParser
           esFormato58 ? 58 : 54,
           ente,
           Entes[ente],
-          $"{periodo[2..4]}-{periodo[..2]}",
+          // OJO: el codigo trae MMAA (mes primero). Si se invierte, el periodo queda como "26-09" y NO
+          // coincide NUNCA con Declarations.Period de SIRGA ("2026-09"): la conciliacion no encontraria
+          // ninguna DDJJ y diria "sin DDJJ" para todo. Lo detecto una prueba.
+          $"20{periodo[2..4]}-{periodo[..2]}",
           cuit,
           LeerImporte(codigo, desdeImp1, anchoImporte),
           LeerFechaJuliana(codigo, desdeVenc1),

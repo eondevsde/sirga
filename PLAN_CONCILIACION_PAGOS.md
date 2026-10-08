@@ -599,3 +599,32 @@ pero posible, y ahora hay 6 muestras en contra).
 El resto de la estructura esta **verificada contra 7 boletas reales**: ente, formato, periodo, CUIT, las dos
 fechas julianas y los dos importes se leen bien (el lector `BankRenditionParser` las decodifica las 7 sin un
 solo problema y el total del archivo cierra al centavo).
+## 17. UN BUG QUE ATRAPO UNA PRUEBA (2026-10-07)
+
+Al escribir las pruebas del lector del archivo del banco, **una fallo** y descubrio un bug real en mi
+codigo: el periodo se armaba **al reves**.
+
+El codigo de barras trae el periodo como **MMAA** (`0926` = septiembre de 2026). Mi lector lo formateaba
+como `26-09`, cuando SIRGA usa **`2026-09`** en `Declarations.Period`.
+
+**Consecuencia si no se detectaba**: la conciliacion compara el periodo del archivo contra el de la DDJJ,
+asi que **NUNCA habria encontrado ninguna DDJJ**: todas las lineas habrian caido en "sin DDJJ en SIRGA" y
+el sistema habria informado, con toda tranquilidad, que no hay nada que conciliar. **Un fallo silencioso
+de los peores: no rompe, miente.**
+
+Lo encontro una prueba (`BankRenditionTests`), no una revision a ojo. Queda como recordatorio de por que
+las pruebas van antes de dar algo por bueno.
+
+**Y un control que hice despues**: volvi a correr la conciliacion real con el bug corregido y **sigue
+dando 0 candidatas** para los CUIT de La Banda del periodo 2026-09. O sea: el hallazgo del punto 16/10
+(que SIRGA no tiene las DDJJ de La Banda) **es correcto y no era efecto del bug**.
+
+### Pruebas agregadas (159 en total, antes 146)
+
+- `BankRenditionTests`: que el codigo se lea completo, que una linea ilegible **no se saltee en silencio**,
+  que detecte el formato de 54 aunque pruebe el de 58 primero, y que controle el total y la cantidad.
+- `BankReconciliationPlannerTests`: las tres concordancias (exacta, con interes, parcial), el pago sin DDJJ,
+  la DDJJ ya pagada (idempotencia) y la tolerancia de los decimales del `float` del legado.
+
+**Los datos de las pruebas son INVENTADOS a proposito**: los archivos reales tienen CUITs e importes de
+empresas reales y no van al repositorio.
