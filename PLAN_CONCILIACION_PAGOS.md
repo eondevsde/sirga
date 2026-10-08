@@ -727,3 +727,47 @@ Hay que implementarlo como guarda en `BoletaService.ArmarAsync` (o antes de gene
 
 **¿La caja de la Sede maneja turnos con apertura/arqueo/cierre, o es solo un registro de cobros?**
 No fue respondido. Define si hace falta una entidad de sesion de caja o alcanza con el cobro suelto.
+## 21. LA CAJA DE LA SEDE: donde va (pregunta del usuario, 2026-10-07)
+
+El usuario confirmo que **la caja maneja TURNOS con apertura y arqueo**, y que **debe generar recibos
+oficiales como los emite SIGESWEB**. Y pregunto **donde conviene hacerlo: en SIGESWEB o en SIRGA**,
+pensando en no duplicar APIs y servicios.
+
+### RECOMENDACION: en SIGESWEB
+
+1. **Los recibos oficiales ya se emiten ahi.** Si SIRGA emitiera los suyos, habria **DOS numeraciones de
+   recibos oficiales**: el mismo numero para dos recibos distintos, o numeros salteados sin explicacion.
+   Es el peor problema posible y es contable, no tecnico.
+2. **SIGESWEB ya tiene `CajaService`** y el modulo de tesoreria/cobranzas (arqueo, rendiciones, reportes).
+3. **La administracion del sindicato es su dominio** (lo definio el usuario). El dinero que entra por la
+   sede ES administracion; las DDJJ son de SIRGA.
+
+### EL PUNTO DE ENCUENTRO YA EXISTE: LA BASE DEL LEGADO
+
+No hace falta **ninguna API entre los dos**: SIRGA escribe `ddjj`/`ddjjt`, SIGESWEB los lee. Es la
+arquitectura que el usuario definio y la que ya esta implementada.
+
+**Consecuencia concreta (es trabajo real, no un detalle):**
+- Hoy **SIGESWEB NUNCA escribe** `fpago`/`impban1` (verificado: no hay ninguna asignacion en su codigo).
+  Si la caja cobra una DDJJ, **SIGESWEB tendria que empezar a escribir** ahi, con el mismo mecanismo que
+  ya construimos para SIRGA: respaldo, `AND fpago IS NULL` y verificacion releyendo.
+- Y **SIRGA tendria que LEER** esos pagos del legado (el espejo de lo que ya hace), para no emitir una
+  boleta de algo que ya se pago en la sede.
+
+### LO QUE HAY QUE DEFINIR ANTES DE CONSTRUIR NADA AHI
+
+`MAPA_MIGRACION_LEGACY_A_WEB.md` (documento del propio SIGESWEB) dice que **conviven dos esquemas de pago**
+—el legacy (`Cobro`/`Recibo`/`FormasDePago`/`PlanDePagoActas`) y el nuevo `Fisc_*`— y lista como pendiente
+**"definir y documentar la fuente de verdad de pagos"**. ⇒ **La caja no se puede construir sobre una base
+que su propio equipo considera en discusion.** Primero hay que fijar cual de los dos esquemas manda.
+
+### LO UNICO QUE NO SE DEBE DUPLICAR: EL QR (MERCADO PAGO)
+
+SIRGA ya tiene el SDK de Mercado Pago y una integracion a medio camino. Si ademas SIGESWEB integra MP, son
+**dos integraciones del mismo servicio** (dos juegos de claves, dos lugares donde se rompe).
+Opcion recomendada: **el QR lo genera SIRGA** y la caja lo pide; SIGESWEB registra "cobrado por QR".
+
+### SI EN CAMBIO SE HICIERA EN SIRGA
+
+Entonces **el recibo oficial igual tiene que salir de SIGESWEB** (por la numeracion), asi que habria que
+exponer un endpoint "emitir recibo" y **ahi si habria API entre los dos**, que es lo que se quiere evitar.
