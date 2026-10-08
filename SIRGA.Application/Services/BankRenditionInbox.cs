@@ -34,10 +34,27 @@ public class BankRenditionInbox
   ///
   /// `moverArchivos: false` sirve para una prueba o un simulacro: procesa e informa **sin mover nada**.
   /// </summary>
+  /// <summary>
+  /// Versión **sincrónica**, para las pruebas y las herramientas de verificación. En la aplicación se usa
+  /// <see cref="BarrerAsync"/>: acá bloquear no molesta porque no hay contexto de sincronización.
+  /// </summary>
   public ResultadoBarrido Barrer(
       string carpetaEntrada,
       Func<BankRenditionParser.Rendicion, string> procesar,
-      bool moverArchivos = true)
+      bool moverArchivos = true) =>
+      BarrerAsync(carpetaEntrada, r => Task.FromResult(procesar(r)), moverArchivos).GetAwaiter().GetResult();
+
+  /// <summary>Versión **asincrónica**: es la que usa la aplicación (servicio en segundo plano).</summary>
+  public Task<ResultadoBarrido> BarrerAsync(
+      string carpetaEntrada,
+      Func<BankRenditionParser.Rendicion, Task<string>> procesar,
+      bool moverArchivos = true) =>
+      BarrerCoreAsync(carpetaEntrada, procesar, moverArchivos);
+
+  private async Task<ResultadoBarrido> BarrerCoreAsync(
+      string carpetaEntrada,
+      Func<BankRenditionParser.Rendicion, Task<string>> procesar,
+      bool moverArchivos)
   {
     if (string.IsNullOrWhiteSpace(carpetaEntrada))
       throw new ArgumentException("Falta la carpeta de entrada de las rendiciones.", nameof(carpetaEntrada));
@@ -64,7 +81,7 @@ public class BankRenditionInbox
           continue;
         }
 
-        var detalle = procesar(rendicion);
+        var detalle = await procesar(rendicion);
         if (rendicion.Problemas.Count > 0)
           detalle += $" ATENCION: {rendicion.Problemas.Count} problema(s) de lectura: " +
                      string.Join(" | ", rendicion.Problemas);
