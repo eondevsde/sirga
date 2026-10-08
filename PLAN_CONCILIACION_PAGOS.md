@@ -286,3 +286,55 @@ Se midieron DDJJ pagadas reales de 2026-08. Resultado:
 | `impban1` | `PaymentTransactions.Amount` (capital + interés) |
 | `fpago` | `PaymentTransactions.PaymentDate` |
 | `fmod` / `usuario` | fecha del proceso / usuario que registró |
+## 10. FORMATO DEL ARCHIVO DE RENDICION DEL BANCO (decodificado 2026-10-07)
+
+Archivo real: `tools\Rendicion del Banco\BSELB20261006.txt` (Sindicato de **La Banda**).
+**8 lineas: 7 de detalle (218 caracteres) + 1 de totales (88).**
+
+### Lineas de detalle (empiezan con `1`), 218 caracteres
+
+| Posiciones | Largo | Contenido |
+|---|---|---|
+| 1 | 1 | `1` = registro de detalle |
+| 2 a 5 | 4 | numero de registro (`0001`..`0007`) |
+| 6 a 13 | 8 | **fecha de proceso `DDMMAAAA`** (`06102026` = 06/10/2026) |
+| 14 a 164 | 151 | relleno con ceros; **incluye el importe** (ej. `20610369` = $206.103,69) |
+| **165 a 218** | **54** | **EL CODIGO DE BARRAS** |
+
+⇒ **El codigo de barras son los ULTIMOS 54 caracteres de cada linea** (164 + 54 = 218 exacto).
+Se decodifica con la estructura del **formato de 54 posiciones** y **ente 0135 (La Banda)**:
+
+```
+0135 4 0926 00000 30707713840 1 26282 20610369 26292 20793204 0 7
+ente f  per  rell    CUIT      m  venc1  imp1     venc2  imp2    su DV
+```
+- **periodo** = posiciones 6-9 del codigo (`0926` = **09/2026**)
+- **CUIT** = posiciones 15-25
+- importes y fechas julianas de los dos vencimientos
+
+### Linea de totales (empieza con `2`), 88 caracteres
+
+| Posiciones | Contenido |
+|---|---|
+| 1 | `2` = registro de totales |
+| 2 a 5 | **cantidad de registros** (`0007` = las 7 lineas de detalle) |
+| 6 a 13 | fecha `DDMMAAAA` (`07102026`) |
+| fin | **importe total** (`49547238` = $495.472,38) |
+
+**VERIFICADO**: la suma de los 7 importes da **$495.472,38**, exactamente el total del archivo ✓.
+
+### Como se identifica de quien es el pago
+
+**Por PERIODO (MMAA) + CUIT**, que estan dentro del codigo de barras ⇒ **una linea identifica la DDJJ
+por si sola**, sin depender del CUIT del encabezado ni del importe. (Es lo que detecto el usuario.)
+
+### HALLAZGO IMPORTANTE: el formato depende del SINDICATO
+
+Las boletas de **La Banda (0135)** son del **formato de 54 posiciones**, incluso con periodo **09/2026**.
+En cambio **Santiago (0134)** ya usa **58** desde mediados de 2025.
+⇒ **El formato del codigo (54 o 58) tiene que ser CONFIGURABLE POR SINDICATO**, igual que el ente.
+Hoy `BoletaBse` arma siempre 58: **para La Banda emitiria un codigo que el banco no lee.**
+
+### PENDIENTE
+Decodificar los 151 caracteres del medio del encabezado (el banco tiene su propia especificacion del
+archivo de rendicion). Para la conciliacion **no hace falta**: alcanza con el codigo de barras del final.
