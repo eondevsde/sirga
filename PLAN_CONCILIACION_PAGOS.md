@@ -539,3 +539,33 @@ usuario no haya tocado con sus pruebas.
 SIRGA **no tiene conexion a la base `Sindicato`** en la aplicacion (solo la tiene `SIRGA.Migration`). El
 escritor necesita: cadena de conexion configurada, un repositorio para el legado, y **simulacro + respaldo
 antes de escribir**, porque son datos del usuario.
+## 15. ESTADO DEL CODIGO del escritor (2026-10-07)
+
+### Lo que YA EXISTE y esta commiteado (`1e3126e`)
+
+- **`SIRGA.Infrastructure/Legacy/LegacySindicatoRepository.cs`**
+  - `LeerFilaBuenaAsync(cuit, periodo)`: aplica **la misma regla que SIGES WEB** (primero la pagada con
+    `titem1 > 0`; si no, la de mayor `rect`).
+  - `SimularPagoAsync(...)`: simulacro obligatorio, **no escribe**.
+  - La cadena se recibe ya resuelta; **si falta, falla con mensaje claro** (no hay cadena escondida).
+- **`ConnectionStrings:Legacy`** en `SIRGA.WebUI/appsettings.Development.json` (Windows auth, sin contrasena).
+  **Falta la de produccion** cuando se despliegue.
+- Probado contra la base real (solo lectura): una DDJJ pagada (dice "no se toca"), una inexistente
+  (avisa que el pago quedaria sin registrar) y sin cadena (falla fuerte).
+- Build 0 avisos, 146/146 tests.
+
+### Lo que FALTA, en orden
+
+1. **Registrar el repositorio en DI** (`Program.cs`): una linea, leyendo `ConnectionStrings:Legacy`.
+2. **La escritura real** (`MarcarPagadaAsync`): con **respaldo de las filas afectadas** antes de escribir
+   (regla del proyecto: son datos del usuario). Idempotente: `AND fpago IS NULL`.
+   - Escribe **solo** `fpago` e `impban1` (+ `fmod`/`usuario`). **NO** toca `estado`, `medio*` ni `trans*`.
+3. **El CRUD de DDJJ que vuelque** la cabecera (`ddjjt`) y el detalle (`ddjj`). Para el detalle falta
+   resolver `impo` (punto 14). **Mientras tanto, `ddjjt` es lo que hace que SIGES deje de ver deuda.**
+4. **Decision de negocio pendiente**: cuando el pago no tiene fila en `ddjjt` (caso ABDALA), ¿se crea la
+   DDJJ en el legado, o se rechaza y se avisa? El repositorio ya lo detecta y lo informa.
+
+### CUIDADO CON LOS ARCHIVOS DEL BANCO
+
+`tools/Rendicion del Banco/` (y el zip) estan **sin trackear** y asi deben quedar: **tienen CUITs e
+importes reales de empresas**. Conviene agregarlos al `.gitignore` para que nadie los commitee de buena fe.
