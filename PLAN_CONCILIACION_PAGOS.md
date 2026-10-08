@@ -628,3 +628,28 @@ dando 0 candidatas** para los CUIT de La Banda del periodo 2026-09. O sea: el ha
 
 **Los datos de las pruebas son INVENTADOS a proposito**: los archivos reales tienen CUITs e importes de
 empresas reales y no van al repositorio.
+## 18. FLUJO COMPLETO VERIFICADO DE PUNTA A PUNTA (2026-10-07)
+
+`BankRenditionProcessor` **se ejecuto** en simulacro (no alcanzaba con que compilara).
+
+**1) Con el archivo REAL de La Banda:** 7 lineas, 0 conciliadas, 7 `SinDdjjEnSirga`, **0 escrituras**.
+
+**2) Con una linea SINTETICA** (CUIT 20405264693, periodo 2026-08, $51.000 — la DDJJ 1737080 de ABDALA,
+que SI existe en SIRGA), para ejercitar tambien la mitad del legado:
+
+```
+lineas 1 | conciliadas 1 | volcadas al legado 0 | sin DDJJ 0 | SIMULACRO True
+  - SIRGA: 1 pago(s) para registrar por 51.000,00.
+  - 20405264693 2026-08 $ 51.000,00: SE REGISTRARIA en la DDJJ 1737080 (Exacta).
+  - Legado (simulacro) 20405264693 2026-08: NO EXISTE la fila en ddjjt: el pago quedaria sin registrar
+    en el legado y SIGES WEB seguiria viendo la deuda. Hay que decidir si se crea la DDJJ en el legado.
+```
+
+**Las dos mitades quedaron ejercitadas** (SIRGA + legado), el periodo y el CUIT del codigo de barras
+encuentran la DDJJ correcta, la conciliacion Exacta se detecta, y **la decision de negocio pendiente la
+plantea el propio codigo en el momento justo** en vez de perder el pago.
+
+**Nada se escribio**: `SIMULACRO True` en los dos casos.
+
+Queda como deuda menor: el orquestador no tiene prueba unitaria (se probo ejecutandolo, que para la
+integracion es mas convincente, pero no corre en el gate).
