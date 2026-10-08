@@ -84,12 +84,14 @@ public class BankRenditionTests
   }
 
   [Fact]
-  public void Si_el_total_no_cierra_lo_avisa()
+  public void Un_total_que_no_cierra_se_informa_pero_no_es_un_error()
   {
-    // El archivo declara 999.999,99 pero la unica linea suma 20.610,36.
+    // Se probaron DOS archivos reales y el importe del renglon de totales NO es el mismo campo en los dos
+    // formatos: compararlo daba una alarma falsa en cada archivo de Santiago. El dato queda disponible
+    // (TotalCoincide en false) pero NO se agrega como problema: lo que se controla es la CANTIDAD.
     var rendicion = new BankRenditionParser().Parsear([LineaDetalle(), LineaTotales("99999999")]);
 
     Assert.False(rendicion.TotalCoincide);
-    Assert.Contains(rendicion.Problemas, p => p.Contains("declara un total"));
+    Assert.Empty(rendicion.Problemas);
   }
 }

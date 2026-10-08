@@ -62,7 +62,12 @@ public class BankRenditionProcessor
 
     foreach (var linea in plan.Lineas.Where(l =>
                  l.Estado is BankReconciliationPlanner.Concordancia.Exacta
-                          or BankReconciliationPlanner.Concordancia.ConInteres))
+                          or BankReconciliationPlanner.Concordancia.ConInteres
+                          // CAMINO "SOLO EN EL LEGADO": en la transicion la DDJJ se confecciono en el
+                          // sistema viejo y NO esta en SIRGA, pero SI en ddjjt. El pago se asienta ahi
+                          // igual, porque es lo que hace que SIGES WEB deje de ver la deuda. Si tampoco
+                          // existe en el legado, MarcarPagadaAsync no escribe nada y lo informa.
+                          or BankReconciliationPlanner.Concordancia.SinDdjjEnSirga))
     {
       var periodo = DateTime.ParseExact(linea.Linea.Periodo + "-01", "yyyy-MM-dd",
           System.Globalization.CultureInfo.InvariantCulture);

@@ -102,8 +102,13 @@ public class BankRenditionParser
     if (cantidad is not null && cantidad != detalle.Count)
       problemas.Add($"El archivo declara {cantidad} registros y se leyeron {detalle.Count}.");
 
-    if (totalDeclarado is not null && Math.Abs(totalDeclarado.Value - totalLeido) >= 0.01m)
-      problemas.Add($"El archivo declara un total de {totalDeclarado:N2} y las lineas suman {totalLeido:N2}.");
+    // OJO: el importe del renglon de totales NO se compara contra la suma de las lineas, y no se informa
+    // como problema. Se probaron DOS archivos reales y el campo NO es el mismo: en el de La Banda el ultimo
+    // numero era el total, y en el de Santiago (formato 58) no coincide con la suma (declara 17.864,78
+    // contra 1.007.102,17 leidos). Compararlo daba una ALARMA FALSA en cada archivo de Santiago.
+    // Lo que SI se controla es la CANTIDAD de registros, que funciona en los dos formatos y es lo que
+    // detecta un archivo incompleto. El total sigue disponible en TotalDeclarado, para cuando el banco
+    // confirme la estructura de ese renglon.
 
     return rendicion;
   }

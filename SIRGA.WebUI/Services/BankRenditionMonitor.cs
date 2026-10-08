@@ -104,8 +104,14 @@ public class BankRenditionMonitor : BackgroundService
     {
       var proceso = await procesador.ProcesarAsync(rendicion, _soloSimulacro, "rendicion-banco", ct);
 
+      // Se registra el DETALLE de cada pago, no solo el resumen. El resumen decia "0 volcada(s)" cuando en
+      // realidad los pagos YA estaban asentados en el legado, y eso confunde: parece que no paso nada.
+      // El detalle dice, linea por linea, que se hizo con cada pago.
+      foreach (var detallePago in proceso.Detalles)
+        _logger.LogInformation("Rendición del banco: {Detalle}", detallePago);
+
       return $"{proceso.Conciliadas} conciliada(s), {proceso.VolcadasAlLegado} volcada(s) al legado, " +
-             $"{proceso.SinDdjj} sin DDJJ, {proceso.Parciales} parcial(es)" +
+             $"{proceso.SinDdjj} sin DDJJ en SIRGA, {proceso.Parciales} parcial(es)" +
              (proceso.Simulacro ? " [SIMULACRO: no se escribió nada]" : "");
     });
 
