@@ -101,7 +101,8 @@ builder.Services.AddScoped<SIRGA.Infrastructure.Legacy.BankRenditionProcessor>()
 // Revisa cada tanto la carpeta donde el cliente de correo deja los archivos de rendición del banco.
 // Si no hay carpeta configurada (RendicionBanco:CarpetaEntrada) no hace nada y lo avisa una vez. Y por
 // defecto procesa en SIMULACRO (RendicionBanco:ModoSimulacro: false para que escriba de verdad).
-builder.Services.AddHostedService<SIRGA.WebUI.Services.BankRenditionMonitor>();
+builder.Services.AddSingleton<SIRGA.WebUI.Services.BankRenditionMonitor>();
+builder.Services.AddHostedService(p => p.GetRequiredService<SIRGA.WebUI.Services.BankRenditionMonitor>());
 
 // Registro de UnitOfWork y Servicios
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
