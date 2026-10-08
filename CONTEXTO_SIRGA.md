@@ -543,7 +543,56 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 
 ## 7. Pendiente, en orden
 
-0. **PAQUETE PARA EL BANCO (BSE)** — armado el 2026-10-07 en `.dsh-tools/paquete-banco/` (ignorado por
+0. **TRES TAREAS EN CURSO (2026-10-07) — el detalle completo está en `PLAN_CONCILIACION_PAGOS.md`.**
+   El usuario definió tres tareas, con el reparto así: **SIRGA maneja las DDJJ (CRUD) y registra los
+   pagos**; **SIGES WEB lee** las actualizaciones, determina qué empresa debe y emite actas, y administra
+   el sindicato. O sea: **SIRGA escribe `ddjj`/`ddjjt` y SIGES WEB los lee.**
+
+   | # | Tarea | Estado |
+   |---|---|---|
+   | 1 | CRUD de DDJJ que **vuelque** a `ddjj`/`ddjjt` | escritor de PAGOS listo y probado; **falta el de DDJJ** |
+   | 2 | Conciliar el **archivo del banco** + bajar del correo solo | lector y planificador listos; falta el registro y el IMAP |
+   | 3 | **Caja en la Sede** con tipo de cobro (Efectivo/Cheque/Transferencia/QR) | sin empezar |
+
+   **Lo que YA está hecho y verificado** (todo en `main`):
+   - `LegacySindicatoRepository` (Infrastructure/Legacy): lee la **fila buena** de `ddjjt` con la misma
+     regla que SIGES WEB, `SimularPagoAsync` (no escribe) y `MarcarPagadaAsync` (escribe **sólo `fpago` e
+     `impban1`**, con **respaldo en `_BackupDdjjtPago`** y verificación releyendo, todo en una transacción).
+     Registrado en DI; la cadena `ConnectionStrings:Legacy` está en `appsettings.Development.json`
+     (**falta la de producción**).
+   - `BankRenditionParser`: lee el archivo de rendición. El **código de barras son los últimos 54 dígitos**
+     de cada línea de 218; la línea de totales (88) trae la cantidad y el importe. **Verificado contra el
+     archivo real de La Banda**: 7/7 líneas y el total cierra al centavo.
+   - `BankReconciliationPlanner`: decide qué hacer con cada línea **sin escribir nada**. Estados: Exacta /
+     **ConInteres** (pagó de más: es la mora, el pago es COMPLETO) / Parcial / SinDdjjEnSirga / YaPagada.
+   - **159 tests** (antes 146).
+   > **LA FÓRMULA DEL LEGADO, VERIFICADA AL CENTAVO** (esto es lo que necesita cualquier escritor):
+   > `impo + impoaux` = **la remuneración del empleado** · `item2 = 1` ⇒ **es socio** ·
+   > **`titem1` = 2% de TODOS los empleados** (no sólo los no socios) · **`titem2` = 2% de los socios** ·
+   > `fpago` es **la marca de pagada** (`estado` no se mira) · `impban1` = lo pagado (capital + interés).
+   > **Regla de consistencia**: SIGES calcula el aporte desde `ddjj` en unas pantallas y lo lee de `ddjjt`
+   > en otras ⇒ **`ddjjt.titem1` tiene que ser igual al 2% de la suma de `ddjj`**.
+   >
+   > **TRAMPAS NUEVAS APRENDIDAS ACÁ**:
+   > - Cruzar SIRGA con el legado necesita **`COLLATE DATABASE_DEFAULT`** en cada comparación (las bases
+   >   tienen cotejaciones distintas: sin eso **falla con error**, no devuelve vacío) y el período del
+   >   legado es `datetime` ⇒ normalizarlo a `YYYY-MM`.
+   > - El período del código de barras es **MMAA**; formatearlo al revés daba `26-09` en vez de `2026-09` y
+   >   **la conciliación no habría encontrado ninguna DDJJ nunca** (lo atrapó una prueba, no la vista).
+   > - Los importes del legado son **`float`** (`1234.5599999999999`): **no comparar por igualdad exacta**.
+   > - **SIRGA no tiene las DDJJ de La Banda** para 2026-09 (0 candidatas de 7 CUIT): la conciliación de
+   >   La Banda hoy no puede registrar nada. Y **La Banda usa el formato de 54 posiciones** mientras
+   >   Santiago usa 58 ⇒ **el formato tiene que ser configurable por sindicato** (`BoletaBse` arma siempre 58).
+   >
+   > **DECISIONES DE NEGOCIO PENDIENTES (frenan la tarea 1):**
+   > 1. ¿SIRGA **crea** la DDJJ en el legado cuando no existe, o rechaza y avisa? (afecta a todo La Banda).
+   > 2. ¿La Banda se concilia en SIRGA o sigue en el sistema viejo? (si sigue, hay que filtrar por ente).
+   > 3. Para la caja: **¿qué QR?** y **¿maneja turnos con arqueo?**
+   >
+   > **CUIDADO**: los archivos del banco (`tools/Rendicion del Banco/`) tienen **CUITs e importes reales** y
+   > quedan **sin trackear**: conviene agregarlos al `.gitignore`. Las pruebas usan datos **inventados**.
+
+0.1 **PAQUETE PARA EL BANCO (BSE)** — armado el 2026-10-07 en `.dsh-tools/paquete-banco/` (ignorado por
    git): las **5 boletas de prueba** + la **ficha técnica en PDF** + un `README.md` con el índice.
    Se regenera con `dotnet run --project .dsh-tools/verif-boleta -- paquete` y después `-- ficha`.
    **Lo que el banco pide** (su documentación, *Etapas de implementación*): estructura del código de
