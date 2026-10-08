@@ -35,6 +35,17 @@ public class BoletaService(IUnitOfWork unitOfWork)
     var configuracion = cabecera.Configuracion!;
     var banco = cabecera.Banco!;
 
+    // CONTROL PEDIDO POR EL USUARIO (2026-10-07): "ninguna boleta puede imprimirse si no está presentada
+    // antes". Un BORRADOR no está presentado: emitir su boleta sería cobrar una DDJJ que nunca se presentó
+    // (y que SIGES WEB todavía no ve, porque el volcado al legado ocurre en la presentación).
+    // Va acá, en el servicio, y no sólo en la pantalla: si no, se saltea por API.
+    if (declaracion.Status == DeclarationStatus.Draft)
+    {
+      return new BoletaArmadoResult(null,
+          $"La DDJJ {declaracion.Id} (período {declaracion.Period}) todavía es un BORRADOR: no está " +
+          "presentada, así que no se emite su boleta. Presentala primero.", null);
+    }
+
     // Una DDJJ reemplazada por una rectificativa NO emite boleta: la deuda es la de la versión vigente, y
     // emitir la de la versión vieja sería cobrar dos veces la misma DDJJ. Se bloquea acá (servicio) y no
     // sólo en la pantalla: si no, quedaría evitable por API.
