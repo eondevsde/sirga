@@ -91,3 +91,9 @@ Desktop.ini
 $RECYCLE.BIN/
 *.lnk
 .DS_Store
+
+# --- Archivos de rendicion del banco ---------------------------------------------------------
+# Tienen CUITs e importes REALES de empresas: no van al repositorio. (Las pruebas usan datos
+# inventados a proposito.) Si se commitean, quedan en el historial para siempre.
+/tools/Rendicion del Banco/
+/tools/Rendicion del BSE.zip
