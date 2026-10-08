@@ -64,7 +64,11 @@ public class BankRenditionInbox
     var parser = new BankRenditionParser();
     var resultados = new List<ResultadoArchivo>();
 
-    foreach (var archivo in Directory.GetFiles(carpetaEntrada, "*.txt").OrderBy(a => a))
+    // OJO: NO filtrar por "*.txt". El banco manda los archivos con OTRA extension (se recibio uno
+    // llamado `Pagos_1_160926.bse`), y con el filtro anterior se IGNORABA EN SILENCIO: la bandeja no lo
+    // veia y la pantalla decia "no habia archivos nuevos". Se toman TODOS los archivos: si alguno no se
+    // puede leer, va a Errores/ y se informa. Mejor ruido visible que un pago que nunca se procesa.
+    foreach (var archivo in Directory.GetFiles(carpetaEntrada).OrderBy(a => a))
     {
       var nombre = Path.GetFileName(archivo);
       try
