@@ -684,3 +684,46 @@ Un **servicio en segundo plano** que revise la carpeta cada N minutos y llame al
 **No se commitea codigo que se sabe imperfecto.** El arreglo correcto es darle a `BankRenditionInbox` una
 version `BarrerAsync` (el callback como `Func<Rendicion, Task<string>>`) y que el servicio la use con
 `await`; la version sincronica actual queda solo para las pruebas y el verificador.
+## 20. RESPUESTAS DEL USUARIO (2026-10-07) — cambian el diseno
+
+### 1) El archivo de La Banda y el "sin DDJJ en SIRGA": era esperado, NO un error
+
+El `.txt` que paso el usuario es del **Sindicato de La Banda** (empresas radicadas o con sucursal en La
+Banda) ⇒ sus empleados son de La Banda ⇒ **nunca va a haber filas en `ddjj`/`ddjjt`** porque la base que
+usa SIRGA es la del **SEC Santiago**. O sea: que las 7 lineas digan "sin DDJJ en SIRGA" **es lo correcto**,
+no un defecto de la conciliacion.
+
+**Y el caso casi no puede darse (99,99%)**, por como es el circuito:
+
+> **En SIRGA se confecciona la DDJJ, despues SE PRESENTA, y recien ahi se escribe en `DDJJT` de SIGES.**
+
+⇒ Primero la DDJJ en SIRGA; una vez **presentada**, se escribe en el legado.
+
+### 2) La regla de correo: aprobada
+
+El usuario dio el OK a que el cliente de correo deje el adjunto en la carpeta y SIRGA lo procese.
+
+### 3) LAS CUENTAS DEL SINDICATO (define los medios de cobro del punto 3)
+
+| Cuenta | Como se cobra |
+|---|---|
+| **BSE — Sindicato** | **transferencia** o **efectivo** en la **sede sindical**; **efectivo unicamente en el Banco** |
+| BSE — Farmacia Sindical | **no la usamos** |
+| **Mercado Pago — Sindicato** | **QR** |
+
+⇒ Para la caja de la Sede: **Efectivo**, **Transferencia** (cuenta BSE del sindicato) y **QR** (Mercado Pago).
+El cheque queda en el catalogo porque estaba en el pedido original, pero **no fue mencionado en esta
+respuesta**: confirmar si se usa.
+
+### ⚠️ CONTROL QUE PIDIO EL USUARIO (anotado para controlarlo)
+
+> **NUNCA se puede imprimir una boleta para pagar en el banco si antes no se escribio en SIGES y no esta
+> reflejada, para esa empresa, la DDJJ y la DDJJT.**
+
+Es una **precondicion de la emision de la boleta**: si la DDJJ no esta volcada al legado, no se emite.
+Hay que implementarlo como guarda en `BoletaService.ArmarAsync` (o antes de generar el PDF) y probarlo.
+
+### PENDIENTE (una sola cosa)
+
+**¿La caja de la Sede maneja turnos con apertura/arqueo/cierre, o es solo un registro de cobros?**
+No fue respondido. Define si hace falta una entidad de sesion de caja o alcanza con el cobro suelto.
