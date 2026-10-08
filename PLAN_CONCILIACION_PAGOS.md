@@ -489,3 +489,53 @@ Las comparaciones **entre** SIRGA y el legado por (CUIT + periodo) son **invalid
 nueva: SIRGA tiene las DDJJ creadas en el sistema nuevo y el legado las del sistema viejo para el mismo
 periodo, con **distintos empleados e importes**. Para comparar hay que usar una DDJJ **migrada**
 (`DeclarationDetails.UsaEscala = 1`).
+## 14. `impo` — NO SE PUDO CERRAR (2026-10-07). Decision tomada.
+
+Se repitio la comparacion con **DDJJ migradas** (`DeclarationDetails.UsaEscala = 1`), que son las unicas que
+existen en las dos bases. Resultado:
+
+**DDJJ 1737082 (3 empleados, TODOS socios, `item2` = 1):**
+
+| SIRGA BaseSalary | legado `impo` | impo / base |
+|---|---|---|
+| 1.705.760,77 | 1.729.461,16 | 1,0139 |
+| 1.500.000,00 | 1.544.997,92 | 1,0300 |
+| 1.445.000,00 | 1.391.956,98 | 0,9633 |
+
+**DDJJ 1737081 (4 empleados, NINGUNO socio, `item2` = 0):**
+
+| SIRGA BaseSalary | legado `impo` |
+|---|---|
+| 1.304.588,43 | **1.414.205,90** |
+| 1.297.787,34 | **1.414.205,90** |
+| 1.249.271,92 | **1.414.205,90** |
+| 1.297.787,34 | **1.414.205,90** |
+
+### El problema
+
+- En la DDJJ **con socios**, `impo` sigue de cerca a `BaseSalary` (diferencia del 1 al 4%).
+- En la DDJJ **sin socios**, **los 4 empleados tienen el MISMO `impo`** aunque sus `BaseSalary` son
+  distintos.
+
+No se puede saber si eso es porque (a) **`impo` no es un dato por empleado** en el legado, o (b) **el cruce
+esta tomando las filas equivocadas** (el legado tiene CUIL repetidos). **Sin distinguir (a) de (b) no se
+puede mapear `impo`, y escribirlo mal serian importes incorrectos en 1,35 millones de filas.**
+
+### DECISION: el escritor arranca por `ddjjt`, que es lo verificado
+
+**La deuda y las actas que hace SIGES WEB NO dependen de `impo`**: dependen de
+**`ddjjt.titem1 + titem2 − impban1`** y de **`fpago`** (verificado en su codigo, puntos 8 y 13).
+Y la formula de `titem1`/`titem2` esta **verificada al centavo**.
+
+⇒ **Se implementa primero el escritor de `ddjjt`** (que es lo que hace que SIGES deje de ver deuda).
+⇒ **`ddjj` queda para despues**: la pantalla de detalle de empleados mostrara vacio para las DDJJ creadas
+en SIRGA, que es **mucho menos grave que mostrar importes equivocados**.
+⇒ **Que falta para cerrar `impo`**: confirmar si el legado realmente guarda un importe por empleado en
+`ddjj` (mirando la pantalla del sistema viejo) **o** comparar con una DDJJ migrada de un periodo que el
+usuario no haya tocado con sus pruebas.
+
+### Y una advertencia sobre la conexion
+
+SIRGA **no tiene conexion a la base `Sindicato`** en la aplicacion (solo la tiene `SIRGA.Migration`). El
+escritor necesita: cadena de conexion configurada, un repositorio para el legado, y **simulacro + respaldo
+antes de escribir**, porque son datos del usuario.
