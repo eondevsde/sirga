@@ -338,3 +338,52 @@ Hoy `BoletaBse` arma siempre 58: **para La Banda emitiria un codigo que el banco
 ### PENDIENTE
 Decodificar los 151 caracteres del medio del encabezado (el banco tiene su propia especificacion del
 archivo de rendicion). Para la conciliacion **no hace falta**: alcanza con el codigo de barras del final.
+## 11. MAPEO DE `ddjj` (detalle por empleado) — relevado 2026-10-07
+
+### Como se cruzan las dos bases (VERIFICADO)
+
+La union entre SIRGA y el legado necesita **tres cosas**, y sin cualquiera de ellas da CERO filas:
+
+```sql
+JOIN Sindicato.dbo.ddjj l
+  ON REPLACE(l.CUIL_STR,'-','') COLLATE DATABASE_DEFAULT
+   = REPLACE(e.Dni,'-','')     COLLATE DATABASE_DEFAULT        -- CUIL: SIRGA guarda Employees.Dni
+ AND l.CUIT_STR COLLATE DATABASE_DEFAULT = c.Cuit COLLATE DATABASE_DEFAULT
+ AND CONVERT(varchar(7), l.periodo, 126) = s.Period            -- 'YYYY-MM' contra datetime
+```
+
+1. **`COLLATE DATABASE_DEFAULT` OBLIGATORIO**: las dos bases tienen cotejaciones distintas
+   (`SQL_Latin1_General_CP1_CI_AS` vs `Modern_Spanish_CI_AS`) y sin esto el cruce **falla con error**, no
+   devuelve vacio.
+2. **La llave del empleado es `Employees.Dni`** (un CUIL de 11 digitos, sin guiones).
+3. **El periodo del legado es `datetime`**: hay que normalizarlo a `YYYY-MM` para compararlo con
+   `Declarations.Period`.
+
+### Lo que se verifico comparando fila por fila
+
+| SIRGA | Legado | Estado |
+|---|---|---|
+| `DeclarationDetails.BaseSalary` | `ddjj.impo` | **NO es el mismo dato** (ver abajo) |
+| `DeclarationDetails.LawContribution` | — | **= `BaseSalary` × 2%** (verificado exacto) |
+| `DeclarationDetails.MemberContribution` | `ddjj.item2` | **`item2` = 1 si el empleado es socio** (correlacion perfecta) |
+| — | `ddjj.item1` | **= 1 siempre** en las filas comparadas |
+| — | `ddjj.impom1` | **NO se usa nunca** (0 de 1.350.524 filas) |
+| — | `ddjj.impp`, `ddjj.impoaux` | se usan poco (12% y 17%) |
+| — | `ddjj.activo` | correlaciona con la condicion de socio: **falta confirmar** |
+
+### Dos avisos que salieron del relevamiento
+
+1. **`impo` NO es `BaseSalary`.** En las filas comparadas `BaseSalary` = 1.445.000 y `impo` = 1.391.956,98;
+   en otra `BaseSalary` = 1.482.763 y `impo` = 1.835.674. **No hay proporcion constante** ⇒ `impo` es
+   *otro* concepto (probablemente **la remuneracion declarada**, con antiguedad y NR incluidos).
+   **NO mapear `impo` a `BaseSalary`**: hay que determinar de donde sale `impo` en SIRGA antes de escribir.
+2. **El cruce con `ddjj` es 1 a N**: hay **CUIL repetidos** para el mismo CUIT y periodo en el legado.
+   La comparacion de arriba mezcla filas por eso ⇒ **para terminar el mapeo hay que deduplicar primero**
+   (es la misma clase de problema que la "fila buena" de `ddjjt`).
+3. **Los importes del legado son `float`** y traen artefactos (`1729461.1599999999`). Al comparar y al
+   escribir, tenerlo presente: **no se puede comparar por igualdad exacta**.
+
+### Lo que falta para cerrar el mapeo de `ddjj`
+- Deduplicar el legado y volver a comparar para confirmar `impo` contra el campo de SIRGA que le
+  corresponde (¿la remuneracion calculada del detalle?).
+- Confirmar `activo`, `cargaf`, `jub`, `jorp`, `item3`, `item4` (en las filas medidas dieron 0).
