@@ -98,6 +98,12 @@ builder.Services.AddScoped(_ => new SIRGA.Infrastructure.Legacy.LegacySindicatoR
 // Infrastructure porque es la única capa que ve las dos bases; la lógica de cada lado vive en su servicio.
 builder.Services.AddScoped<SIRGA.Infrastructure.Legacy.BankRenditionProcessor>();
 
+// Vuelca la DDJJ al legado (`ddjj`/`ddjjt`) cuando se PRESENTA: es lo que hace que SIGES WEB deje de ver
+// a la empresa como deudora. Va por interfaz porque la capa de aplicacion no puede conocer esta base.
+builder.Services.AddScoped<SIRGA.Application.Interfaces.ILegacyDeclarationWriter>(_ =>
+    new SIRGA.Infrastructure.Legacy.LegacyDeclarationWriter(
+        builder.Configuration.GetConnectionString("Legacy") ?? string.Empty));
+
 // Revisa cada tanto la carpeta donde el cliente de correo deja los archivos de rendición del banco.
 // Si no hay carpeta configurada (RendicionBanco:CarpetaEntrada) no hace nada y lo avisa una vez. Y por
 // defecto procesa en SIMULACRO (RendicionBanco:ModoSimulacro: false para que escriba de verdad).
