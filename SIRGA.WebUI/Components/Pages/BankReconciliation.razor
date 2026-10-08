@@ -1,4 +1,5 @@
 @page "/conciliacion/banco"
+@attribute [Authorize(Roles = "Sindicato,Admin")]
 @using SIRGA.Application.Services
 @inject SIRGA.WebUI.Services.BankRenditionMonitor Monitor
 @inject IConfiguration Configuracion
