@@ -86,6 +86,14 @@ builder.Services.AddTransient<SIRG_DbContext>(p =>
 // DbContext scoped del circuito. Un semáforo compartido serializa el acceso al contexto.
 builder.Services.AddScoped(_ => new SemaphoreSlim(1, 1));
 
+// Acceso a la base del sistema anterior (`Sindicato`), de la que se alimenta SIGES WEB: SIRGA maneja las
+// DDJJ y registra los pagos, y SIGES WEB LEE `ddjj`/`ddjjt` para saber si una empresa debe.
+// Se resuelve la cadena ACA y se pasa al repositorio: no hay ninguna cadena por defecto escondida en el
+// codigo. Si falta la configuracion, el repositorio falla con un mensaje claro cuando se lo usa (y no en
+// el arranque, para que la app siga funcionando en un entorno que no tenga el legado).
+builder.Services.AddScoped(_ => new SIRGA.Infrastructure.Legacy.LegacySindicatoRepository(
+    builder.Configuration.GetConnectionString("Legacy") ?? string.Empty));
+
 // Registro de UnitOfWork y Servicios
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<DeclarationService>();
