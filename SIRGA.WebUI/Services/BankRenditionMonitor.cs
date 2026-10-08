@@ -93,9 +93,9 @@ public class BankRenditionMonitor : BackgroundService
   }
 
   /// <summary>Un barrido completo. Público para poder dispararlo desde una pantalla o una prueba.</summary>
-  public async Task RevisarUnaVezAsync(CancellationToken ct = default)
+  public async Task<BankRenditionInbox.ResultadoBarrido> RevisarUnaVezAsync(CancellationToken ct = default)
   {
-    if (string.IsNullOrWhiteSpace(_carpetaEntrada)) return;
+    if (string.IsNullOrWhiteSpace(_carpetaEntrada)) return new BankRenditionInbox.ResultadoBarrido([]);
 
     using var alcance = _scopeFactory.CreateScope();
     var procesador = alcance.ServiceProvider.GetRequiredService<BankRenditionProcessor>();
@@ -125,5 +125,7 @@ public class BankRenditionMonitor : BackgroundService
 
     if (resultado.Archivos.Count == 0)
       _logger.LogDebug("Rendición del banco: no había archivos nuevos.");
+
+    return resultado;
   }
 }

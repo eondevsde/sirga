@@ -1,0 +1,111 @@
+@page "/conciliacion/banco"
+@using SIRGA.Application.Services
+@inject SIRGA.WebUI.Services.BankRenditionMonitor Monitor
+@inject IConfiguration Configuracion
+@inject ISnackbar Snackbar
+
+<PageTitle>Conciliación del banco</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mt-4 mb-2">Conciliación del banco</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">
+  Revisa la carpeta donde el cliente de correo deja los archivos de rendición del banco y registra los pagos.
+  <b>La automatización no se ve desde ningún lado, así que esta pantalla muestra qué hizo y en qué modo está.</b>
+</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+  <MudText Typo="Typo.subtitle1" Class="mb-2">Cómo está configurada</MudText>
+  <ul style="font-size:0.95rem">
+    <li>Carpeta: <b>@_carpeta</b></li>
+    <li>Revisa cada <b>@_intervalo</b> minuto(s), y también al arrancar la aplicación.</li>
+    <li>
+      Modo:
+      @if (_simulacro)
+      {
+        <b style="color:#b45309">SIMULACRO — lee y concilia, pero NO escribe en ninguna base</b>
+      }
+      else
+      {
+        <b style="color:#b91c1c">ESCRITURA REAL — registra los pagos en SIRGA y los vuelca al legado</b>
+      }
+    </li>
+  </ul>
+  <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RevisarAhora" Disabled="_revisando">
+    @(_revisando ? "Revisando..." : "Revisar ahora")
+  </MudButton>
+</MudPaper>
+
+@if (_resultado is not null)
+{
+  <MudPaper Class="pa-4" Elevation="2">
+    <MudText Typo="Typo.subtitle1" Class="mb-2">
+      Resultado de la última revisión (@_archivos.Count archivo(s))
+    </MudText>
+
+    @if (_archivos.Count == 0)
+    {
+      <MudText>No había archivos nuevos en la carpeta. Los que ya se procesaron quedan archivados en
+        <b>Procesados/</b> y los que fallaron en <b>Errores/</b>: ninguno se borra.</MudText>
+    }
+    else
+    {
+      <table style="width:100%; font-size:0.9rem; border-collapse:collapse">
+        <thead>
+          <tr style="text-align:left; border-bottom:1px solid #ddd">
+            <th style="padding:4px">Archivo</th>
+            <th style="padding:4px">Resultado</th>
+            <th style="padding:4px">Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach (var archivo in _archivos)
+          {
+            <tr style="border-bottom:1px solid #eee">
+              <td style="padding:4px">@archivo.Archivo</td>
+              <td style="padding:4px; color:@(archivo.Ok ? "#15803d" : "#b91c1c")">
+                @(archivo.Ok ? "Procesado" : "CON ERROR")
+              </td>
+              <td style="padding:4px">@archivo.Detalle</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </MudPaper>
+}
+
+@code {
+  private string _carpeta = "(sin configurar)";
+  private int _intervalo = 30;
+  private bool _simulacro = true;
+  private bool _revisando;
+  private BankRenditionInbox.ResultadoBarrido? _resultado;
+  private IReadOnlyList<BankRenditionInbox.ResultadoArchivo> _archivos = [];
+
+  protected override void OnInitialized()
+  {
+    _carpeta = Configuracion["RendicionBanco:CarpetaEntrada"] ?? "(sin configurar: no revisa nada)";
+    _intervalo = int.TryParse(Configuracion["RendicionBanco:IntervaloMinutos"], out var minutos) ? minutos : 30;
+    _simulacro = !string.Equals(Configuracion["RendicionBanco:ModoSimulacro"], "false",
+        StringComparison.OrdinalIgnoreCase);
+  }
+
+  private async Task RevisarAhora()
+  {
+    _revisando = true;
+    try
+    {
+      _resultado = await Monitor.RevisarUnaVezAsync();
+      _archivos = _resultado.Archivos;
+      Snackbar.Add($"Revisión terminada: {_archivos.Count} archivo(s).", Severity.Info);
+    }
+    catch (Exception ex)
+    {
+      // Si la revisión falla, se dice: no puede quedar como si no hubiera pasado nada.
+      Snackbar.Add($"No se pudo revisar la carpeta: {ex.Message}", Severity.Error);
+    }
+    finally
+    {
+      _revisando = false;
+    }
+  }
+}
