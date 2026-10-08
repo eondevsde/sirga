@@ -569,3 +569,33 @@ antes de escribir**, porque son datos del usuario.
 
 `tools/Rendicion del Banco/` (y el zip) estan **sin trackear** y asi deben quedar: **tienen CUITs e
 importes reales de empresas**. Conviene agregarlos al `.gitignore` para que nadie los commitee de buena fe.
+## 16. CORRECCION IMPORTANTE sobre el digito verificador (2026-10-07)
+
+Con el archivo real del banco quedaron **7 boletas mas** del formato de 54 posiciones, de **La Banda**
+(ente 0135). Se probaron las dos formulas candidatas contra ellas:
+
+| formula | aciertos |
+|---|---|
+| la implementada en SIRGA (pesos 3-1, mod 10, suma de digitos) | **0 de 6** |
+| Luhn / mod 11 (pesos 2-1 sumando digitos) | **0 de 6** |
+
+*(eran 7 codigos; uno lo transcribi mal en el script —53 digitos— y quedo afuera: 6 utiles.)*
+
+### LO QUE ESTO CORRIGE
+
+En el punto 8 quedo escrito que **Luhn / mod 11** "acierta 2 de 2" boletas independientes del formato de 54
+y que por eso era la candidata mas fuerte. **Esa conclusion NO se sostiene**: con 6 boletas reales mas del
+MISMO formato, Luhn **falla las 6**. Lo mas probable es que aquellas 2 coincidencias fueran casualidad
+(con 2 muestras, una formula equivocada acierta ~1 de cada 10 veces... dos veces seguidas es poco probable
+pero posible, y ahora hay 6 muestras en contra).
+
+⇒ **El algoritmo del digito verificador sigue SIN CONOCERSE**, para los dos formatos. Lo unico firme es:
+- **el implementado es imposible** (solo puede dar 0 a 5) y falla 0 de 6 contra boletas reales;
+- **ninguna formula estandar probada acierta**;
+- **el banco tiene la respuesta** y ya se la esta consultando en la ficha tecnica del paquete.
+
+### LO QUE SI QUEDO FIRME
+
+El resto de la estructura esta **verificada contra 7 boletas reales**: ente, formato, periodo, CUIT, las dos
+fechas julianas y los dos importes se leen bien (el lector `BankRenditionParser` las decodifica las 7 sin un
+solo problema y el total del archivo cierra al centavo).
