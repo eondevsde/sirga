@@ -429,3 +429,63 @@ En vez de ingenieria inversa de las 19 columnas de `ddjj`, buscar **el servicio 
 `DetalleEmpleadosDialog`** (`SIGESWEB.Web\Components\Pages\Actas\DetalleEmpleadosDialog.razor`) y ver
 **que campos de `ddjj` lee exactamente**. Esos son los unicos que hay que escribir bien. El resto, si no
 lo lee nadie, no se toca.
+## 13. LA FORMULA DEL LEGADO — VERIFICADA CON PRUEBA ARITMETICA (2026-10-07)
+
+### Semantica de los campos (del codigo de SIGES WEB, `ActasService.cs` lineas 112-115)
+
+```csharp
+TotalSueldoEmpleados = g.Where(x => x.item2 != true).Sum(x => x.impo + x.impoaux)
+TotalSueldoSocios    = g.Where(x => x.item2 == true).Sum(x => x.impo + x.impoaux)
+AporteLey            = g.Where(x => x.item2 != true).Sum(x => (x.impo + x.impoaux) * 0.02m)
+```
+
+- **`impo` + `impoaux` = LA REMUNERACION del empleado.** (`impoaux` no es basura: SIGES lo SUMA.)
+- **`item2` = 1 si el empleado es SOCIO.** (Verificado tambien contra `MemberContribution` de SIRGA.)
+- **`item1` = 1** (no lo usa nadie de las formulas).
+
+### La formula de `ddjjt` (VERIFICADA, coincide al centavo)
+
+```
+titem1 = 2% x SUMA(impo + impoaux) sobre TODOS los empleados      <- aporte de ley
+titem2 = 2% x SUMA(impo + impoaux) sobre los SOCIOS (item2 = 1)    <- cuota sindical
+```
+
+**Prueba** (medida sobre el legado, periodo 2026-08):
+
+| CUIT | base sin socios | base socios | base TOTAL | 2% de la total | `titem1` real | 2% socios | `titem2` real |
+|---|---|---|---|---|---|---|---|
+| 20228388379 | 133.874.337,75 | 165.947.579,59 | 299.821.917,34 | **5.996.438,34** | **5.996.438,30** ✓ | 3.318.951,59 | 3.318.951,62 ✓ |
+| 30590360763 | 114.542.528,96 | 175.620.041,00 | 290.162.569,96 | **5.803.251,40** | **5.803.251,41** ✓ | **3.512.400,82** | **3.512.400,85** ✓ |
+
+⇒ **`titem1` NO es el 2% de los no socios: es el 2% de TODOS.** `titem2` es el 2% de los socios.
+(Las diferencias son de redondeo del `float`.)
+
+### LO QUE TIENE QUE ESCRIBIR EL ESCRITOR (esto ya no es hipotesis)
+
+| `ddjj` (por empleado) | Valor |
+|---|---|
+| `impo` | la remuneracion del empleado (el campo de SIRGA que corresponde a `BaseSalary`, **a confirmar con una DDJJ migrada**) |
+| `impoaux` | 0 (o la parte auxiliar, si corresponde) |
+| `item1` | 1 |
+| `item2` | 1 si es socio, 0 si no |
+| `impp`, `impom1` | **no se usan** (0% de las filas) |
+| `activo` | correlaciona con socio: **falta confirmar** |
+
+| `ddjjt` (por DDJJ) | Valor |
+|---|---|
+| `titem1` | `SUM(BaseSalary) * 0.02` (todos los empleados) |
+| `titem2` | `SUM(BaseSalary de los socios) * 0.02` |
+| `impban1` | lo pagado (capital + interes) |
+| `fpago` | fecha de pago (ES la marca de pagada) |
+| `estado`, `medio1/2/3`, `trans1/2/3` | **NO se tocan** (SIGES no los mira) |
+
+**REGLA DE CONSISTENCIA**: SIGES calcula el aporte desde `ddjj` en unas pantallas y lo lee de `ddjjt` en
+otras ⇒ **`ddjjt.titem1` tiene que ser igual al 2% de la suma de `ddjj`**. Si los dos no coinciden, las
+pantallas muestran numeros distintos para la misma DDJJ.
+
+### Advertencia metodologica (para no repetir el error)
+
+Las comparaciones **entre** SIRGA y el legado por (CUIT + periodo) son **invalidas** si la DDJJ de SIRGA es
+nueva: SIRGA tiene las DDJJ creadas en el sistema nuevo y el legado las del sistema viejo para el mismo
+periodo, con **distintos empleados e importes**. Para comparar hay que usar una DDJJ **migrada**
+(`DeclarationDetails.UsaEscala = 1`).
