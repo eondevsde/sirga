@@ -653,3 +653,34 @@ plantea el propio codigo en el momento justo** en vez de perder el pago.
 
 Queda como deuda menor: el orquestador no tiene prueba unitaria (se probo ejecutandolo, que para la
 integracion es mas convincente, pero no corre en el gate).
+## 19. LA DESCARGA DEL CORREO: NO HACE FALTA IMAP (hallazgo 2026-10-07)
+
+Se intento implementar la descarga automatica del correo dentro de SIRGA y aparecieron dos paredes:
+
+1. **No hay ninguna libreria de correo** en la cache de NuGet (ni MailKit ni MimeKit), y agregar un
+   paquete nuevo exigiria un restore con red. **No se puede.**
+2. Leer la casilla desde SIRGA obligaria a **guardar la contrasena del correo dentro de la aplicacion**,
+   que es justo lo que venimos evitando (igual que con la de SQL).
+
+### LA SOLUCION ES MAS SIMPLE Y MAS ROBUSTA
+
+**El cliente de correo que ya esta instalado puede guardar el adjunto en la carpeta.** Con una regla de
+Outlook (o un flujo de Power Automate), cada mail del banco deja el `.txt` en:
+
+```
+<RendicionBanco:CarpetaEntrada>
+```
+
+y **SIRGA ya sabe procesar esa carpeta** (`BankRenditionInbox` + `BankRenditionProcessor`). Ventajas:
+- **la contrasena del correo nunca entra en SIRGA**;
+- no hay que sumar dependencias ni mantener un cliente de IMAP;
+- si el correo se cae, la carpeta simplemente queda vacia y SIRGA no se entera de nada raro.
+
+### LO QUE FALTA PARA CERRAR LA AUTOMATIZACION
+
+Un **servicio en segundo plano** que revise la carpeta cada N minutos y llame al orquestador, en
+**simulacro por defecto**. Se empezo y **se descarto a proposito**: usa sincronico-sobre-asincrono
+(`GetAwaiter().GetResult()`) dentro del `BackgroundService`, que bloquea un hilo del pool.
+**No se commitea codigo que se sabe imperfecto.** El arreglo correcto es darle a `BankRenditionInbox` una
+version `BarrerAsync` (el callback como `Func<Rendicion, Task<string>>`) y que el servicio la use con
+`await`; la version sincronica actual queda solo para las pruebas y el verificador.
