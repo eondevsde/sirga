@@ -16,6 +16,7 @@ public class DeclarationService(
     PdfReportService pdfService,
     BalanceService balanceService,
     AuditService auditService,
+    ILegacyDeclarationWriter legacyWriter,
     ILogger<DeclarationService> logger)
 {
   // Estos porcentajes ahora se obtienen dinámicamente del Sindicato
@@ -187,7 +188,44 @@ public class DeclarationService(
       await unitOfWork.Declarations.UpdateAsync(declaration);
     else
       await unitOfWork.Declarations.AddAsync(declaration);
-    await unitOfWork.CompleteAsync();
+        // VOLCADO AL LEGADO: recién presentada, la DDJJ se escribe en `ddjj`/`ddjjt`, que es de donde SIGES
+    // WEB lee para saber si la empresa debe.
+    // VA ANTES DE GUARDAR A PROPOSITO: si el legado falla, la presentación FALLA y la DDJJ NO queda
+    // presentada en SIRGA. Al revés quedaría presentada acá e invisible para SIGES, y como la boleta sólo
+    // se emite si está presentada, se podría imprimir una boleta que el banco no puede cobrar.
+    var idsAsignaciones = calculo.Filas.Select(f => f.AssignmentId).ToList();
+    var asignaciones = await unitOfWork.Assignments.RunQueryAsync(q =>
+        q.Include(a => a.Employee).Where(a => idsAsignaciones.Contains(a.Id)).ToListAsync());
+    var empresaDelLegado = await unitOfWork.Companies.GetByIdAsync(request.CompanyId);
+
+    var detallesLegado = calculo.Filas
+        .Select(fila => new
+        {
+            Fila = fila,
+            Dni = asignaciones.FirstOrDefault(a => a.Id == fila.AssignmentId)?.Employee?.Dni
+        })
+        .Where(x => !string.IsNullOrWhiteSpace(x.Dni))
+        .Select(x => new DetalleLegado(x.Dni!, x.Fila.BaseSalary, x.Fila.MemberContribution > 0))
+        .ToList();
+
+    try
+    {
+      await legacyWriter.EscribirAsync(new DeclaracionLegado(
+          empresaDelLegado?.Cuit ?? string.Empty,
+          request.Period,
+          declaration.VersionNumber > 0 ? declaration.VersionNumber - 1 : 0,
+          totalAporteLey,
+          totalCuotaSocio,
+          detallesLegado,
+          "SIRGA"));
+    }
+    catch (Exception ex)
+    {
+      throw new InvalidOperationException(
+          $"La DDJJ NO se presentó: no se pudo volcar al legado ({ex.Message}). SIGES WEB no la vería, así " +
+          "que se prefiere que no quede presentada acá antes que emitir una boleta que el banco no cobra.", ex);
+    }
+await unitOfWork.CompleteAsync();
 
     // La versión anterior queda reemplazada: se marca como Rectificada y NO se borra (es el antecedente).
     // Marcarla es lo que impide que se pueda aprobar o cobrar dos veces la misma DDJJ. Se hace DESPUÉS de
