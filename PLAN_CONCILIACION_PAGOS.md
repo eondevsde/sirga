@@ -387,3 +387,45 @@ JOIN Sindicato.dbo.ddjj l
 - Deduplicar el legado y volver a comparar para confirmar `impo` contra el campo de SIRGA que le
   corresponde (¿la remuneracion calculada del detalle?).
 - Confirmar `activo`, `cargaf`, `jub`, `jorp`, `item3`, `item4` (en las filas medidas dieron 0).
+## 12. `ddjj` — resultado de la comparacion deduplicada (2026-10-07)
+
+Se deduplico el legado (mayor `rect`, luego mayor `Id`) por (CUIT, CUIL) y se comparo contra
+`DeclarationDetails`. **Tres errores propios que costaron tiempo y quedan anotados:**
+
+1. **Literal de fecha**: la sesion usa `dateformat dmy`, asi que `periodo = '2026-08-01'` **no matchea
+   nada** (devuelve 0 filas sin error). Va en `yyyymmdd`: `periodo >= '20260801' AND periodo < '20260901'`.
+   Es la trampa que ya estaba documentada; volvi a caer.
+2. **`COLLATE DATABASE_DEFAULT`** en cada comparacion entre las dos bases (si no, error).
+3. **Deduplicar `ddjj`** antes de comparar: hay CUIL repetidos por CUIT y periodo.
+
+### RESULTADO: `impo` NO se puede mapear todavia
+
+| ddjj | BaseSalary | LawContribution | MemberContribution | `impo` | impo/base |
+|---|---|---|---|---|---|
+| 1737095 | 1.482.763,00 | 29.655,26 | 0 | 1.835.674,0 | 1,2380 |
+| 1737084 | 1.442.050,00 | 28.841,00 | 0 | **707.102,0** | 0,4903 |
+| 1737084 | 1.538.581,00 | 30.771,62 | 0 | **707.102,0** | 0,4596 |
+| 1737084 | 1.393.500,00 | 27.870,00 | 0 | **707.102,0** | 0,5074 |
+| 1737082 | 1.445.000,00 | 28.900,00 | 28.900,00 | 1.391.956,98 | 0,9633 |
+| 1737082 | 1.705.760,77 | 34.115,22 | 34.115,22 | 1.729.461,16 | 1,0139 |
+
+**`impo` es constante entre empleados de una misma DDJJ en algunos casos (707.102,0 en 4 empleados de
+1737084) y varia en otros (1737082, que tiene socios).** No hay proporcion contra `BaseSalary`.
+⇒ **Su significado sigue sin determinarse y NO se debe mapear por suposicion.** Escribirlo mal serian
+importes incorrectos en 1,35 millones de filas.
+
+### LO QUE DESBLOQUEA EL ESCRITOR (hallazgo de esta ronda)
+
+**La deuda que calcula SIGES WEB NO usa `ddjj.impo`.** Usa **`ddjjt.titem1 + titem2 − impban1`**
+(`EstudiosService.cs` linea 72, ya verificado). Y `ActasService` linea 198 decide *pagada* por **`fpago`**.
+
+⇒ **Para el circuito deuda → acta, lo que SIRGA tiene que escribir bien es `ddjjt`** (`titem1`, `titem2`,
+`impban1`, `fpago`), que **ya esta mapeado y verificado**.
+⇒ `ddjj` (el detalle) hace falta para la **pantalla de detalle de empleados**, no para la deuda.
+
+### PROXIMO PASO (acotado)
+
+En vez de ingenieria inversa de las 19 columnas de `ddjj`, buscar **el servicio detras de
+`DetalleEmpleadosDialog`** (`SIGESWEB.Web\Components\Pages\Actas\DetalleEmpleadosDialog.razor`) y ver
+**que campos de `ddjj` lee exactamente**. Esos son los unicos que hay que escribir bien. El resto, si no
+lo lee nadie, no se toca.
