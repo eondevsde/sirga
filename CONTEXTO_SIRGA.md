@@ -877,3 +877,9 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 - **Simulacro (dry-run) antes de cualquier escritura masiva**, con respaldo del estado anterior.
 - **Al terminar: la app queda levantada** en `http://localhost:5122` y **avisar al usuario** lo que no se
   pudo verificar (por ejemplo, lo visual en el navegador o un clic en la UI, que un agente no puede hacer).
+   > - **`AddHostedService<T>()` registra el servicio SÓLO como `IHostedService`, no como `T`** (usa
+   >   `TryAddEnumerable`). Si además hay que inyectarlo en una pantalla, **hay que registrarlo dos veces**:
+   >   un `AddSingleton<T>()` y el `AddHostedService(p => p.GetRequiredService<T>())`. Sin eso la página
+   >   devuelve **HTTP 500** y el log no dice nada útil (costó una ronda entera encontrarlo).
+   > - **Una página nueva se prueba con `Invoke-WebRequest`, no con el build**: que compile no dice que
+   >   cargue. La pantalla de conciliación pasó el build en 0 avisos y devolvía 500 igual.
