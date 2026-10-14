@@ -77,37 +77,52 @@ public static class BoletaBse
   }
 
   /// <summary>
-  /// Dígito verificador: módulo 10 con pesos 3 y 1 alternados y suma de los dígitos de cada producto.
+  /// <summary>
+  /// Dígito verificador, con la fórmula que entregó el banco en
+  /// "Calculo de DV - Boletas de prueba y las que se encuentran en producción.xlsx".
   ///
-  /// POR QUÉ ESTA Y NO LA ANTERIOR: la anterior (pesos 1-2 desde la derecha, complemento a 10 **dividido 2**)
-  /// terminaba dividiendo por 2, así que **sólo podía dar dígitos del 0 al 5**. Un verificador que nunca
-  /// puede ser 6, 7, 8 ni 9 no es un verificador: lo confirman las boletas reales, que tienen dígitos 8.
-  /// Esta reproduce el dígito de la boleta real de 58 posiciones que tenemos **y puede dar los diez**.
+  ///   1. Multiplicar cada dígito del cuerpo por su peso.
+  ///   2. Sumar los productos. **NO se suman los dígitos de cada producto**: se usa el producto tal cual.
+  ///   3. Dividir por 2 con DIVISIÓN ENTERA (trunca, no redondea).
+  ///   4. El verificador es el resto de dividir ese entero por 10.
   ///
-  /// OJO, ESTO NO ESTÁ CONFIRMADO: con UNA sola boleta de 58 posiciones, **14 fórmulas distintas (todas
-  /// sanas) reproducen su dígito**, así que no se puede saber cuál usa el banco. Queda declarado en la ficha
-  /// técnica que se le entrega al banco, pidiendo que la confirme. Si el banco confirma otra, se cambia
-  /// **sólo este método** y se reemiten las boletas.
+  /// El paso 3 no es una interpretación: el propio archivo del banco dice "tomo la parte entera, es decir,
+  /// 489", y 489 es 979 / 2 truncado.
+  ///
+  /// Verificado contra los ejemplos del banco para las boletas de 54 y 58 posiciones (esquema ACTUAL).
+  ///
+  /// LO ANTERIOR ESTABA MAL: se sumaban los dígitos de cada producto y se calculaba el complemento a 10.
+  /// Con 10 boletas reales de Santiago esa fórmula acertaba 3 de 10, y por eso el banco rechazó el archivo
+  /// de prueba. El comentario que estaba acá afirmaba además que la fórmula previa "sólo podía dar dígitos
+  /// del 0 al 5" — y eso no era cierto.
   /// </summary>
-  public static int DigitoVerificador(string cuerpo57)
+  /// <param name="cuerpo57">El código SIN el dígito verificador.</param>
+  /// <param name="esquemaNuevo">
+  /// false = pesos 1,3,5,7,9 que se repiten (boletas ACTUALES de 54 y 58 posiciones, con el verificador en
+  /// la posición 58). true = pesos 3 y 1 alternados (las "BOLETAS NUEVAS" del archivo del banco).
+  /// ⚠️ En las boletas nuevas el banco suma 58 dígitos, o sea que el verificador NO estaría en la última
+  /// posición: FALTA QUE EL BANCO CONFIRME DÓNDE VA. Mientras tanto se usa el esquema actual.
+  /// </param>
+  public static int DigitoVerificador(string cuerpo57, bool esquemaNuevo = false)
   {
     var suma = 0;
-    var peso = 3;
+    var posicion = 0;
 
-    // Se recorre de derecha a izquierda: el último dígito del cuerpo lleva peso 3.
-    for (var i = cuerpo57.Length - 1; i >= 0; i--)
+    foreach (var caracter in cuerpo57)
     {
-      if (!char.IsDigit(cuerpo57[i])) continue;
-      suma += SumaDeDigitos((cuerpo57[i] - '0') * peso);
-      peso = peso == 3 ? 1 : 3;
+      if (!char.IsDigit(caracter)) continue;
+
+      var peso = esquemaNuevo
+          ? (posicion % 2 == 0 ? 3 : 1)
+          : new[] { 1, 3, 5, 7, 9 }[posicion % 5];
+
+      suma += (caracter - '0') * peso;
+      posicion++;
     }
 
-    return (10 - (suma % 10)) % 10;
+    // División ENTERA a propósito: 979 / 2 = 489,5 y el banco usa 489, no 490.
+    return suma / 2 % 10;
   }
-
-  /// <summary>Suma los dígitos de un número (27 -> 9). Es parte del algoritmo del dígito verificador.</summary>
-  private static int SumaDeDigitos(int numero) => (numero / 10) + (numero % 10);
-
   /// <summary>
   /// Arma el código de 58 dígitos. Los importes se reciben ya calculados.
   ///

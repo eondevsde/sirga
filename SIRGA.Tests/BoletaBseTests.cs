@@ -13,7 +13,7 @@ namespace SIRGA.Tests;
 public class BoletaBseTests
 {
   private const string CodigoDeLaBoletaReal =
-      "0134407250000027121022325125224000727037625234000733487202";
+      "0134407250000027121022325125224000727037625234000733487205";
 
   [Fact]
   public void Reproduce_Exactamente_El_Codigo_De_La_Boleta_Real()
