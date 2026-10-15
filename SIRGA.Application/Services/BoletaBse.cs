@@ -150,7 +150,12 @@ public static class BoletaBse
         Importe(importeSegundoVencimiento) +
         "0";
 
-    return cuerpo + DigitoVerificador(cuerpo);
+    // ESQUEMA NUEVO (pesos 3,1 alternados): es el que el banco pide para las boletas nuevas, según el
+    // archivo "Calculo de DV - Boletas de prueba y las que se encuentran en producción.xlsx".
+    // El verificador va en la posicion 58, sobre los 57 digitos del cuerpo.
+    // ⚠️ PENDIENTE: en las hojas "BOLETAS NUEVAS" el banco suma 58 digitos, asi que falta que confirme
+    // donde va el DV en el formato nuevo. Si contestan otra cosa, se cambia SOLO esta linea.
+    return cuerpo + DigitoVerificador(cuerpo, esquemaNuevo: true);
   }
 
   /// <summary>
