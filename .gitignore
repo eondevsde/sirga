@@ -97,3 +97,6 @@ $RECYCLE.BIN/
 # inventados a proposito.) Si se commitean, quedan en el historial para siempre.
 /tools/Rendicion del Banco/
 /tools/Rendicion del BSE.zip
+# Archivos de sesion del agente (nunca se versionan)
+.dsh-*
+
