@@ -2,6 +2,11 @@
 
 > **Fuente**: archivo del banco *"Calculo de DV - Boletas de prueba y las que se encuentran en producción.xlsx"*.
 > Verificado contra los **cuatro ejemplos** que trae ese archivo.
+> ## ✅ **APROBADO POR EL BANCO EL 2026-10-20**
+>
+> Con esta fórmula se rearmó el paquete de 5 boletas y **el banco aprobó el archivo**.
+> La fórmula y la posición del verificador quedan **validadas por el banco**: no son una propuesta.
+>
 > **Este documento reemplaza cualquier fórmula anterior.** La que estaba implementada en SIRGA era incorrecta
 > y es la causa de que el banco rechazara el archivo de prueba.
 

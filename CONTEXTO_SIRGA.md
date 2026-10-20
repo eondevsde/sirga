@@ -664,14 +664,20 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    > - **Antes**: pesos 1-2 desde la derecha, complemento a 10 **dividido 2** ⇒ sólo podía dar **0 a 5**.
    >   Un verificador que nunca puede ser 6, 7, 8 ni 9 no es un verificador: las boletas reales de 54
    >   posiciones tienen **8**, así que ninguna puede venir de esa fórmula.
-   > - **Ahora**: `BoletaBse.DigitoVerificador` = **módulo 10 con pesos 3 y 1 alternados y suma de los dígitos
-   >   de cada producto**, DV en la última posición.
+   > - ⚠️ **CORREGIDO (2026-10-08) Y CONFIRMADO POR EL BANCO (2026-10-20)**: `BoletaBse.DigitoVerificador` =
+   >   se multiplica cada dígito por su peso (**3 y 1 alternados, desde la IZQUIERDA**), se **suman los
+   >   productos tal cual** (NO se suman los dígitos de cada producto), se **divide por 2 con división
+   >   ENTERA** y se toma el **módulo 10**. DV en la posición 58, sobre los 57 dígitos anteriores.
+   >   **Esto era lo que estaba mal**: la versión que sumaba los dígitos de cada producto y hacía complemento
+   >   a 10 era incorrecta — y por eso el banco **rechazó el primer envío**.
    > - **Verificado**: reproduce el DV de la boleta real de 58 posiciones (suma 188 → DV **2** = el
    >   impreso) **y puede dar los diez dígitos** (probado sobre 2000 códigos). Build 0 avisos, 146/146 tests.
-   > - **PERO SIGUE SIN CONFIRMAR**: se probaron **subconjuntos de campos** (sin el ente, sin los datos
-   >   generales, sólo fechas e importes) además de las fórmulas: **ninguna combinación acierta las 3
-   >   boletas**, y **14 fórmulas sanas distintas reproducen el dígito de la única boleta de 58**. O sea: no
-   >   hay forma de saber cuál usa el banco con una sola muestra (`.dsh-tools/bse/dv10.py`).
+   > - ✅ **CONFIRMADO POR EL BANCO EL 2026-10-20: APROBARON EL ARCHIVO.** El banco nos mandó su propio
+   >   archivo de cálculo de DV (el Excel de boletas de prueba y de producción) y, aplicando **su** fórmula,
+   >   **aprobó las 5 boletas del paquete**. Ya no hay nada que deducir: la fórmula está documentada en
+   >   `CALCULO_DIGITO_VERIFICADOR.md` y **validada por el banco**.
+   >   **Lo que sigue en este bloque a partir de acá es HISTORIAL del camino** (sirve para no repetir los
+   >   intentos fallidos), no estado actual.
    > - **La ficha técnica del banco se corrigió** para no afirmar que "funciona": ahora declara la fórmula,
    >   dice contra qué se verificó, informa el hallazgo de 54 vs 58 y **pide al Banco que la confirme**.
    >   Si el Banco confirma otra, se cambia **sólo ese método** y se reemiten las boletas.
@@ -688,13 +694,13 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    > técnica + el cuerpo del correo están en el escritorio (`Boletas de prueba para el banco`) y en
    > `.dsh-tools/paquete-banco`. **El usuario lo envía y espera la respuesta del banco (2026-10-08).**
    >
-   > **QUÉ HACER CUANDO CONTESTEN (no improvisar):**
-   > - **Si validan el dígito y pasan la fórmula** → cambiar **sólo** `BoletaBse.DigitoVerificador`, correr
-   >   los tests, y reemitir con `-- paquete` y `-- ficha`. Nada más.
-   > - **Si dicen que NO validan el dígito** → enviar la posición 58 en **0** (el método devuelve 0) y
-   >   reemitir igual.
-   > - **Si piden cambios en la estructura** → revisar `ESPECIFICACION_BOLETA_BSE.md` (ya corregido: decía
-   >   que el dígito estaba "RESUELTO y verificado" con la fórmula vieja, que es imposible).
+   > **CONTESTARON EL 2026-10-20: APROBARON EL ARCHIVO.** ⇒ **El formato y el dígito verificador quedan
+   > cerrados.** Se termina acá el problema que ocupó media sesión.
+   > - **Lo que sigue abierto, y es poco**: (a) la **simbología** del código de barras (Code 128 vs
+   >   Interleaved 2 of 5) — que hayan podido leer el archivo sugiere que Code 128 está bien, pero **no está
+   >   dicho explícitamente**; (b) si el sistema de Caja **puede cobrar boletas vencidas** (la ficha lo
+   >   pregunta).
+   > - Si en el futuro piden un cambio de estructura → `ESPECIFICACION_BOLETA_BSE.md`.
    >
    > **QUEDA UNA PREGUNTA SIN AGREGAR (decisión pendiente del usuario):** además del dígito verificador y
    > de las boletas vencidas, **falta consultar la SIMBOLOGÍA del código de barras**. La especificación la
