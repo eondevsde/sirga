@@ -56,6 +56,17 @@ public class BoletaService(IUnitOfWork unitOfWork)
           "no se emite su boleta. Emití la de la versión vigente.", null);
     }
 
+    // CONTROL (2026-10-20): una DDJJ YA PAGADA no emite boleta.
+    // Lo encontró la prueba del banco: en el paquete de prueba se generó la boleta de la DDJJ 1728873, que
+    // ya figuraba pagada, y el banco la cobró. En producción eso es cobrar dos veces la misma DDJJ, y el
+    // banco NO tiene forma de detectarlo (para él es una boleta válida): el control tiene que estar acá.
+    if (declaracion.Status == DeclarationStatus.Paid)
+    {
+      return new BoletaArmadoResult(null,
+          $"La DDJJ {declaracion.Id} (período {declaracion.Period}) YA FIGURA PAGADA: no se emite su " +
+          "boleta, para no cobrarla dos veces. Si el pago se registró por error, corregilo antes de emitir.", null);
+    }
+
     DateTime vencimiento;
     try
     {
