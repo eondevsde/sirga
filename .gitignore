@@ -100,3 +100,7 @@ $RECYCLE.BIN/
 # Archivos de sesion del agente (nunca se versionan)
 .dsh-*
 
+
+# Volcado de historial de la sesion (generado; contiene CUIT reales y referencias a credenciales)
+SIRGA_Init-historial.md
+
