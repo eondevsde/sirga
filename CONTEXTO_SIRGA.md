@@ -878,7 +878,7 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
 
 ## 9. Cómo se verifica el trabajo
 
-- **Build con 0 avisos** y **tests en verde** antes de cada commit (hoy 142/142).
+- **Build con 0 avisos** y **tests en verde** antes de cada commit (hoy **165/165**).
 - **Consultas contra la base** para probar afirmaciones de datos (no suponer: medir).
 - **Simulacro (dry-run) antes de cualquier escritura masiva**, con respaldo del estado anterior.
 - **Al terminar: la app queda levantada** en `http://localhost:5122` y **avisar al usuario** lo que no se
@@ -889,3 +889,136 @@ servidor tiene **cotejación sensible a mayúsculas**. Por eso la primera consul
    >   devuelve **HTTP 500** y el log no dice nada útil (costó una ronda entera encontrarlo).
    > - **Una página nueva se prueba con `Invoke-WebRequest`, no con el build**: que compile no dice que
    >   cargue. La pantalla de conciliación pasó el build en 0 avisos y devolvía 500 igual.
+---
+
+## 10. ESTADO AL 2026-10-20 — LO QUE CAMBIÓ Y LO QUE FALTA
+
+> Esta sección es el estado **actual**. Las secciones de arriba son historial: donde se contradigan,
+> **manda esta**.
+
+### 10.1. ✅ EL BANCO APROBÓ LAS BOLETAS
+
+El 2026-10-19 el banco (Fabio Aoad) respondió: **"se cobraron correctamente las boletas con los cambios
+en el algoritmo del DV"**. Con eso queda **cerrado** el problema que ocupó media sesión.
+
+- **La fórmula del DV está validada por el banco**, no es una propuesta. Ver `CALCULO_DIGITO_VERIFICADOR.md`:
+  pesos **3 y 1 alternados desde la izquierda**, suma de los productos **tal cual** (sin sumar los dígitos),
+  **división por 2 con parte entera**, y **módulo 10**. Verificador en la **posición 58**, sobre los 57.
+- **El banco hizo la prueba en su AMBIENTE DE DESARROLLO**, con boletas del 09/10/2026, y **modificó
+  el CB (código de barras) que está en producción** para hacerla. ⚠️ Hay que preguntarles **si eso quedó
+  revertido** o si producción ya acepta el DV nuevo.
+- **Preguntas que nos hicieron y siguen sin respuesta nuestra**:
+  1. **¿Las boletas de 58 van a trabajarse sólo con el DV nuevo, sin convivencia con el anterior?**
+     → SIRGA tiene **una sola implementación** (la nueva) y no puede emitir el DV viejo. Pero **las boletas
+     ya emitidas por el sistema anterior** siguen en circulación: **hay que definir si el banco las sigue
+     aceptando hasta que venzan.** Es una **decisión del usuario**, con consecuencias reales.
+  2. **¿Desde qué fecha se pone en producción el CB nuevo?** → **decisión del usuario**, pendiente.
+
+### 10.2. ✅ EL CIRCUITO COMPLETO, PROBADO CONTRA EL BANCO
+
+El archivo que mandaron (`Pagos_1_091026.bse`, 5 líneas, 222 caracteres, formato de 58) **concilió** con
+las 5 DDJJ de SIRGA. **Es la primera vez que el circuito se prueba de punta a punta con datos del banco:**
+
+| Boleta | CUIT | Período | Importe | DDJJ | Resultado |
+|---|---|---|---|---|---|
+| 1 | 20957235191 | 2026-08 | 29.655,26 | **1737095** | Exacta |
+| 2 | 30709341622 | 2026-07 | 16.923,22 | **1737076** | Con interés |
+| 3 | 33699784929 | 2026-07 | 209.549,93 | **1737077** | Con interés |
+| 4 | 30590360763 | 2026-06 | 15.585.473,57 | **1728873** | **Ya pagada** |
+| 5 | 20072020163 | 2025-04 | 205.626,59 | **1699459** | Con interés |
+
+⇒ **SIRGA leyó el archivo del banco, encontró las 4 DDJJ, calculó el interés y supo qué escribir.**
+En el legado, 3 de esas 4 ya figuraban pagadas y **no se tocaron** (idempotencia). Sólo una se escribiría:
+CUIT 20072020163 → fila Id **239018**, `fpago = 09/10/2026`, `impban1 = 205.626,59`.
+
+⚠️ **ESTE ARCHIVO ERA UNA PRUEBA EN DESARROLLO: no movió plata real.** **NUNCA** procesarlo con escritura
+habilitada: marcaría 4 DDJJ reales como pagadas por ~$461.755 que nadie pagó.
+
+### 10.3. ✅ CONTROL NUEVO: UNA DDJJ PAGADA NO EMITE BOLETA
+
+**Lo encontró la prueba del banco**: entre las 5 boletas estaba la de la DDJJ **1728873**, que **ya figuraba
+pagada**, y el banco **la cobró**. Para el banco es una boleta válida — **no tiene forma de detectarlo**.
+El control tiene que estar de nuestro lado.
+
+`BoletaService.ArmarAsync` ahora **rechaza** el estado `Paid` (commit `f3d42c4`). **Las tres guardas de la
+boleta, todas en el servicio** (no en la pantalla, para que no se salteen por API):
+
+| Estado | ¿Emite? | Motivo |
+|---|---|---|
+| **Draft** | ❌ | No está presentada; SIGES todavía no la ve (el volcado al legado ocurre en la presentación) |
+| **Rectificada** | ❌ | La deuda es de la versión vigente |
+| **Paid** | ❌ | Se cobraría dos veces |
+
+⚠️ **Ninguna de las tres tiene test unitario** (`BoletaService` depende de `IUnitOfWork`). Se verifican con
+el verificador contra la base real. **Si alguien borra una guarda, los 165 tests siguen en verde**:
+cubrirlas con tests de integración es un pendiente real.
+
+### 10.4. ⚠️ EL VERIFICADOR SE ROMPIÓ Y SE REPARÓ: LA LECCIÓN
+
+Durante esta etapa **rompí dos veces `.dsh-tools\verif-boleta\Verificador.cs`** editándolo **por número de
+línea**. El segundo intento empeoró: el build fallaba por los DLL bloqueados (la app no estaba cerrada) y
+**creí que era sólo eso**, sin sospechar de mi edición.
+
+**Lo que hay que hacer siempre:**
+1. **Matar la app antes de compilar** (bloquea los `.dll`). Si el build dice `MSB3027` / "archivo bloqueado",
+   es esto.
+2. **No editar código por índices de línea.** Restaurar del zip y reemplazar por **texto literal con guarda**:
+   si el texto no aparece, **no escribir nada**.
+3. **La prueba de que un archivo está bien es que COMPILE**, no que el texto se vea bien.
+4. Verificar el tamaño: el original tiene **39.951 bytes**; la versión rota tenía **39.263**.
+
+Detalle práctico: el verificador lee rutas **hardcodeadas**, y al cambiarlas hay que cuidar que el archivo
+usa **barras dobles** (`entrada\\Procesados\\`). Hoy apunta a
+`C:\BackUp\SEC SGO\20261009\Sind. Empleados de Comercio\Pagos_1_091026.bse`. **Es frágil**: si se mueve el
+archivo, hay que volver a cambiarla.
+
+### 10.5. ✅ RESPALDO DEL PROYECTO (hecho) — Y LO QUE FALTA
+
+- **9 zips** del código (sin `obj`/`bin`/`node_modules`): **2,3 GB** en `C:\Proyectos\_RESPALDOS\2026-10-08`.
+- **9 repositorios con commits**: SIRGA, SIGESWEB, SIGES (con `SIGES\src` adentro), Maratón, Talleres,
+  FDDEDC, Bicicleteada, siges-futbol, SECSantiagoHome. Cuatro de ellos **no tenían git** y se inicializaron.
+  `SIGES` tenía **487 cambios sin guardar** y su último commit era de **mayo de 2023**.
+- **36 bases respaldadas** con `COPY_ONLY` (no altera las cadenas de respaldo existentes): **1,2 GB** en
+  `C:\Proyectos\_RESPALDOS\2026-10-15-bases`. Incluye `Sindicato` (627 MB), `SIRGA_DB`, `SIGES_Articulos`,
+  las de los eventos y `EstudioContableDb_Prod`.
+- ❌ **PENDIENTE URGENTE: los respaldos están en el MISMO DISCO que los proyectos.** Un respaldo en el
+  mismo disco **no protege de una falla de disco**. Hay que copiar `_RESPALDOS` a un disco externo, NAS o
+  nube (3,5 GB).
+
+### 10.6. ⚠️ HALLAZGOS DE SEGURIDAD (sin resolver)
+
+- **Contraseñas de SQL en texto plano** en `SIGESWEB.Web\appsettings.json` y `publish\appsettings.json`,
+  **incluida la de producción** (`192.168.1.240`). Ya están en los commits. ⇒ **Antes de subir a GitHub**
+  hay que sacarlas a un archivo ignorado **y rotar la contraseña** (ya estuvo expuesta).
+- **`EstudioContableDb_Prod`** existe en este servidor local. El usuario dijo que producción está en **otra
+  red**, así que debería ser una copia vieja — **pero el nombre dice lo contrario: confirmar qué es.**
+
+### 10.7. LAS CAJAS: TODO DOCUMENTADO, NADA IMPLEMENTADO
+
+El plan completo está en **`C:\Proyectos\SIGESWEB`** (4 documentos, escritos con el usuario):
+
+| Documento | Qué tiene |
+|---|---|
+| `PLAN_CAJAS_UNIFICADAS.md` | arquitectura: núcleo compartido + frentes + servicio central; las 5 partes |
+| `COMO_FUNCIONA_LA_NUMERACION.md` | offline-first, numeración por bloques jerárquicos, stock por punto, factura vs recibo |
+| `INVENTARIO_PROYECTOS.md` | el escaneo de los 10 proyectos (¡los eventos son copias del mismo!) |
+| `PENDIENTES.md` | pendientes con dueño + todas las decisiones cerrradas |
+
+**Decisiones centrales ya tomadas:** la caja va en **SIGESWEB**; el núcleo se extrae de `SIGES\src`
+(que ya tiene caja, impresora térmica y los dos comprobantes); **un ticket de 80 mm Y media hoja A4**;
+**una sola serie de recibos** para todo el sistema; **factura sólo cantina y farmacia**; **Holistor se
+alimenta, no se reemplaza**; **bases separadas** por sistema.
+⚠️ **Lote y vencimiento** hay que preverlos desde el principio: la farmacia los necesita y si el stock
+nace sin ellos, hay que rehacerlo.
+
+### 10.8. LO QUE FALTA, EN ORDEN
+
+1. **Copiar `_RESPALDOS` a otro disco** (lo único que protege contra un disco roto).
+2. **La respuesta al banco**: fecha de producción y convivencia de DVs (decisión del usuario) + preguntar
+   si revirtieron el CB de producción.
+3. **Sacar las contraseñas de SQL del repositorio y rotarlas** (antes de GitHub).
+4. **Tests de integración de las 3 guardas de la boleta.**
+5. **Datos que dependen de terceros**: el **plan de cuentas** (Administración, "el martes"), **cómo facturan
+   hoy cantina y farmacia** (AFIP web service vs controlador fiscal), **cuántos puntos de venta**, y el
+   **formato de importación de Holistor** (estudio contable).
+6. **Las cajas**: empezar por listar las tablas de caja reales de cada base (sólo lectura).
