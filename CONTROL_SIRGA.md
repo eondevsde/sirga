@@ -144,7 +144,7 @@ respaldadas ✓) y verificando después.
 | Etapa | Qué se probó | Resultado | Observación |
 |---|---|---|---|
 | 1 | Datos de preparación en la base | ⚠️ | **Están cargados**, pero con 3 cosas a revisar (abajo) |
-| 1.2 | Escalas salariales | ⚠️ | **La última es de 03/2026.** Las DDJJ de abril a octubre se comparan contra esa. ¿Faltan cargar las nuevas? |
+| 1.2 | Escalas salariales | ✅ | **CORREGIDO**: hay escalas ACTIVAS hasta **10/2026**, 21 categorías por mes. (A las 11:37 del 21/10 mi consulta mostró hasta 03/2026; los datos se cargaron después. Lección: medir de nuevo antes de afirmar que falta algo.) |
 | 1.3 | Tasas de interés | ⚠️ | **La última es de 01/07/2025** (2,75% y 3,50% mensual). **15 meses sin actualizar.** ¿La tasa del sindicato es fija o falta cargarla? |
 | 1.4 | Banco / La Banda | ❌ | **El sindicato 20 (La Banda) NO tiene config de banco** ⇒ no puede emitir boletas. Su CCT además dice "PENDIENTE". |
 | — | Sindicato 19 (Santiago) | ✅ | CCT 130/75, 2% ley + 2% socio, config de banco completa (ente 0134, cliente 18588639, vto día 15, 10 días al 2do) |
