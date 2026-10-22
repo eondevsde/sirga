@@ -909,9 +909,11 @@ en el algoritmo del DV"**. Con eso queda **cerrado** el problema que ocupó medi
   revertido** o si producción ya acepta el DV nuevo.
 - **Preguntas que nos hicieron y siguen sin respuesta nuestra**:
   1. **¿Las boletas de 58 van a trabajarse sólo con el DV nuevo, sin convivencia con el anterior?**
-     → SIRGA tiene **una sola implementación** (la nueva) y no puede emitir el DV viejo. Pero **las boletas
-     ya emitidas por el sistema anterior** siguen en circulación: **hay que definir si el banco las sigue
-     aceptando hasta que venzan.** Es una **decisión del usuario**, con consecuencias reales.
+     → **DECIDIDO POR EL USUARIO (2026-10-22): NO HAY CONVIVENCIA.** SIRGA emite **sólo** con el DV nuevo, y
+     **las boletas emitidas con el sistema anterior dejan de tener validez a partir de la fecha de
+     implementación del nuevo sistema.**
+     ⚠️ **Consecuencia que hay que manejar**: toda boleta vieja **impaga** al momento del corte **queda
+     incobrable**. ⇒ La fecha se elige sabiendo cuántas boletas viejas quedan, y las que queden se **reemiten**.
   2. **¿Desde qué fecha se pone en producción el CB nuevo?** → **decisión del usuario**, pendiente.
 
 ### 10.2. ✅ EL CIRCUITO COMPLETO, PROBADO CONTRA EL BANCO
