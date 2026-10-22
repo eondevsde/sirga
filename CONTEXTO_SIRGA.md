@@ -4,7 +4,7 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-06** · 143/143 tests · build 0 avisos.
+Última actualización: **2026-10-20** · 165/165 tests · build 0 avisos.
 (El conteo de commits no se anota acá a propósito: quedaba viejo con cada commit y este documento no
 puede mentir. Se consulta con `git rev-list --count HEAD`.)
 
@@ -1022,3 +1022,68 @@ nace sin ellos, hay que rehacerlo.
    hoy cantina y farmacia** (AFIP web service vs controlador fiscal), **cuántos puntos de venta**, y el
    **formato de importación de Holistor** (estudio contable).
 6. **Las cajas**: empezar por listar las tablas de caja reales de cada base (sólo lectura).
+7. **Las decisiones de datos de 10.9** (NR1 de enero–marzo, si el importe de la escala incluye las
+   sumas no remunerativas, el diciembre 2025 duplicado y los dos huecos viejos).
+
+### 10.9. ✅ ESCALAS 2026 AL DÍA Y TASAS VERIFICADAS (2026-10-20)
+
+Se revisaron las dos tablas que estaban "viejas" y se generaron los scripts. **Informe completo, con
+fuentes y mediciones: `INFORME_ESCALAS_TASAS_2026.md`.**
+
+**Escalas — FALTABAN CARGAR (no era que no hubieran salido).** La paritaria está firmada, homologada y
+publicada: **5%** en abril–junio (2% / 1,5% / 1,5%) y **5,7%** en julio–septiembre (1,9% × 3). Octubre
+**no tiene aumento**: la revisión se hace en octubre y los valores nuevos impactan **desde noviembre**.
+
+- La copia del sistema anterior (`Sindicato.dbo.EscalaSalarial`) tiene **exactamente los mismos 1.339
+  registros** y también termina en 2026-03 ⇒ el atraso viene del operador del sistema viejo, no de SIRGA.
+- Cargadas **173 filas**: **126** de abril a septiembre (21 categorías × 6 períodos), **21** de octubre
+  (sin aumento, igual a septiembre) y **26** de los huecos viejos (2021-04 completo y las 5 categorías
+  que faltaban en 2023-04, **copiadas del mes siguiente** por decisión del usuario). 1.339 → **1.512**
+  escalas, 62 → **70** períodos: la serie queda **completa de 2021-01 a 2026-10, sin meses faltantes** y
+  con 21 activas en cada uno. Se aplica el porcentaje sobre el importe de marzo; `NR2` sigue en 120.000
+  (se incorpora al básico desde diciembre) y `AntiguedadPercentage` en 1%.
+  > **Ojo con los valores de 2021-04 y 2023-04**: son **derivados** (copia del mes posterior). El aumento
+  > que estaba en mayo pasa a estar en abril y abril = mayo. Si el sindicato tiene la escala real de esos
+  > meses, hay que reemplazarlas.
+- **Octubre** no tiene aumento (la paritaria se reabre en octubre y los valores impactan desde
+  noviembre), así que se cargó igual a septiembre. Antes funcionaba por el fallback de
+  `DeclarationService` (`Period <= targetDate`), pero ahora cada período declarado tiene su fila.
+- **Diciembre 2025 estaba roto y se corrigió**: las 21 filas eran una **copia exacta de diciembre 2024**
+  (mínimo 877.687,16, un 33% abajo de noviembre; 1.310 DDJJ afectadas). Se rehizo con la escala oficial
+  de FAECyS (acuerdo 12/2025): diciembre = noviembre × 1,06/1,05 (1% mensual no acumulativo, base junio
+  2025) y los NR de noviembre ⇒ mínimo **1.326.131,31**. Respaldo `dbo._BackupSalaryScalesDic2025`.
+  Script `script_sirga_db_escalas_2025_12_corregir.sql` (idempotente: sólo toca las filas que siguen
+  iguales a 2024).
+- Script `script_sirga_db_escalas_2026_abril_septiembre.sql`: **simulacro por defecto** (`@Simulacro=1`),
+  respaldo en `dbo._BackupSalaryScales2026`, idempotente (2ª corrida = **0 insertadas**), con controles de
+  categorías por período, duplicadas y monotonía.
+
+**Tasas — NO FALTAN.** La última es del **2025-07-01** (2,75% resarcitoria / 3,50% punitoria, R (MEC)
+823/2025) y **ARCA no la cambió** hasta hoy: verificado contra la página de Estudio Paz (actualizada al
+19/08/2026), Fiscal.com.ar (2026) y las notas de la baja de julio 2025 (CPCE Córdoba, FECOI, Primera
+Edición). ⇒ **los intereses no están mal por tasa vieja.** Lo único que estaba mal era un dato: la fila
+resarcitoria de 2025-07 tenía `DailyRate = NULL` (se completaron 2 filas, no se tocó ninguna tasa) y
+**no había ningún control** que avisara si la tasa queda sin revisar.
+- Script `script_sirga_db_tasas_interes_2026.sql`: no inserta tasas, completa `DailyRate`, verifica 0
+  huecos / 0 solapamientos, y mantiene `dbo.ControlTasasRevision` (avisa si pasan **90 días** sin
+  contrastar con ARCA; si nunca se revisó, avisa en vez de dar OK). Idempotente (2ª corrida = 0).
+- La prueba de dinero sigue dando exacto: 51.000 al 2,75% por 35 días = **1.636,25** (DDJJ 1737080).
+
+**⚠️ HALLAZGOS QUE NECESITAN UNA DECISIÓN (son datos, no código):**
+
+1. **El NR1 de enero–marzo** viene creciendo 2% / 3,5% / 5% del básico, que es la estructura de un
+   adelanto no remunerativo del 5%. ¿Es el adelanto del 5% de abril (habría que ponerlo en 0) o una suma
+   aparte (se arrastra)? Hoy el script **lo arrastra** (`@AbsorberNR1 = 0`) porque no hay fuente que
+   autorice borrar un concepto. Si se pone en 0, el mínimo de junio vuelve exactamente al de marzo y el
+   aumento se ve recién en julio (abril y mayo quedan 2,6% y 1,3% por debajo).
+2. **El importe cargado parece incluir las sumas no remunerativas**: `Importe − 120.000` queda a ±2% del
+   básico oficial de marzo en las categorías administrativas. Si es así, el mínimo está **$120.000
+   inflado** porque además se suma `NR2`. El mínimo cargado ya estaba **+15,6% a +21,5%** arriba de
+   (básico oficial + 120.000) **antes** de esta carga. Confirmar con el sindicato.
+
+> Los otros dos hallazgos quedaron cerrados: **diciembre 2025 se corrigió** (ver arriba) y **los huecos
+> de 2021-04 y 2023-04 se completaron** copiando el mes siguiente.
+
+**Lo que no se pudo verificar**: la pantalla (el agente no opera el navegador) y la tabla oficial mes por
+mes de mayo a agosto (se aplicaron los porcentajes del acuerdo; sólo abril y octubre están publicados con
+todos los importes).
