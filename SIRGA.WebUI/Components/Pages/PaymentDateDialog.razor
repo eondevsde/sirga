@@ -63,7 +63,10 @@
   /// <summary>Días de mora hasta la fecha elegida (0 si está en término). Informativo: el importe se calcula en el servicio.</summary>
   private int DiasMora => _fecha is { } f ? Math.Max((f.Date - Vencimiento.Date).Days, 0) : 0;
 
-  protected override void OnInitialized() => _fecha = DateTime.Today;
+  // Si la DDJJ todavía no venció, HOY es una fecha inválida (anterior al vencimiento) y el selector no la
+  // dejaría elegir, pero igual quedaba cargada y el botón se habilitaba. Se arranca en el vencimiento.
+  protected override void OnInitialized() =>
+      _fecha = DateTime.Today.Date < Vencimiento.Date ? Vencimiento.Date : DateTime.Today.Date;
 
   private void Cancelar() => MudDialog.Cancel();
 

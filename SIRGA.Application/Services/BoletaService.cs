@@ -79,6 +79,17 @@ public class BoletaService(IUnitOfWork unitOfWork)
           $"La declaración tiene un período inválido (\"{declaracion.Period}\"): {ex.Message}", null);
     }
 
+    // CONTROL (2026-10-30): la fecha de pago no puede ser anterior al vencimiento del período.
+    // La boleta se emite PARA pagar una deuda que vence ese día; una fecha anterior dejaría impreso un
+    // vencimiento en el pasado y el interés saldría en cero o negativo. El diálogo lo limita con MinDate,
+    // pero eso se saltea por API: el control va acá, igual que las otras tres guardas.
+    if (fechaPago is { } fechaPedida && fechaPedida.Date < vencimiento.Date)
+    {
+      return new BoletaArmadoResult(null,
+          $"La fecha de pago ({fechaPedida:dd/MM/yyyy}) es ANTERIOR al vencimiento del período " +
+          $"({vencimiento:dd/MM/yyyy}). Elegí una fecha igual o posterior al vencimiento.", null);
+    }
+
     // El capital es el TOTAL de la declaración: la boleta es una por DDJJ, por período, por el total. NO
     // es el saldo (que puede venir con crédito aplicado o con la mora ya sumada al presentar).
     decimal capital = declaracion.TotalAmount;
