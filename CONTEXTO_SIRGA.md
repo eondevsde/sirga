@@ -4,7 +4,8 @@
 > primero**, entero. Contiene lo que no se deduce del código: las reglas que no se negocian, los
 > atajos que ya nos costaron caro y lo que falta hacer.
 
-Última actualización: **2026-10-20** · 165/165 tests · build 0 avisos.
+Última actualización: **2026-11-03** · 165/165 tests · build 0 avisos del compilador (los NU1902/NU1903
+de NuGet son 56 y no son del código, ver trampa 20).
 (El conteo de commits no se anota acá a propósito: quedaba viejo con cada commit y este documento no
 puede mentir. Se consulta con `git rev-list --count HEAD`.)
 
@@ -163,6 +164,27 @@ puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por
    **1.999,9999999999999999999999950** en vez de 2.000,00. Si se suman los tramos sin redondear, el
    **desglose no cierra con el total** (y el desglose es lo que el estudio audita). Se redondea **cada
    tramo** a 2 decimales y el total es la suma.
+19. **Un parámetro de MudBlazor mal escrito NO rompe el build: se renderiza al DOM y no hace nada.**
+    `MudTable` **no tiene** `HorizontalScroll`; el parámetro real es **`HorizontalScrollbar`** (XML de
+    MudBlazor 9.4: *"Shows a horizontal scroll bar if the content exceeds the maximum width"*). Las **35**
+    tablas del proyecto lo usaban mal desde el 2026-11-03, así que el "scroll horizontal de las 36 tablas"
+    que el traspaso daba por hecho **no existía**: el atributo salía al DOM y la tabla seguía desbordando.
+    Lo mismo con `IconSize` en `MudMenuItem` (no es parámetro de ese componente). **El síntoma es un aviso
+    `MUD0002` del analizador de MudBlazor, no un error**: con 71 avisos el build "pasaba" y nadie los miraba.
+    **Regla: un aviso MUD0002 es un defecto de hecho, no ruido.** Corregido en `0989dad` (0 avisos MUD0002).
+20. **"Build en 0 avisos" no es literal: los NU1902/NU1903 son de NuGet, no del código.** Hay **56**
+    avisos de vulnerabilidades conocidas de paquetes (`SixLabors.ImageSharp` 2.1.11,
+    `System.Security.Cryptography.Pkcs` 9.0.0/9.0.4). No se arreglan desde acá: hay que **actualizar los
+    paquetes**. Cuando se diga "0 avisos", aclarar que son **0 del compilador y del analizador**.
+21. **El `dotnet restore` NO funciona con el sandbox restringido de las sesiones de agente** (2026-11-03):
+    falla con *"The SSL connection could not be established"* y MSBuild informa **"ERROR al compilar" con
+    0 errores**, que parece un error del código y no lo es. Con el sandbox abierto restaura sin problema.
+    Si el build falla así, compilar con **`--no-restore`** y decir la verdad: se verificó sin restaurar.
+22. **El build también puede fallar por permisos de Windows en las carpetas `obj`** (2026-11-03):
+    `error MSB3491 ... Access to the path 'obj\Debug\net10.0\xxxx.fik~' is denied`. No es lock de la app
+    (ese es MSB3021/MSB3027) ni se ve con `icacls`: era **`WRITE_OWNER` faltante** en `SIRGA.Domain` y sus
+    `obj`. Se repara con la skill `diagnose-windows-sandbox-acl`; deja respaldos y el comando de vuelta
+    atrás en **`.dsh-tools\acl-recovery`** (ignorado por git).
 
 ---
 
@@ -1089,3 +1111,31 @@ resarcitoria de 2025-07 tenía `DailyRate = NULL` (se completaron 2 filas, no se
 **Lo que no se pudo verificar**: la pantalla (el agente no opera el navegador) y la tabla oficial mes por
 mes de mayo a agosto (se aplicaron los porcentajes del acuerdo; sólo abril y octubre están publicados con
 todos los importes).
+
+### 10.10. ✅ `/companies` CON MENÚ ⋮ Y EL SCROLL QUE NO EXISTÍA (2026-11-03)
+
+Commits **`0989dad`** y **`27c0ede`**. Build **0 errores**, **0 avisos** del compilador y del analizador
+(los 56 NU1902/NU1903 son de NuGet, ver trampa 20), **165/165** tests, app levantada en
+`http://localhost:5122` con el binario nuevo.
+
+- **Las acciones de `/companies` van en un menú `⋮`.** Antes eran **7 iconos sueltos** por fila (el traspaso
+  decía 8). Quedan **a la vista 2**: **Ver Empleados** y **Nueva DDJJ**; al menú pasan **Historial de DDJJ**,
+  **Estado de Cuenta**, **Añadir Sucursal**, **Editar Empresa** y **Ver Ubicación**. Lo mismo en la fila de
+  la **sucursal** (debajo de la tabla), para que las dos se lean igual. Se respetó lo que ya estaba: los
+  ítems que dependen del estado de la empresa siguen deshabilitados si no está activa, y cada ítem lleva su
+  ícono y su color como antes.
+- **`Nueva DDJJ` ahora abre con la empresa de la fila elegida** (`/declarations/new?empresa={id}`): antes
+  caía en un formulario vacío y había que volver a buscar la empresa. La pantalla ya soportaba el
+  parámetro (lo usa el botón "Rectificar"), y contempla la sucursal.
+- **Se corrigió el scroll horizontal de las 35 tablas** (ver trampa 19): el parámetro es
+  **`HorizontalScrollbar`**. Esto es lo que el usuario venía reclamando como *"objetos que no renderizan
+  bien"*: el scroll pedido en la sesión anterior nunca funcionó.
+
+**Lo que NO se pudo verificar** (lo tiene que ver el usuario en pantalla): que el menú `⋮` **abra** y se
+vea bien, que los ítems se vean habilitados/deshabilitados como corresponde, y que el **scroll horizontal**
+se comporte con el mouse. Un agente no opera el navegador.
+
+**Sobre el entorno (esto costó tiempo y está en las trampas 21 y 22)**: el build falló primero por
+permisos de Windows en `SIRGA.Domain\obj` y después porque `dotnet restore` no pasa por el sandbox
+restringido. Con la sesión en acceso completo, build y tests corren normales.
+
