@@ -1141,6 +1141,11 @@ Commits **`0989dad`** y **`27c0ede`**. Build **0 errores**, **0 avisos** del com
   > **Medido** con navegador headless sobre el CSS real de MudBlazor (`.dsh-tools/filtros-test/test.html`):
   > 4 celdas de **246 px** y último borde en **1060** de 1076 disponibles (sólo el padding). La flex
   > anterior daba celdas de 184 px y el borde derecho en **812**.
+  - **Los cuatro controles tienen que quedar alineados** (commit `5e3ce0b`): el buscador **no tenía rótulo**
+    y los selectores sí, así que su línea quedaba ~14 px más arriba. Ahora el buscador tiene rótulo
+    (**"Buscar empresa"**, con el texto de ayuda como placeholder) y **cada celda alinea por abajo**
+    (`display:flex; align-items:flex-end`), así la línea coincide aunque el control de arriba mida distinto.
+    Medido: 4 columnas de **254 px**, las cuatro líneas terminan en **y=73**.
   - **La búsqueda ahora mira más datos**: antes sólo CUIT y razón social, así que buscar una **localidad**
     o el **nombre de fantasía** no encontraba nada. Ahora también `TradeName` y el nombre de la ciudad
     (con el mapa de `_cities` que ya estaba cargado), y el **CUIT con o sin guiones** vía
