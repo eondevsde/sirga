@@ -557,11 +557,26 @@ await unitOfWork.CompleteAsync();
   /// previsualización calculara por su lado, podría mostrar un importe distinto del que se termina
   /// guardando, que es justo lo que no puede pasar.
   /// </summary>
+  /// <summary>
+  /// Una empresa INACTIVA no puede presentar DDJJ. Se miran las DOS banderas que usa la pantalla
+  /// (`IsActive` y `Status`) porque quedaron desincronizadas: la grilla mostraba el chip "Inactiva"
+  /// y la DDJJ se podía presentar igual. Vive acá, aparte, para poder cubrirlo con una prueba.
+  /// </summary>
+  public static void ValidarEmpresaActiva(Company empresa)
+  {
+    if (!empresa.IsActive || empresa.Status != CompanyStatus.Active)
+      throw new Exception(
+          $"La empresa {empresa.BusinessName} está inactiva: no se puede presentar la DDJJ. " +
+          "Activala primero desde Empresas.");
+  }
   private async Task<CalculoDeclaracion> CalcularAsync(DeclarationRequestDto request)
   {
     // 1. Validar Periodo, Empresa y Sindicato
     var branch = await unitOfWork.Companies.GetByIdAsync(request.CompanyId)
         ?? throw new Exception("La sucursal no existe.");
+
+    // Una empresa inactiva no puede declarar (ver ValidarEmpresaActiva).
+    ValidarEmpresaActiva(branch);
 
     var union = await unitOfWork.Unions.GetByIdAsync(request.UnionId)
         ?? throw new Exception("El sindicato no existe.");

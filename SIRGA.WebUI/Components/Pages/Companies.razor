@@ -148,8 +148,11 @@
         <AuthorizeView Roles="EstudioContable,Auditor,Admin" Context="nuevaDdjjContext">
           <Authorized>
             <MudTooltip Text="Nueva DDJJ">
+              @* Una empresa inactiva no puede declarar: se mira IsActive (el chip) y Status, que son dos
+                 banderas distintas y quedaban desincronizadas. *@
               <MudIconButton Icon="@Icons.Material.Filled.PostAdd" Color="Color.Secondary" Size="Size.Small"
-                             Href="@($"/declarations/new?empresa={context.Id}")" Disabled="@(context.Status != CompanyStatus.Active)" />
+                             Href="@($"/declarations/new?empresa={context.Id}")"
+                             Disabled="@(!context.IsActive || context.Status != CompanyStatus.Active)" />
             </MudTooltip>
           </Authorized>
         </AuthorizeView>

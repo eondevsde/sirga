@@ -533,7 +533,10 @@ else
       var rawCompanies = (string.IsNullOrEmpty(username)
           ? await CompanyService.GetAllOrderedAsync()
           : await CompanyService.GetByStudioUsernameAsync(username)).ToList();
-      _companies = rawCompanies.Where(c => c.Status == SIRGA.Domain.Enums.CompanyStatus.Active).ToList();
+      // Sólo empresas ACTIVAS (las dos banderas): una inactiva no puede presentar DDJJ.
+      _companies = rawCompanies
+          .Where(c => c.IsActive && c.Status == SIRGA.Domain.Enums.CompanyStatus.Active)
+          .ToList();
       
       _parentCompanies = _companies.Where(c => c.ParentCompanyId == null).ToList();
       // Llamada directa al servicio: el endpoint ahora exige rol y el HttpClient no lleva cookie.
@@ -574,9 +577,20 @@ else
 
       await LoadScalesAsync();
 
-      if (EmpresaQuery is { } empresaId && _companies.Any(c => c.Id == empresaId))
+      if (EmpresaQuery is { } empresaId
+          && rawCompanies.Any(c => c.Id == empresaId)
+          && !_companies.Any(c => c.Id == empresaId))
       {
-        var empresa = _companies.First(c => c.Id == empresaId);
+        // Llegó por query string una empresa que no está activa: se dice, no se ignora en silencio.
+        var inactiva = rawCompanies.First(c => c.Id == empresaId);
+        Snackbar.Add(
+            $"La empresa {inactiva.BusinessName} está inactiva: no se puede presentar una DDJJ. " +
+            "Activala primero desde Empresas.", Severity.Warning,
+            config => config.VisibleStateDuration = 10000);
+      }
+      else if (EmpresaQuery is { } empresaId2 && _companies.Any(c => c.Id == empresaId2))
+      {
+        var empresa = _companies.First(c => c.Id == empresaId2);
         // Si es una sucursal, primero se elige su casa central y después la sucursal.
         await OnParentCompanyChanged(empresa.ParentCompanyId ?? empresa.Id);
         if (empresa.ParentCompanyId is not null)
