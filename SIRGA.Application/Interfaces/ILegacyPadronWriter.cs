@@ -61,4 +61,24 @@ public interface ILegacyPadronWriter
   /// <param name="socio">Datos del socio.</param>
   /// <param name="cuitEmpresa">CUIT de la empresa, para la relación socio-empresa (`socemp`).</param>
   Task<string?> ActualizarSiExisteAsync(SocioLegado socio, string cuitEmpresa, CancellationToken ct = default);
+
+  /// <summary>
+  /// Lee del padrón el **teléfono y el domicilio** del socio. Con la política del 2026-11-04 esos campos son
+  /// de SIGES una vez que el socio existe, así que SIRGA los **trae** en la presentación de la DDJJ en lugar
+  /// de pisarlos.
+  /// </summary>
+  Task<ContactoSocioLegado?> LeerContactoAsync(string cuil, CancellationToken ct = default);
+}
+
+/// <summary>Teléfono y domicilio tal como están en el padrón del sindicato.</summary>
+public sealed record ContactoSocioLegado
+{
+  public string? Telefono { get; init; }
+  public string? Celular { get; init; }
+  public string? Calle { get; init; }
+  public string? Numero { get; init; }
+  public string? Piso { get; init; }
+  public string? Depto { get; init; }
+  public string? Barrio { get; init; }
+  public string? CodigoPostal { get; init; }
 }

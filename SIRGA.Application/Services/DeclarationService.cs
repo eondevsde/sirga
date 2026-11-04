@@ -17,7 +17,8 @@ public class DeclarationService(
     BalanceService balanceService,
     AuditService auditService,
     ILegacyDeclarationWriter legacyWriter,
-    ILogger<DeclarationService> logger)
+    ILogger<DeclarationService> logger,
+    EmployeeService? employeeService = null)
 {
   // Estos porcentajes ahora se obtienen dinámicamente del Sindicato
   // private const decimal LawContributionRate = 0.02m;       
@@ -204,6 +205,21 @@ public class DeclarationService(
     var asignaciones = await unitOfWork.Assignments.RunQueryAsync(q =>
         q.Include(a => a.Employee).Where(a => idsAsignaciones.Contains(a.Id)).ToListAsync());
     var empresaDelLegado = await unitOfWork.Companies.GetByIdAsync(request.CompanyId);
+
+    // POLÍTICA (2026-11-04): una vez que el socio existe en SIGES, el TELÉFONO y el DOMICILIO son de SIGES.
+    // Antes de volcar, se traen del padrón para que SIRGA quede igual (y queda en la bitácora con origen SIGES).
+    if (employeeService is not null)
+    {
+      try
+      {
+        await employeeService.TraerContactoDeSigesAsync(
+            asignaciones.Select(a => a.EmployeeId).Distinct().ToList(), "SIGES");
+      }
+      catch (Exception ex)
+      {
+        logger.LogWarning(ex, "No se pudo traer el contacto del padrón al presentar la DDJJ {Ddjj}", declaration.Id);
+      }
+    }
 
     var detallesLegado = calculo.Filas
         .Select(fila => new

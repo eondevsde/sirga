@@ -76,7 +76,8 @@ internal static class LegacyPadron
   /// sindicato). El `WHERE` compara campo por campo, así que no escribe cuando no hay nada que cambiar.
   /// </summary>
   internal static async Task<int> ActualizarAsync(
-      SqlConnection conexion, SqlTransaction? transaccion, SocioLegado socio, decimal cuil, CancellationToken ct)
+      SqlConnection conexion, SqlTransaction? transaccion, SocioLegado socio, decimal cuil,
+      bool incluirContacto, CancellationToken ct)
   {
     const string sql = """
         UPDATE fotos_.maesoc SET
@@ -87,16 +88,18 @@ internal static class LegacyPadron
             MAESOC_TIPODOC  = CASE WHEN @tipodoc > 0 THEN @tipodoc ELSE MAESOC_TIPODOC END,
             MAESOC_FECHANAC = ISNULL(@fechanac, MAESOC_FECHANAC),
             MAESOC_SEXO     = ISNULL(NULLIF(@sexo, ''),     MAESOC_SEXO),
-            MAESOC_TEL      = ISNULL(NULLIF(@tel, ''),      MAESOC_TEL),
-            MAESOC_TELCEL   = ISNULL(NULLIF(@telcel, ''),   MAESOC_TELCEL),
+            -- TELÉFONO Y DOMICILIO: son de SIGES una vez que el socio existe (política del 2026-11-04).
+            -- Con @incluirContacto = 0 no se tocan, así lo que el sindicato corrigió en SIGES no se pisa.
+            MAESOC_TEL      = CASE WHEN @incluirContacto = 1 THEN ISNULL(NULLIF(@tel, ''),    MAESOC_TEL)    ELSE MAESOC_TEL    END,
+            MAESOC_TELCEL   = CASE WHEN @incluirContacto = 1 THEN ISNULL(NULLIF(@telcel, ''), MAESOC_TELCEL) ELSE MAESOC_TELCEL END,
+            MAESOC_CALLE    = CASE WHEN @incluirContacto = 1 THEN ISNULL(NULLIF(@calle, ''),  MAESOC_CALLE)  ELSE MAESOC_CALLE  END,
+            MAESOC_NROCALLE = CASE WHEN @incluirContacto = 1 THEN ISNULL(NULLIF(@nrocalle, ''), MAESOC_NROCALLE) ELSE MAESOC_NROCALLE END,
+            MAESOC_PISO     = CASE WHEN @incluirContacto = 1 THEN ISNULL(NULLIF(@piso, ''),   MAESOC_PISO)   ELSE MAESOC_PISO   END,
+            MAESOC_DTO      = CASE WHEN @incluirContacto = 1 THEN ISNULL(NULLIF(@dto, ''),    MAESOC_DTO)    ELSE MAESOC_DTO    END,
+            MAESOC_BARRIO   = CASE WHEN @incluirContacto = 1 THEN ISNULL(NULLIF(@barrio, ''), MAESOC_BARRIO) ELSE MAESOC_BARRIO END,
+            MAESOC_CODPOS   = CASE WHEN @incluirContacto = 1 THEN ISNULL(NULLIF(@codpos, ''), MAESOC_CODPOS) ELSE MAESOC_CODPOS END,
             MAESOC_EMAIL    = ISNULL(NULLIF(@email, ''),    MAESOC_EMAIL),
             MAESOC_EMAILLAB = ISNULL(NULLIF(@emaillab, ''), MAESOC_EMAILLAB),
-            MAESOC_CALLE    = ISNULL(NULLIF(@calle, ''),    MAESOC_CALLE),
-            MAESOC_NROCALLE = ISNULL(NULLIF(@nrocalle, ''), MAESOC_NROCALLE),
-            MAESOC_PISO     = ISNULL(NULLIF(@piso, ''),     MAESOC_PISO),
-            MAESOC_DTO      = ISNULL(NULLIF(@dto, ''),      MAESOC_DTO),
-            MAESOC_BARRIO   = ISNULL(NULLIF(@barrio, ''),   MAESOC_BARRIO),
-            MAESOC_CODPOS   = ISNULL(NULLIF(@codpos, ''),   MAESOC_CODPOS),
             MAESOC_CODCAT   = CASE WHEN @categoria > 0  THEN @categoria  ELSE MAESOC_CODCAT  END,
             MAESOC_CODACT   = CASE WHEN @actividad > 0  THEN @actividad  ELSE MAESOC_CODACT  END,
             MAESOC_CODOSM   = CASE WHEN @obrasocial > 0 THEN @obrasocial ELSE MAESOC_CODOSM  END,
@@ -113,16 +116,16 @@ internal static class LegacyPadron
              OR (@tipodoc > 0  AND ISNULL(MAESOC_TIPODOC, 0) <> @tipodoc)
              OR (@fechanac IS NOT NULL AND ISNULL(MAESOC_FECHANAC, '10000101') <> @fechanac)
              OR (NULLIF(@sexo, '')     IS NOT NULL AND ISNULL(RTRIM(MAESOC_SEXO), '')     <> @sexo)
-             OR (NULLIF(@tel, '')      IS NOT NULL AND ISNULL(RTRIM(MAESOC_TEL), '')      <> @tel)
-             OR (NULLIF(@telcel, '')   IS NOT NULL AND ISNULL(RTRIM(MAESOC_TELCEL), '')   <> @telcel)
+             OR (@incluirContacto = 1 AND NULLIF(@tel, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_TEL), '') <> @tel)
+             OR (@incluirContacto = 1 AND NULLIF(@telcel, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_TELCEL), '') <> @telcel)
              OR (NULLIF(@email, '')    IS NOT NULL AND ISNULL(RTRIM(MAESOC_EMAIL), '')    <> @email)
              OR (NULLIF(@emaillab, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_EMAILLAB), '') <> @emaillab)
-             OR (NULLIF(@calle, '')    IS NOT NULL AND ISNULL(RTRIM(MAESOC_CALLE), '')    <> @calle)
-             OR (NULLIF(@nrocalle, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_NROCALLE), '') <> @nrocalle)
-             OR (NULLIF(@piso, '')     IS NOT NULL AND ISNULL(RTRIM(MAESOC_PISO), '')     <> @piso)
-             OR (NULLIF(@dto, '')      IS NOT NULL AND ISNULL(RTRIM(MAESOC_DTO), '')      <> @dto)
-             OR (NULLIF(@barrio, '')   IS NOT NULL AND ISNULL(RTRIM(MAESOC_BARRIO), '')   <> @barrio)
-             OR (NULLIF(@codpos, '')   IS NOT NULL AND ISNULL(RTRIM(MAESOC_CODPOS), '')   <> @codpos)
+             OR (@incluirContacto = 1 AND NULLIF(@calle, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_CALLE), '') <> @calle)
+             OR (@incluirContacto = 1 AND NULLIF(@nrocalle, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_NROCALLE), '') <> @nrocalle)
+             OR (@incluirContacto = 1 AND NULLIF(@piso, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_PISO), '') <> @piso)
+             OR (@incluirContacto = 1 AND NULLIF(@dto, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_DTO), '') <> @dto)
+             OR (@incluirContacto = 1 AND NULLIF(@barrio, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_BARRIO), '') <> @barrio)
+             OR (@incluirContacto = 1 AND NULLIF(@codpos, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_CODPOS), '') <> @codpos)
              OR (@categoria > 0  AND ISNULL(MAESOC_CODCAT, 0) <> @categoria)
              OR (@actividad > 0  AND ISNULL(MAESOC_CODACT, 0) <> @actividad)
              OR (@obrasocial > 0 AND ISNULL(MAESOC_CODOSM, 0) <> @obrasocial)
@@ -133,6 +136,7 @@ internal static class LegacyPadron
 
     await using var comando = new SqlCommand(sql, conexion, transaccion);
     AgregarParametrosDelSocio(comando, socio, cuil);
+    comando.Parameters.AddWithValue("@incluirContacto", incluirContacto);
     return await comando.ExecuteNonQueryAsync(ct);
   }
 

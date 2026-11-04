@@ -633,6 +633,53 @@ public class EmployeeService(IUnitOfWork unitOfWork, ILegacyPadronWriter? padron
         await unitOfWork.CompleteAsync();
     }
 
+    /// <summary>
+    /// Trae del padrón del sindicato el **teléfono y el domicilio** y los aplica en SIRGA. Es la otra mitad de
+    /// la política del 2026-11-04: esos campos son de SIGES una vez que el socio existe, así que SIRGA los
+    /// toma del padrón en la presentación en lugar de pisarlos. Cada cambio queda en la bitácora con origen
+    /// <c>SIGES</c>, para que se vea de dónde vino.
+    /// Devuelve cuántos empleados quedaron actualizados.
+    /// </summary>
+    public async Task<int> TraerContactoDeSigesAsync(IReadOnlyCollection<int> employeeIds, string? usuario, CancellationToken ct = default)
+    {
+        if (padronWriter is null || employeeIds.Count == 0) return 0;
+
+        var actualizados = 0;
+        foreach (var id in employeeIds.Distinct())
+        {
+            var employee = await unitOfWork.Employees.GetByIdAsync(id);
+            if (employee is null) continue;
+
+            ContactoSocioLegado? contacto;
+            try
+            {
+                contacto = await padronWriter.LeerContactoAsync(employee.Dni, ct);
+            }
+            catch
+            {
+                // Si el padrón no responde, se sigue: no puede trabar la presentación de la DDJJ.
+                continue;
+            }
+
+            if (contacto is null) continue;
+
+            var antes = Snapshot(employee, null);
+            employee.Phone = contacto.Telefono ?? employee.Phone;
+            employee.Mobile = contacto.Celular ?? employee.Mobile;
+            employee.Address = contacto.Calle ?? employee.Address;
+            employee.AddressNumber = contacto.Numero ?? employee.AddressNumber;
+            employee.Floor = contacto.Piso ?? employee.Floor;
+            employee.Apartment = contacto.Depto ?? employee.Apartment;
+            employee.Neighborhood = contacto.Barrio ?? employee.Neighborhood;
+            employee.ZipCode = contacto.CodigoPostal ?? employee.ZipCode;
+
+            await unitOfWork.CompleteAsync();
+            await RegistrarCambiosAsync(employee, null, antes, usuario ?? "SIGES", "SIGES", "Sincronizado desde el padrón del sindicato");
+            actualizados++;
+        }
+
+        return actualizados;
+    }
     /// <summary>Historial de cambios de la ficha, del más nuevo al más viejo (para la auditoría).</summary>
     public async Task<List<EmployeeChangeLog>> GetHistorialAsync(int employeeId, int tomar = 100)
     {

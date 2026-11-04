@@ -19,6 +19,39 @@ public class LegacyPadronWriter : ILegacyPadronWriter
 
   public LegacyPadronWriter(string cadena) => _cadena = cadena;
 
+  public async Task<ContactoSocioLegado?> LeerContactoAsync(string cuil, CancellationToken ct = default)
+  {
+    if (string.IsNullOrWhiteSpace(_cadena)) return null;
+    if (!decimal.TryParse(cuil, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numero)) return null;
+
+    await using var conexion = new SqlConnection(_cadena);
+    await conexion.OpenAsync(ct);
+    await using var comando = new SqlCommand("""
+        SELECT RTRIM(ISNULL(MAESOC_TEL, '')), RTRIM(ISNULL(MAESOC_TELCEL, '')),
+               RTRIM(ISNULL(MAESOC_CALLE, '')), RTRIM(ISNULL(MAESOC_NROCALLE, '')),
+               RTRIM(ISNULL(MAESOC_PISO, '')), RTRIM(ISNULL(MAESOC_DTO, '')),
+               RTRIM(ISNULL(MAESOC_BARRIO, '')), RTRIM(ISNULL(MAESOC_CODPOS, ''))
+        FROM fotos_.maesoc WHERE MAESOC_CUIL = @cuil
+        """, conexion);
+    comando.Parameters.AddWithValue("@cuil", (double)numero);
+
+    await using var lector = await comando.ExecuteReaderAsync(ct);
+    if (!await lector.ReadAsync(ct)) return null;
+
+    static string? Vacio(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
+
+    return new ContactoSocioLegado
+    {
+      Telefono = Vacio(lector.GetString(0)),
+      Celular = Vacio(lector.GetString(1)),
+      Calle = Vacio(lector.GetString(2)),
+      Numero = Vacio(lector.GetString(3)),
+      Piso = Vacio(lector.GetString(4)),
+      Depto = Vacio(lector.GetString(5)),
+      Barrio = Vacio(lector.GetString(6)),
+      CodigoPostal = Vacio(lector.GetString(7))
+    };
+  }
   public async Task<string?> ActualizarSiExisteAsync(
       SocioLegado socio, string cuitEmpresa, CancellationToken ct = default)
   {
@@ -43,7 +76,9 @@ public class LegacyPadronWriter : ILegacyPadronWriter
 
       var cambios = new List<string>();
 
-      if (await LegacyPadron.ActualizarAsync(conexion, transaccion, socio, cuil, ct) > 0)
+      // `incluirContacto: false`: una vez que el socio existe, TELÉFONO y DOMICILIO son de SIGES
+      // (política del usuario, 2026-11-04). SIRGA no los pisa; los trae en la presentación.
+      if (await LegacyPadron.ActualizarAsync(conexion, transaccion, socio, cuil, incluirContacto: false, ct) > 0)
         cambios.Add("datos del socio");
 
       // La relación con la empresa también se mantiene al día: si no existe, se crea (el empleado ya está

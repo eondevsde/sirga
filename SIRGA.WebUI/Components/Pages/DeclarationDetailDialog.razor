@@ -1,0 +1,110 @@
+@using SIRGA.Application.DTOs
+@using SIRGA.Application.Services
+
+@* Detalle de una DDJJ ya presentada: por empleado, **lo que proponía la escala, lo que cargó el estudio y
+   la diferencia**, más los aportes. Es lo que permite auditar una DDJJ vieja cuando la escala ya cambió
+   (los importes quedan congelados en la DDJJ). *@
+<MudDialog>
+  <TitleContent>
+    <div class="d-flex align-center" style="gap: 12px;">
+      <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
+        <MudIcon Icon="@Icons.Material.Filled.FactCheck" />
+      </MudAvatar>
+      <div>
+        <MudText Typo="Typo.h6" Class="mb-0">Detalle de la DDJJ</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">@Encabezado</MudText>
+      </div>
+    </div>
+  </TitleContent>
+  <DialogContent>
+    @if (_cargando)
+    {
+      <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_detalles.Count == 0)
+    {
+      <MudText Typo="Typo.body2">Esta DDJJ no tiene renglones de empleados.</MudText>
+    }
+    else
+    {
+      <MudTable Items="@_detalles" Dense="true" Elevation="0" HorizontalScrollbar="true">
+        <HeaderContent>
+          <MudTh>Empleado</MudTh>
+          <MudTh Style="text-align:right">Escala</MudTh>
+          <MudTh Style="text-align:right">Ingresado</MudTh>
+          <MudTh Style="text-align:right">Diferencia</MudTh>
+          <MudTh Style="text-align:right">Base</MudTh>
+          <MudTh Style="text-align:right">Aporte ley</MudTh>
+          <MudTh Style="text-align:right">Cuota socio</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+          <MudTd DataLabel="Empleado">
+            <MudText Typo="Typo.body2">@context.EmployeeName</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">@context.Dni</MudText>
+          </MudTd>
+          <MudTd DataLabel="Escala" Style="text-align:right">@Importe(context.ScaleSalary)</MudTd>
+          <MudTd DataLabel="Ingresado" Style="text-align:right">@Importe(context.EnteredSalary)</MudTd>
+          <MudTd DataLabel="Diferencia" Style="text-align:right">
+            @if (context.Difference is { } diferencia)
+            {
+              <MudText Typo="Typo.body2" Color="@(diferencia >= 0 ? Color.Success : Color.Error)">
+                @(diferencia >= 0 ? "+" : "−")@Math.Abs(diferencia).ToString("C2")
+              </MudText>
+            }
+            else
+            {
+              @* Sin importe cargado: se liquidó por escala, no hay nada que comparar. *@
+              <MudText Typo="Typo.caption" Class="mud-text-secondary">por escala</MudText>
+            }
+          </MudTd>
+          <MudTd DataLabel="Base" Style="text-align:right">@context.BaseSalary.ToString("C2")</MudTd>
+          <MudTd DataLabel="Aporte ley" Style="text-align:right">@context.LawContribution.ToString("C2")</MudTd>
+          <MudTd DataLabel="Cuota socio" Style="text-align:right">@context.MemberContribution.ToString("C2")</MudTd>
+        </RowTemplate>
+      </MudTable>
+
+      <MudDivider Class="my-3" />
+      <div class="d-flex flex-wrap justify-space-between" style="gap: 12px;">
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+          @_detalles.Count empleado(s) · @_detalles.Count(d => d.ScaleSalary is > 0) con escala ·
+          @_detalles.Count(d => d.Difference is not null) con importe cargado a mano
+        </MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+          Aporte ley @_detalles.Sum(d => d.LawContribution).ToString("C2") ·
+          cuota socio @_detalles.Sum(d => d.MemberContribution).ToString("C2")
+        </MudText>
+      </div>
+    }
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cerrar">Cerrar</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+  [Parameter] public int DeclarationId { get; set; }
+  [Parameter] public string Encabezado { get; set; } = string.Empty;
+
+  [Inject] private DeclarationService DeclarationService { get; set; } = default!;
+
+  private List<DeclarationDetailDto> _detalles = new();
+  private bool _cargando = true;
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      _detalles = await DeclarationService.GetDeclarationDetailsAsync(DeclarationId);
+    }
+    finally
+    {
+      _cargando = false;
+    }
+  }
+
+  private static string Importe(decimal? valor) =>
+      valor is null ? "—" : valor.Value.ToString("C2");
+
+  private void Cerrar() => MudDialog.Close();
+}

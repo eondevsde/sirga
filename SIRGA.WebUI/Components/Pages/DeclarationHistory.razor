@@ -70,6 +70,12 @@ else
         </MudChip>
       </MudTd>
       <MudTd DataLabel="Acciones" Style="text-align:right">
+        @* Ver el detalle por empleado: la escala propuesta, lo que cargó el estudio y la diferencia. Se
+           ofrece también en una versión reemplazada, porque es sólo consulta (no emite ni cobra nada). *@
+        <MudTooltip Text="Ver el detalle por empleado (escala, ingresado y diferencia)">
+          <MudIconButton Icon="@Icons.Material.Filled.FactCheck" Color="Color.Info" Size="Size.Small"
+                         OnClick="@(() => OnVerDetalle(context))" />
+        </MudTooltip>
         @* Una DDJJ REEMPLAZADA por una rectificativa no tiene NINGUNA acción y tampoco lleva leyenda (el
            usuario pidió sacarla): la fila se identifica por su estado "Rectificada" y su versión. Lo que NO
            puede pasar es que se emita su boleta, porque se cobraría dos veces la misma DDJJ. *@
@@ -198,6 +204,17 @@ else
   /// pregunta al cliente cuándo va a pagar: esa fecha es el vencimiento de la boleta y hasta ahí se
   /// calcula el interés resarcitorio.
   /// </summary>
+  /// <summary>Abre el detalle de la DDJJ: por empleado, escala propuesta, ingresado y diferencia.</summary>
+  private async Task OnVerDetalle(DeclarationResponseDto declaration)
+  {
+    var parameters = new DialogParameters
+    {
+      ["DeclarationId"] = declaration.Id,
+      ["Encabezado"] = $"{declaration.Period} · {declaration.CompanyName} · v{declaration.VersionNumber}"
+    };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Large, FullWidth = true };
+    await DialogService.ShowAsync<DeclarationDetailDialog>("Detalle de la DDJJ", parameters, options);
+  }
   private async Task OnImprimirBoletaBancaria(DeclarationResponseDto declaration)
   {
     try

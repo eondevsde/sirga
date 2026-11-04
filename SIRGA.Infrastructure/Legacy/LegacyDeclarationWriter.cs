@@ -197,7 +197,7 @@ public class LegacyDeclarationWriter : ILegacyDeclarationWriter
         await LegacyPadron.InsertarAsync(conexion, transaccion, socio, cuil, ct);
         sociosNuevos++;
       }
-      else if (await LegacyPadron.ActualizarAsync(conexion, transaccion, socio, cuil, ct) > 0)
+      else if (await LegacyPadron.ActualizarAsync(conexion, transaccion, socio, cuil, incluirContacto: false, ct) > 0)
       {
         // El socio ya estaba: se espejan los datos que SIRGA maneja (decisión del usuario). Los campos
         // que SIRGA no tiene no se tocan y los vacíos tampoco pisan lo que haya en el padrón.
