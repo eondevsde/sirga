@@ -104,3 +104,7 @@ $RECYCLE.BIN/
 # Volcado de historial de la sesion (generado; contiene CUIT reales y referencias a credenciales)
 SIRGA_Init-historial.md
 
+
+# Documentos para el banco: tienen datos del Banco y del sindicato
+/tools/Respuesta al banco/
+
