@@ -1403,6 +1403,29 @@ obra social).
   (CORONEL) espejado **sin tocar** estado civil, nacionalidad ni grupo sanguíneo (`USUMOD` pasa a `SIRGA`,
   que es el rastro de quién escribió). El padrón real quedó con las mismas **27.924** filas.
 
+**Sincronización INSTANTÁNEA al guardar el empleado (commit `0579ec9`)**
+
+Decisión del usuario (2026-11-04): que no espere a la DDJJ. **La espera es un problema real**: si el estudio
+corrige un celular y ese mes no presenta, el padrón no se enteraba hasta la próxima presentación.
+
+- **`ILegacyPadronWriter`** (`LegacyPadronWriter` en Infrastructure) con
+  `ActualizarSiExisteAsync(SocioLegado, cuitEmpresa)`. `EmployeeService.UpdateEmployeeAsync` lo llama después
+  de `CompleteAsync` y **devuelve un aviso** (`Task<string?>`) que el diálogo muestra en un `Snackbar`.
+  > **El guardado NUNCA falla por el padrón**: si el legado no responde, el empleado queda guardado y se
+  > avisa en pantalla. No se pierde trabajo ni se finge que sincronizó.
+- **Mismas reglas que el volcado al presentar**: no crea socios (el alta sigue siendo en la presentación),
+  los valores vacíos no pisan, los campos que SIRGA no tiene no se tocan, y jubilado/carga familiar sólo
+  pasan a 1. Además mantiene la **relación socio-empresa** (`socemp`): la crea si falta y actualiza fecha de
+  ingreso y legajo si existen.
+- **El SQL del padrón vive en UN solo lugar**: `SIRGA.Infrastructure/Legacy/LegacyPadron.cs`, compartido por
+  `LegacyDeclarationWriter` (presentación) y `LegacyPadronWriter` (guardado). Antes estaba en el writer de la
+  DDJJ; duplicarlo era garantizar que los dos caminos se desincronicen.
+- **Verificado contra una copia de las tablas** (6 casos + el volcado de la DDJJ): guarda con celular nuevo
+  → padrón y relación actualizados y **campos del sindicato intactos**; guarda de nuevo → **"nada que hacer"**;
+  empleado sin padrón → **no se crea**; borrar el celular en SIRGA → **no se borra** en el padrón; sin cadena
+  de conexión → **aviso, no excepción**; y el volcado de la DDJJ **sigue creando e idempotente**.
+
+
 
 
 
