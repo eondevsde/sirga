@@ -1289,8 +1289,11 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   > como columna**: el usuario la pidió así y agregar una novena columna volvía a apretar la tabla.
   > La resta la hace la app (C#) sobre el `MinSalary` que calculó `SalaryMinimumCalculator`; **no rehacer
   > esa cuenta en SQL** (ver trampa 17).
-- **Totales al pie de la tabla del paso 2** (commit `02cdff3`): cada columna cierra con su total —
-  **Remuneración ingresada**, **Total por escala** y, debajo, la **Diferencia** en verde/rojo— más los
-  aportes de ley, voluntarios y el total general. La primera celda dice cuántos empleados hay y cuántos
-  tienen escala. **Los empleados sin escala no entran en la diferencia** (no tienen con qué compararse).
+- **Totales del paso 2 en un panel propio debajo de la tabla** (commits `02cdff3` y `548f764`):
+  **Remuneración ingresada**, **Total por escala**, **Diferencia** (verde/rojo) y **Aportes (ley +
+  voluntario)**, más una línea con cuántos empleados hay, cuántos tienen escala y el detalle de cada aporte.
+  **Los empleados sin escala no entran en la diferencia** (no tienen con qué compararse).
+  > **NO poner los totales en el `FooterContent` de `MudTable`**: el ancho de las columnas de aportes
+  > queda en ~60 px (lo fija el cuerpo de la tabla), los importes se parten en dos renglones y los
+  > rótulos se desalinean. En un `MudPaper` aparte con una grilla `auto-fit` se leen bien.
 
