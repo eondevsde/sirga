@@ -54,7 +54,7 @@
   </MudAlert>
 }
 
-<MudTable HorizontalScroll="true" Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+<MudTable HorizontalScrollbar="true" Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
           Filter="new Func<Company,bool>(FilterFunc1)" Elevation="2">
   <ToolBarContent>
     @* A 1360x768 el titulo, el boton y cuatro filtros no entran en una sola linea (se partian en
@@ -132,42 +132,42 @@
       }
     </MudTd>
     <MudTd DataLabel="Acciones">
-      <MudTooltip Text="Añadir Sucursal">
-        <MudIconButton Icon="@Icons.Material.Filled.AddHomeWork" Color="Color.Info" Size="Size.Small"
-                       OnClick="@(() => ShowBranches(context))" />
-      </MudTooltip>
-      <MudTooltip Text="Ver Empleados">
-        <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Small"
-                       Href="@($"/empresa/{context.Id}/empleados")" Disabled="@(context.Status != CompanyStatus.Active)" />
-      </MudTooltip>
-      <MudTooltip Text="Historial de DDJJ">
-        <MudIconButton Icon="@Icons.Material.Filled.History" Color="Color.Info" Size="Size.Small"
-                       Href="@($"/empresa/{context.Id}/historial")" Disabled="@(context.Status != CompanyStatus.Active)" />
-      </MudTooltip>
-      <AuthorizeView Roles="EstudioContable,Auditor,Admin" Context="nuevaDdjjContext">
-        <Authorized>
-          <MudTooltip Text="Nueva DDJJ">
-            <MudIconButton Icon="@Icons.Material.Filled.PostAdd" Color="Color.Secondary" Size="Size.Small"
-                           Href="/declarations/new" Disabled="@(context.Status != CompanyStatus.Active)" />
-          </MudTooltip>
-        </Authorized>
-      </AuthorizeView>
-      <MudTooltip Text="Estado de Cuenta">
-        <MudIconButton Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Success" Size="Size.Small"
-                       Href="@($"/company/{context.Id}/balance")" Disabled="@(context.Status != CompanyStatus.Active)" />
-      </MudTooltip>
-      <MudTooltip Text="Editar Empresa">
-        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small"
-                       OnClick="@(() => OpenEditDialog(context))" />
-      </MudTooltip>
-      @if (!string.IsNullOrEmpty(context.Address))
-      {
-        <MudTooltip Text="Ver ubicación">
-          <MudIconButton Icon="@Icons.Material.Filled.LocationOn" Color="Color.Error" Size="Size.Small"
-                         Href="@($"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(context.Address)}")"
-                         Target="_blank" />
+      @* Dos acciones a la vista (las de todos los días) y el resto en el menú "⋮": antes eran
+         siete iconos sueltos y no se distinguía cuál era cuál. *@
+      <div class="d-flex align-center flex-nowrap">
+        <MudTooltip Text="Ver Empleados">
+          <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Small"
+                         Href="@($"/empresa/{context.Id}/empleados")" Disabled="@(context.Status != CompanyStatus.Active)" />
         </MudTooltip>
-      }
+        <AuthorizeView Roles="EstudioContable,Auditor,Admin" Context="nuevaDdjjContext">
+          <Authorized>
+            <MudTooltip Text="Nueva DDJJ">
+              <MudIconButton Icon="@Icons.Material.Filled.PostAdd" Color="Color.Secondary" Size="Size.Small"
+                             Href="@($"/declarations/new?empresa={context.Id}")" Disabled="@(context.Status != CompanyStatus.Active)" />
+            </MudTooltip>
+          </Authorized>
+        </AuthorizeView>
+        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Default" Size="Size.Small"
+                 AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight"
+                 AriaLabel="Más acciones">
+          <MudMenuItem Icon="@Icons.Material.Filled.History" IconColor="Color.Info"
+                       Href="@($"/empresa/{context.Id}/historial")"
+                       Disabled="@(context.Status != CompanyStatus.Active)">Historial de DDJJ</MudMenuItem>
+          <MudMenuItem Icon="@Icons.Material.Filled.AccountBalanceWallet" IconColor="Color.Success"
+                       Href="@($"/company/{context.Id}/balance")"
+                       Disabled="@(context.Status != CompanyStatus.Active)">Estado de Cuenta</MudMenuItem>
+          <MudMenuItem Icon="@Icons.Material.Filled.AddHomeWork" IconColor="Color.Info"
+                       OnClick="@(() => ShowBranches(context))">Añadir Sucursal</MudMenuItem>
+          <MudMenuItem Icon="@Icons.Material.Filled.Edit" IconColor="Color.Default"
+                       OnClick="@(() => OpenEditDialog(context))">Editar Empresa</MudMenuItem>
+          @if (!string.IsNullOrEmpty(context.Address))
+          {
+            <MudMenuItem Icon="@Icons.Material.Filled.LocationOn" IconColor="Color.Error"
+                         Href="@($"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(context.Address)}")"
+                         Target="_blank">Ver Ubicación</MudMenuItem>
+          }
+        </MudMenu>
+      </div>
     </MudTd>
   </RowTemplate>
   <ChildRowContent>
@@ -197,26 +197,27 @@
             }
           </MudTd>
           <MudTd>
-            <MudTooltip Text="Ver Empleados (Sucursal)">
-              <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Small"
-                             Href="@($"/empresa/{branch.Id}/empleados")" />
-            </MudTooltip>
-            <MudTooltip Text="Estado de Cuenta">
-              <MudIconButton Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Success" Size="Size.Small"
-                             Href="@($"/company/{branch.Id}/balance")" />
-            </MudTooltip>
-            <MudTooltip Text="Editar Sucursal">
-              <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small"
-                             OnClick="@(() => OpenEditDialog(branch))" />
-            </MudTooltip>
-            @if (!string.IsNullOrEmpty(branch.Address))
-            {
-              <MudTooltip Text="Ver ubicación">
-                <MudIconButton Icon="@Icons.Material.Filled.LocationOn" Color="Color.Error" Size="Size.Small"
-                               Href="@($"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(branch.Address)}")"
-                               Target="_blank" />
+            @* Igual que la fila de la casa central: visto bueno a la vista y el resto en el menú. *@
+            <div class="d-flex align-center flex-nowrap">
+              <MudTooltip Text="Ver Empleados (Sucursal)">
+                <MudIconButton Icon="@Icons.Material.Filled.People" Color="Color.Primary" Size="Size.Small"
+                               Href="@($"/empresa/{branch.Id}/empleados")" />
               </MudTooltip>
-            }
+              <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Default" Size="Size.Small"
+                       AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight"
+                       AriaLabel="Más acciones">
+                <MudMenuItem Icon="@Icons.Material.Filled.AccountBalanceWallet" IconColor="Color.Success"
+                             Href="@($"/company/{branch.Id}/balance")">Estado de Cuenta</MudMenuItem>
+                <MudMenuItem Icon="@Icons.Material.Filled.Edit" IconColor="Color.Default"
+                             OnClick="@(() => OpenEditDialog(branch))">Editar Sucursal</MudMenuItem>
+                @if (!string.IsNullOrEmpty(branch.Address))
+                {
+                  <MudMenuItem Icon="@Icons.Material.Filled.LocationOn" IconColor="Color.Error"
+                               Href="@($"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(branch.Address)}")"
+                               Target="_blank">Ver Ubicación</MudMenuItem>
+                }
+              </MudMenu>
+            </div>
           </MudTd>
         </MudTr>
       }
