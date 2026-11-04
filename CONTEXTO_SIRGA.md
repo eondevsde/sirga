@@ -1130,6 +1130,14 @@ Commits **`0989dad`** y **`27c0ede`**. Build **0 errores**, **0 avisos** del com
 - **Se corrigió el scroll horizontal de las 35 tablas** (ver trampa 19): el parámetro es
   **`HorizontalScrollbar`**. Esto es lo que el usuario venía reclamando como *"objetos que no renderizan
   bien"*: el scroll pedido en la sesión anterior nunca funcionó.
+- **Los filtros de `/companies` ocupan todo el ancho** (commit `b34a7bd`, pedido del usuario con captura):
+  los cuatro controles se apretaban en un bloque a la izquierda y sobraba ancho. Ahora el contenedor es
+  `flex` con `gap`, cada control **crece** (la búsqueda se lleva el resto: `flex: 2 1 300px`, los select
+  `flex: 1 1 200px`, Estado `flex: 0 1 180px`) y con **`flex-wrap`** se acomodan en pantallas angostas.
+  - **La búsqueda ahora mira más datos**: antes sólo CUIT y razón social, así que buscar una **localidad**
+    o el **nombre de fantasía** no encontraba nada. Ahora también `TradeName` y el nombre de la ciudad
+    (con el mapa de `_cities` que ya estaba cargado), y el **CUIT con o sin guiones** vía
+    `NormalizedCuit`. Todo **null-safe**: hay empresas sin CUIT, sin fantasía y sin localidad.
 
 **Lo que NO se pudo verificar** (lo tiene que ver el usuario en pantalla): que el menú `⋮` **abra** y se
 vea bien, que los ítems se vean habilitados/deshabilitados como corresponde, y que el **scroll horizontal**
