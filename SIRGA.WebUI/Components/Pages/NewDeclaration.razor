@@ -759,7 +759,7 @@ else
     }
 
     var parameters = new DialogParameters { ["CompanyId"] = _selectedCompanyId };
-    var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+    var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true };
 
     var dialog = await DialogService.ShowAsync<AddEmployeeDialog>("Nuevo Empleado", parameters, options);
     var result = await dialog.Result;
