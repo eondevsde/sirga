@@ -86,7 +86,9 @@
   
     <AuthorizeView>
       <Authorized>
-        <MudNavLink Href="/logout" Icon="@Icons.Material.Filled.Logout">Cerrar Sesión (@context.User.Identity?.Name)
+        <MudNavLink Href="/logout" Icon="@Icons.Material.Filled.Logout">
+          Cerrar Sesión
+          <div style="font-size: 0.7rem; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;">@context.User.Identity?.Name</div>
         </MudNavLink>
       </Authorized>
       <NotAuthorized>
