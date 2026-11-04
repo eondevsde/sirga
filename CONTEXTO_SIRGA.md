@@ -1246,6 +1246,10 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   > **Ojo con `@bind-Date`**: `MudDatePicker.Date` es `DateTime?`. Si el DTO tiene `DateTime`, el
   > binding no compila (`EventCallback<DateTime>` vs `EventCallback`): se ata a un campo local
   > `DateTime?` y se copia al DTO al guardar.
+- **El período y el año van en el ENCABEZADO de Nueva DDJJ** (commit `1d888f1`): antes había que volver
+  al paso 1 para saber qué mes se estaba declarando, y en los pasos 2 y 3 se declaraba a ciegas. El
+  encabezado (fuera del stepper, visible en los tres pasos) muestra Empresa, CUIT, **"Período: Noviembre
+  2026"** y un chip con el estado de ese período (`Ya presentada (…)` o `Sin DDJJ`).
 - **Se agregó la FECHA DE INGRESO A LA EMPRESA** al alta y a la edición: **no existía**, y el alta la
   dejaba en la fecha del día. De esa fecha sale la **antigüedad** del mínimo de escala, así que ahora se
   puede cargar la real (el alta arranca con hoy y se corrige a mano).
