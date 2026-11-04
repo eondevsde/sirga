@@ -185,6 +185,14 @@ puerto 5122** con `Get-NetTCPConnection -LocalPort 5122` y matarlo. No matar por
     (ese es MSB3021/MSB3027) ni se ve con `icacls`: era **`WRITE_OWNER` faltante** en `SIRGA.Domain` y sus
     `obj`. Se repara con la skill `diagnose-windows-sandbox-acl`; deja respaldos y el comando de vuelta
     atrás en **`.dsh-tools\acl-recovery`** (ignorado por git).
+23. **Un `:setvar` dentro del script PISA el `-v` de `sqlcmd`.** El script de empleados tenía
+    `:setvar Simulacro 1` adentro y `-v Simulacro=0` por afuera: **ganó el de adentro** y la corrida
+    salió en simulacro **sin ningún error**, con el script diciendo "no se escribió nada". Es la misma
+    familia de fallos silenciosos que las otras trampas. **Regla: el modo se pasa por parámetro y el
+    script no trae un valor propio que lo pise** (`DECLARE @Simulacro bit = $(Simulacro);`).
+24. **Las fechas del sistema anterior traen centinela `1900-01-01`** para "sin fecha" (7.849 empleados
+    en `HireDate`). Un centinela mostrado como fecha **miente**: en la ficha y el padrón se muestra
+    **"—"** cuando el año es < 1950. Antes de mostrar una fecha del legado, mirar si es centinela.
 
 ---
 
@@ -1202,7 +1210,16 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
     descripción**; el código desconocido se muestra como código (`Textos.TipoDocumento`), nunca con
     una etiqueta inventada. **Estado civil NO se migró**: hay 7.550 con código (`C`, `S`, `B`, `D`,
     `V`, `E`) y **no existe la tabla de códigos**.
-  > **⚠️ PENDIENTE DE APROBACIÓN DEL USUARIO**: el `UPDATE` masivo de las 27.924 filas **no se aplicó**
-  > (regla 2: simulacro → respaldo → OK explícito). Mientras no se corra, la grilla muestra el
-  > **nombre completo** en la columna Nombre y `—` en Apellido.
+  - ✅ **APLICADO el 2026-11-03 con el OK del usuario**: `UPDATE` de **27.924** filas. Verificado
+    releyendo de la base (no con el output del script): CUIL `20217178836` → `CORONEL` / `ORACIO
+    RUBEN`, nacimiento 18/07/1973, sexo M, documento DNI 21717883. Respaldo
+    `dbo._BackupEmployeesDatosMaesoc` con **27.924** filas (todas con la columna previa en NULL).
+    **Segunda corrida = mismas cifras** (idempotente, no toca el respaldo).
+  - **Quedan 10 empleados sin datos**: son los `"SIN NOMBRE <cuil>"` que tampoco están en el legado
+    (se informan, no se tocan). Coincide con el pendiente de calidad de datos de la sección 7.
+  > **OJO CON LAS FECHAS CENTINELA**: el sistema anterior usa **`1900-01-01`** como "sin fecha" y hay
+  > **7.849** empleados así en el alta al sindicato (`HireDate`). Mostrarla como fecha real es una
+  > mentira silenciosa: la ficha y el padrón muestran **"—"** cuando el año es < 1950. El ingreso a la
+  > empresa (`Assignments.CreatedAt`) **no tiene centinelas** (mínimo 1961), así que esa columna sí es
+  > confiable.
 
