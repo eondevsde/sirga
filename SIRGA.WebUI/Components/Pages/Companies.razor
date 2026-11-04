@@ -60,15 +60,15 @@
    es el del contenedor de la pagina, la grilla reparte en partes iguales y el hueco no puede quedar. *@
 <MudPaper Elevation="2" Style="padding: 16px; margin-bottom: 16px; width: 100%;">
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; width: 100%;">
-    <div>
-      <MudTextField @bind-Value="_searchString" Placeholder="Buscar por CUIT, razón social o localidad"
+    <div style="display: flex; align-items: flex-end;">
+      <MudTextField @bind-Value="_searchString" Label="Buscar empresa" Placeholder="CUIT, razón social o localidad"
                     Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                     IconSize="Size.Medium" Margin="Margin.Dense" Immediate="true"></MudTextField>
     </div>
 
     @* Provincia y Localidad salen de las tablas Provinces y Cities. La localidad se llena con
        las ciudades de la provincia elegida, y al cambiar de provincia se limpia si no pertenece. *@
-    <div>
+    <div style="display: flex; align-items: flex-end;">
       <MudSelect T="int?" Label="Provincia" @bind-Value="_provinceFilterId" @bind-Value:after="OnProvinceChanged"
                  Margin="Margin.Dense" Clearable="true">
         <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
@@ -79,7 +79,7 @@
       </MudSelect>
     </div>
 
-    <div>
+    <div style="display: flex; align-items: flex-end;">
       <MudSelect T="int?" Label="Localidad" @bind-Value="_cityFilterId" @bind-Value:after="StateHasChanged"
                  Margin="Margin.Dense" Clearable="true" Disabled="@(_provinceFilterId is null)">
         <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
@@ -90,7 +90,7 @@
       </MudSelect>
     </div>
 
-    <div>
+    <div style="display: flex; align-items: flex-end;">
       <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged"
                  Margin="Margin.Dense">
         <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
