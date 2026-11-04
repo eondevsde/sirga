@@ -296,8 +296,12 @@
       if (IsEdit)
       {
         model.AssignmentEntryDate = _fechaIngreso ?? default;
-        await EmpService.UpdateEmployeeAsync(model);
+        // El servicio devuelve un aviso si el padrón del sindicato no se pudo actualizar: se muestra, no se
+        // esconde. El empleado ya quedó guardado igual.
+        var avisoPadron = await EmpService.UpdateEmployeeAsync(model);
         Snackbar.Add("Empleado actualizado.", Severity.Success);
+        if (!string.IsNullOrWhiteSpace(avisoPadron))
+          Snackbar.Add(avisoPadron!, Severity.Warning, config => config.VisibleStateDuration = 10000);
       }
       else
       {

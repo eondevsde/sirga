@@ -104,6 +104,11 @@ builder.Services.AddScoped<SIRGA.Application.Interfaces.ILegacyDeclarationWriter
     new SIRGA.Infrastructure.Legacy.LegacyDeclarationWriter(
         builder.Configuration.GetConnectionString("Legacy") ?? string.Empty));
 
+// Mantiene el padrón del sindicato al día cuando el estudio guarda un empleado (sincronización instantánea).
+builder.Services.AddScoped<SIRGA.Application.Interfaces.ILegacyPadronWriter>(_ =>
+    new SIRGA.Infrastructure.Legacy.LegacyPadronWriter(
+        builder.Configuration.GetConnectionString("Legacy") ?? string.Empty));
+
 // Revisa cada tanto la carpeta donde el cliente de correo deja los archivos de rendición del banco.
 // Si no hay carpeta configurada (RendicionBanco:CarpetaEntrada) no hace nada y lo avisa una vez. Y por
 // defecto procesa en SIMULACRO (RendicionBanco:ModoSimulacro: false para que escriba de verdad).

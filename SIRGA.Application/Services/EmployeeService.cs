@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace SIRGA.Application.Services;
 
-public class EmployeeService(IUnitOfWork unitOfWork)
+public class EmployeeService(IUnitOfWork unitOfWork, ILegacyPadronWriter? padronWriter = null)
 {
     /// <summary>
     /// Ids de los empleados con asignación activa a un sindicato. Es lo que acota lo que puede ver un
@@ -488,7 +488,12 @@ public class EmployeeService(IUnitOfWork unitOfWork)
     /// empresa, la categoría, la jornada y si es socio. La jornada y la categoría van en la ASIGNACIÓN
     /// y no en el empleado, porque el mismo empleado puede tener otra jornada en otra empresa.
     /// </summary>
-    public async Task UpdateEmployeeAsync(EmployeeDto dto)
+    /// <summary>
+    /// Guarda la ficha y **sincroniza el padrón del sindicato en el acto** (decisión del usuario del
+    /// 2026-11-04). Devuelve un aviso si el padrón no se pudo actualizar, o <c>null</c> si salió todo bien.
+    /// El guardado del empleado NUNCA falla por el padrón: se avisa y se sigue.
+    /// </summary>
+    public async Task<string?> UpdateEmployeeAsync(EmployeeDto dto)
     {
         var employee = await unitOfWork.Employees.GetByIdAsync(dto.Id)
             ?? throw new Exception("El empleado no existe.");
@@ -535,7 +540,60 @@ public class EmployeeService(IUnitOfWork unitOfWork)
         }
 
         await unitOfWork.CompleteAsync();
+
+        return await SincronizarPadronAsync(employee, dto.AssignmentId);
     }
+
+    /// <summary>
+    /// Espeja el socio en el padrón del sistema anterior (sólo si ya existe) y devuelve el aviso para la
+    /// pantalla. Si el legado no responde, el guardado ya está hecho y se informa: no se pierde nada ni se
+    /// finge que sincronizó.
+    /// </summary>
+    private async Task<string?> SincronizarPadronAsync(Employee employee, int assignmentId)
+    {
+        if (padronWriter is null) return null;
+
+        try
+        {
+            var asignacion = assignmentId > 0 ? await unitOfWork.Assignments.GetByIdAsync(assignmentId) : null;
+            var empresa = asignacion is not null ? await unitOfWork.Companies.GetByIdAsync(asignacion.CompanyId) : null;
+
+            var socio = new SocioLegado
+            {
+                Cuil = employee.Dni,
+                Apellido = employee.LastName ?? string.Empty,
+                Nombre = employee.FirstName ?? string.Empty,
+                Documento = employee.DocumentNumber,
+                TipoDocumento = employee.DocumentTypeCode,
+                FechaNacimiento = employee.BirthDate,
+                Sexo = employee.Sex,
+                Telefono = employee.Phone,
+                Celular = employee.Mobile,
+                Email = employee.Email,
+                EmailLaboral = employee.WorkEmail,
+                Calle = employee.Address,
+                Numero = employee.AddressNumber,
+                Piso = employee.Floor,
+                Depto = employee.Apartment,
+                Barrio = employee.Neighborhood,
+                CodigoPostal = employee.ZipCode,
+                Categoria = asignacion?.CategoryCode,
+                Actividad = asignacion?.ActivityCode,
+                ObraSocial = employee.HealthInsuranceCode,
+                Jubilado = employee.IsRetired,
+                CargaFamiliar = employee.HasFamilyCharge,
+                FechaIngreso = asignacion?.CreatedAt,
+                Legajo = asignacion?.FileNumber
+            };
+
+            return await padronWriter.ActualizarSiExisteAsync(socio, empresa?.Cuit ?? string.Empty);
+        }
+        catch (Exception ex)
+        {
+            return "El empleado se guardó, pero NO se pudo actualizar el padrón del sindicato: " + ex.Message;
+        }
+    }
+
     public async Task<IEnumerable<Employee>> GetAllAsync() => await unitOfWork.Employees.GetAllAsync();
 
     /// <summary>
