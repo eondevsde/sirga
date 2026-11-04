@@ -335,9 +335,30 @@ else
               <MudTd DataLabel="Total"><b>@((context.LawContribution + context.VoluntaryContribution).ToString("C"))</b>
               </MudTd>
             </RowTemplate>
+            @* Totales al pie, alineados con su columna: lo que se ingresó, lo que marca la escala, la
+               diferencia entre los dos y los aportes. *@
             <FooterContent>
               <MudTFootRow>
-                <MudTd colspan="7" Style="text-align:right">Total General:</MudTd>
+                <MudTd colspan="3">
+                  <MudText Typo="Typo.body2"><b>Totales</b></MudText>
+                  <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    @_details.Count empleado(s) · @_details.Count(d => d.MinSalary > 0) con escala
+                  </MudText>
+                </MudTd>
+                <MudTd>
+                  <MudText Typo="Typo.caption" Class="mud-text-secondary">Remuneración ingresada</MudText>
+                  <MudText Typo="Typo.body2"><b>@_details.Sum(x => x.GrossSalary).ToString("C")</b></MudText>
+                </MudTd>
+                <MudTd>
+                  <MudText Typo="Typo.caption" Class="mud-text-secondary">Total por escala</MudText>
+                  <MudText Typo="Typo.body2"><b>@TotalEscala.ToString("C")</b></MudText>
+                  <MudText Typo="Typo.caption" Color="@(TotalDiferencia >= 0 ? Color.Success : Color.Error)"
+                           Style="font-weight: 600;">
+                    Diferencia @TextoDiferencia(TotalDiferencia)
+                  </MudText>
+                </MudTd>
+                <MudTd><b>@_details.Sum(x => x.LawContribution).ToString("C")</b></MudTd>
+                <MudTd><b>@_details.Sum(x => x.VoluntaryContribution).ToString("C")</b></MudTd>
                 <MudTd><b>@_details.Sum(x => x.LawContribution + x.VoluntaryContribution).ToString("C")</b></MudTd>
               </MudTFootRow>
             </FooterContent>
@@ -587,6 +608,14 @@ else
   /// Diferencia entre lo que declara el estudio y el mínimo de escala: positiva si paga igual o por
   /// encima del mínimo, negativa si paga por debajo.
   /// </summary>
+  /// <summary>Suma de lo que marca la escala para los empleados que tienen categoría con escala.</summary>
+  private decimal TotalEscala => _details.Sum(d => d.MinSalary);
+
+  /// <summary>
+  /// Diferencia total: lo ingresado menos el mínimo de escala, contando sólo a los empleados que tienen
+  /// escala (los que no la tienen no tienen con qué compararse).
+  /// </summary>
+  private decimal TotalDiferencia => _details.Sum(d => d.MinSalary > 0 ? d.GrossSalary - d.MinSalary : 0m);
   private static decimal Diferencia(DeclarationDetailViewModel detalle) =>
       detalle.GrossSalary - detalle.MinSalary;
 
