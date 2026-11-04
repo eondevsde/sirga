@@ -1130,10 +1130,17 @@ Commits **`0989dad`** y **`27c0ede`**. Build **0 errores**, **0 avisos** del com
 - **Se corrigió el scroll horizontal de las 35 tablas** (ver trampa 19): el parámetro es
   **`HorizontalScrollbar`**. Esto es lo que el usuario venía reclamando como *"objetos que no renderizan
   bien"*: el scroll pedido en la sesión anterior nunca funcionó.
-- **Los filtros de `/companies` ocupan todo el ancho** (commit `b34a7bd`, pedido del usuario con captura):
-  los cuatro controles se apretaban en un bloque a la izquierda y sobraba ancho. Ahora el contenedor es
-  `flex` con `gap`, cada control **crece** (la búsqueda se lleva el resto: `flex: 2 1 300px`, los select
-  `flex: 1 1 200px`, Estado `flex: 0 1 180px`) y con **`flex-wrap`** se acomodan en pantallas angostas.
+- **Los filtros de `/companies` van en una franja propia a todo el ancho** (commits `b34a7bd` y `c3e6fe3`,
+  pedido del usuario con captura): antes se apretaban en un bloque a la izquierda y sobraba ancho.
+  > **NO SE PUEDE PEDIRLE EL ANCHO A UN CONTROL DE MUD CON `Style`.** El ancho lo decide el contenedor
+  > (`.mud-input-control` es `display:flex; flex:1 1 auto; max-width:100%`), así que `Style="flex: …"` o
+  > `min-width` en `MudTextField`/`MudSelect` **no estira nada** y la fila queda corta. Con `flex` en la
+  > barra de la tabla quedaba un **hueco de 264 px** a la derecha. La solución que funciona: **sacar los
+  > filtros de `ToolBarContent`** a un `MudPaper` propio (ancho de página) y adentro una **grilla**
+  > `repeat(auto-fit, minmax(190px, 1fr))` con cada control envuelto en un `div` que es la celda.
+  > **Medido** con navegador headless sobre el CSS real de MudBlazor (`.dsh-tools/filtros-test/test.html`):
+  > 4 celdas de **246 px** y último borde en **1060** de 1076 disponibles (sólo el padding). La flex
+  > anterior daba celdas de 184 px y el borde derecho en **812**.
   - **La búsqueda ahora mira más datos**: antes sólo CUIT y razón social, así que buscar una **localidad**
     o el **nombre de fantasía** no encontraba nada. Ahora también `TradeName` y el nombre de la ciudad
     (con el mapa de `_cities` que ya estaba cargado), y el **CUIT con o sin guiones** vía
