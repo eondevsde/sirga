@@ -26,14 +26,35 @@
    al presentar. *@
 <MudText Typo="Typo.h4" Style="font-size: clamp(1rem, 1.7vw, 1.55rem); overflow-wrap: anywhere; line-height: 1.1;">@(_esRectificacion ? "Nueva DDJJ (Rectificación)" : "Nueva Declaración Jurada")</MudText>
 
-@if (EmpresaSeleccionada is { } empresa)
-{
-  <MudText Typo="Typo.subtitle1" Class="mt-2">
-    <b>Empresa:</b> @empresa.BusinessName@(string.IsNullOrWhiteSpace(empresa.TradeName) ? "" : $" / {empresa.TradeName}")
-  </MudText>
-  <MudText Typo="Typo.subtitle1">
-    <b>CUIT:</b> @empresa.Cuit
-  </MudText>
+<div class="mb-6">
+  @if (EmpresaSeleccionada is { } empresa)
+  {
+    <MudText Typo="Typo.subtitle1" Class="mt-2">
+      <b>Empresa:</b> @empresa.BusinessName@(string.IsNullOrWhiteSpace(empresa.TradeName) ? "" : $" / {empresa.TradeName}")
+    </MudText>
+    <MudText Typo="Typo.subtitle1">
+      <b>CUIT:</b> @empresa.Cuit
+    </MudText>
+  }
+
+  @* El período va en el encabezado, fuera del stepper: antes había que volver al paso 1 para saber qué
+     mes y qué año se estaban declarando (y se declaraba a ciegas en los pasos 2 y 3). *@
+  <div class="d-flex flex-wrap align-center mt-2" style="gap: 10px;">
+    <MudText Typo="Typo.subtitle1">
+      <b>Período:</b> @NombreMes(_month) @_year
+    </MudText>
+    @if (EstadoDelMes(_month) is { } estadoPeriodo)
+    {
+      <MudChip T="string" Size="Size.Small" Color="@estadoPeriodo.Color">
+        Ya presentada (@estadoPeriodo.Texto)
+      </MudChip>
+    }
+    else
+    {
+      <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Sin DDJJ</MudChip>
+    }
+  </div>
+
   @if (_esRectificacion)
   {
     <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3 mb-2">
@@ -41,12 +62,7 @@
       presentar, esta queda como <b>@_proximaVersion</b> y la anterior pasa a <b>Rectificada</b>.
     </MudAlert>
   }
-  <div class="mb-6"></div>
-}
-else
-{
-  <div class="mb-6"></div>
-}
+</div>
 
 @if (_loadingBaseData)
 {
