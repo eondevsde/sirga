@@ -1250,6 +1250,15 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   al paso 1 para saber qué mes se estaba declarando, y en los pasos 2 y 3 se declaraba a ciegas. El
   encabezado (fuera del stepper, visible en los tres pasos) muestra Empresa, CUIT, **"Período: Noviembre
   2026"** y un chip con el estado de ese período (`Ya presentada (…)` o `Sin DDJJ`).
+- **Una empresa INACTIVA no puede presentar DDJJ** (commit `5b7e1c2`): la regla está en
+  **`DeclarationService.ValidarEmpresaActiva`**, que se llama desde `CalcularAsync` — o sea, cubre el
+  guardado **y** la previsualización de rectificativa, no se puede saltear por API.
+  > **La causa era tener DOS banderas y mirar una sola**: la grilla muestra el chip con `Company.IsActive`
+  > y el botón de Nueva DDJJ se habilitaba con `Company.Status`. Una empresa con `IsActive = 0` y
+  > `Status = Active` se podía declarar. **La regla mira las dos.** Ahora el ícono también, la pantalla de
+  > Nueva DDJJ no lista inactivas y, si llega una por query string, **avisa** en vez de ignorarla.
+  > Cubierto con **3 pruebas** (`EmpresaInactivaTests`, 168/168): activa no lanza, inactiva lanza con el
+  > nombre de la empresa, y un `Status` distinto de `Active` lanza aunque `IsActive` esté en `true`.
 - **Se agregó la FECHA DE INGRESO A LA EMPRESA** al alta y a la edición: **no existía**, y el alta la
   dejaba en la fecha del día. De esa fecha sale la **antigüedad** del mínimo de escala, así que ahora se
   puede cargar la real (el alta arranca con hoy y se corrige a mano).
