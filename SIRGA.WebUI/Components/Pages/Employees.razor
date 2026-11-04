@@ -27,16 +27,16 @@
                  OnClick="DownloadPadron">Exportar Padrón</MudButton>
     </ToolBarContent>
     <HeaderContent>
-      <MudTh>CUIL/DNI</MudTh>
+      <MudTh>CUIL</MudTh>
       <MudTh>Nombre Completo</MudTh>
       <MudTh>Fecha Ingreso</MudTh>
       <MudTh>Estado</MudTh>
       <MudTh>Acciones</MudTh>
     </HeaderContent>
     <RowTemplate>
-      <MudTd DataLabel="DNI">@context.Dni</MudTd>
-      <MudTd DataLabel="Nombre">@context.FullName</MudTd>
-      <MudTd DataLabel="Ingreso">@context.JoinedDate.ToShortDateString()</MudTd>
+      <MudTd DataLabel="CUIL">@CuilFormateado(context.Dni)</MudTd>
+      <MudTd DataLabel="Nombre">@context.NombreParaMostrar</MudTd>
+      <MudTd DataLabel="Ingreso">@(context.JoinedDate.Year < 1950 ? "—" : context.JoinedDate.ToString("dd/MM/yyyy"))</MudTd>
       <MudTd DataLabel="Estado">
         <MudChip T="string" Color="@(context.IsActive? Color.Success: Color.Error)" Size="Size.Small">
           @(context.IsActive ? "Activo" : "Baja")
@@ -108,6 +108,9 @@
     }
   }
 
+  /// <summary>CUIL con guiones (xx-xxxxxxxx-x); en la base va sin guiones.</summary>
+  private static string CuilFormateado(string? cuil) =>
+      cuil is { Length: 11 } c ? $"{c[..2]}-{c[2..10]}-{c[10..]}" : cuil ?? "";
   private bool FilterFunc1(EmployeeDto element) => FilterFunc(element, _searchString);
 
   private bool FilterFunc(EmployeeDto element, string searchString)

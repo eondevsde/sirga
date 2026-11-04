@@ -19,15 +19,15 @@
 --     (se crea si no existe) y deja el script para volver atrás.
 --   * NO BORRA NADA: no hay DELETE ni UPDATE de columnas que ya existían.
 --
--- CÓMO SE CORRE
---   sqlcmd -S localhost -d SIRGA_DB -E -i script_sirga_db_empleados_desde_maesoc.sql
---   ... y para escribir de verdad, cambiar  @Simulacro = 0.
+-- CÓMO SE CORRE (el modo se pasa SIEMPRE por parámetro; no hay valor escondido en el archivo)
+--   Simulacro (no escribe):   sqlcmd -S localhost -d SIRGA_DB -E -v Simulacro=1 -i script_sirga_db_empleados_desde_maesoc.sql
+--   Aplicar de verdad:        sqlcmd -S localhost -d SIRGA_DB -E -v Simulacro=0 -i script_sirga_db_empleados_desde_maesoc.sql
 -- =====================================================================
 SET NOCOUNT ON;
 SET QUOTED_IDENTIFIER ON;   -- obligatorio para escribir en tablas con índice filtrado
 SET XACT_ABORT ON;
 
-DECLARE @Simulacro bit = 1;   -- 1 = informa (no escribe) | 0 = escribe
+DECLARE @Simulacro bit = $(Simulacro);   -- 1 = informa (no escribe) | 0 = escribe
 
 -- ---------------------------------------------------------------------
 -- 1. Padrón cruzado (sólo filas que tienen CUIL en las dos bases)
