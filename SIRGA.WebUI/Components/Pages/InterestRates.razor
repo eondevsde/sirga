@@ -23,8 +23,8 @@
         <MudSelectItem T="InterestType" Value="InterestType.Resarcitorio">Resarcitorio (la más baja)</MudSelectItem>
         <MudSelectItem T="InterestType" Value="InterestType.Punitorio">Punitorio (la más alta)</MudSelectItem>
       </MudSelect>
-      <MudDatePicker Label="Vigencia desde" @bind-Date="_newRateDate" Class="mt-4" />
-      <MudDatePicker Label="Vigencia hasta (opcional)" @bind-Date="_nuevaVigenciaHasta" Class="mt-4" />
+      <MudDatePicker Label="Vigencia desde" @bind-Date="_newRateDate" Class="mt-4" Editable="true" />
+      <MudDatePicker Label="Vigencia hasta (opcional)" @bind-Date="_nuevaVigenciaHasta" Class="mt-4" Editable="true" />
       <MudTextField @bind-Value="_newRate.Norm" Label="Norma (ej. R (MEC) 823/2025)" Class="mt-4" />
       <MudTextField @bind-Value="_newRate.Description" Label="Descripción / Motivo" Class="mt-4" />
       <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-6" FullWidth="true" OnClick="SaveRate">

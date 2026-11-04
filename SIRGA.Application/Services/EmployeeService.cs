@@ -423,7 +423,10 @@ public class EmployeeService(IUnitOfWork unitOfWork)
             // La categoría y la jornada se cargan en el alta: sin categoría la DDJJ liquidaba el
             // mínimo de escala en cero, y la jornada decide si corresponde el 50%.
             CategoryCode = string.IsNullOrWhiteSpace(dto.CategoryCode) ? null : dto.CategoryCode.Trim(),
-            Jornada = dto.Jornada
+            Jornada = dto.Jornada,
+            // Fecha de ingreso A LA EMPRESA: de aca sale la antiguedad del minimo de escala. Si no se
+            // indica, se usa la fecha del alta (comportamiento anterior).
+            CreatedAt = dto.EntryDate ?? DateTime.Now
         };
 
         await unitOfWork.Assignments.AddAsync(assignment);
@@ -469,6 +472,10 @@ public class EmployeeService(IUnitOfWork unitOfWork)
 
             assignment.CategoryCode = string.IsNullOrWhiteSpace(dto.CategoryCode) ? null : dto.CategoryCode.Trim();
             assignment.Jornada = dto.Jornada;
+            // Se puede corregir la fecha de ingreso a la empresa: cambia la antiguedad y, con ella, el
+            // minimo de escala. Si viene vacia (default) se deja la que estaba.
+            if (dto.AssignmentEntryDate != default)
+                assignment.CreatedAt = dto.AssignmentEntryDate;
             assignment.IsVoluntaryMember = dto.IsVoluntaryMember;
         }
 

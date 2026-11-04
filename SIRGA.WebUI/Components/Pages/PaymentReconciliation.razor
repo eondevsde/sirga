@@ -57,7 +57,7 @@
                            Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
         </MudItem>
         <MudItem xs="12" md="4">
-          <MudDatePicker Label="Fecha de Pago" @bind-Date="_paymentDate" Variant="Variant.Outlined" />
+          <MudDatePicker Label="Fecha de Pago" @bind-Date="_paymentDate" Variant="Variant.Outlined" Editable="true" />
         </MudItem>
         <MudItem xs="12" md="6">
           <MudTextField @bind-Value="_newPayment.ExternalReference" Label="Nro de Comprobante / Referencia"

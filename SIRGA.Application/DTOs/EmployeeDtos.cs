@@ -114,6 +114,13 @@ public class CreateEmployeeDto
   /// <summary>Jornada en esta empresa: Parcial = 50% del mínimo de escala.</summary>
   public JornadaType Jornada { get; set; } = JornadaType.Completa;
 
+  /// <summary>
+  /// Fecha de ingreso del empleado A LA EMPRESA (Assignments.CreatedAt). Si no se indica, se usa la
+  /// fecha del alta. Es de donde sale la ANTIGÜEDAD para el mínimo de escala, por eso se puede cargar
+  /// a mano cuando la persona ingresó antes de que se la registre en el sistema.
+  /// </summary>
+  public DateTime? EntryDate { get; set; }
+
   public int CompanyId { get; set; }
   public int UnionId { get; set; }
   public bool IsVoluntaryMember { get; set; }
