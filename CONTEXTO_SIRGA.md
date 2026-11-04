@@ -1171,3 +1171,38 @@ se comporte con el mouse. Un agente no opera el navegador.
 permisos de Windows en `SIRGA.Domain\obj` y después porque `dotnet restore` no pasa por el sandbox
 restringido. Con la sesión en acceso completo, build y tests corren normales.
 
+### 10.11. ✅ EMPLEADOS: LOS DATOS DE `maesoc` EN LA FICHA, LA GRILLA Y EL ALTA (2026-11-03)
+
+El usuario marcó que la pantalla de empleados *"debe ser más profesional"*, que **son muy pocos datos
+cuando los campos de maesoc son muchos**, que **no pide CUIL** y que **apellido y nombre no están
+separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employees` tenía **7**.
+
+- **`Employees` pasó a tener los datos del socio** (migración `AgregarDatosDeMaesocAEmpleados`, **18
+  columnas nullable**): `LastName`, `FirstName` (separados), `BirthDate`, `Sex`, `DocumentTypeCode`,
+  `DocumentNumber`, `Phone`, `Mobile`, `Email`, `WorkEmail`, `Address`, `AddressNumber`, `Floor`,
+  `Apartment`, `Neighborhood`, `ZipCode`, `AffiliationNumber`, `CardNumber`.
+  > **`Employees.Dni` ES EL CUIL**, no el número de documento (`MAESOC_CUIL` → `Dni`). El documento es
+  > otro dato (`DocumentTypeCode` + `DocumentNumber`). La pantalla lo llamaba "DNI" y pedía un DNI.
+- **El alta pide CUIL validado** (máscara `00-00000000-0`, validación de dígito verificador) y
+  **apellido y nombre por separado**; `FullName` se arma siempre `Apellido Nombre` desde el servicio.
+  El CUIL se guarda **normalizado** (11 dígitos) porque es la llave del cruce con el legado y las DDJJ.
+- **La grilla** muestra CUIL formateado, **apellido**, **nombre**, categoría, **ingreso a la empresa**,
+  estado, socio y un menú `⋮`; arriba, contadores de **activos / socios / bajas** y filtros en franja
+  propia (buscar por CUIL/apellido/nombre, estado, socio y categoría).
+- **Ficha del empleado** (`EmployeeDetailDialog`, nueva): identidad, contacto, domicilio y situación
+  sindical, con los datos que faltan visibles como `—` (no como huecos).
+- **`script_sirga_db_empleados_desde_maesoc.sql`**: completa las columnas nuevas desde `maesoc`.
+  **Simulacro por defecto**, idempotente (sólo escribe donde está NULL), con respaldo
+  `dbo._BackupEmployeesDatosMaesoc` y el `UPDATE` de vuelta atrás comentado al pie.
+  - Medido en simulacro: **27.924** empleados cruzan por CUIL; hay apellido 27.924, nombre 27.916,
+    nacimiento 27.913, sexo 27.924, documento 27.924, celular **3.013**, email **73**, domicilio
+    27.809 y número de afiliado **7.227**. **10 empleados de SIRGA no existen en el legado** (se
+    informan, no se tocan).
+  - **Tipo de documento**: 3 = DNI (27.910), 2 = LE, 1 = LC, 4 = CI. El legado **no trae tabla de
+    descripción**; el código desconocido se muestra como código (`Textos.TipoDocumento`), nunca con
+    una etiqueta inventada. **Estado civil NO se migró**: hay 7.550 con código (`C`, `S`, `B`, `D`,
+    `V`, `E`) y **no existe la tabla de códigos**.
+  > **⚠️ PENDIENTE DE APROBACIÓN DEL USUARIO**: el `UPDATE` masivo de las 27.924 filas **no se aplicó**
+  > (regla 2: simulacro → respaldo → OK explícito). Mientras no se corra, la grilla muestra el
+  > **nombre completo** en la columna Nombre y `—` en Apellido.
+
