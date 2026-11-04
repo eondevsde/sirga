@@ -42,7 +42,7 @@ else
   @if (_resultados.Any())
   {
     <MudText Typo="Typo.subtitle2" Class="mb-2">@_resultados.Count resultado(s). Hacé clic en una para ver su historial.</MudText>
-    <MudTable Items="@_resultados" Hover="true" Dense="true" Elevation="2" T="CompanyService.EmpresaBuscada"
+    <MudTable HorizontalScroll="true" Items="@_resultados" Hover="true" Dense="true" Elevation="2" T="CompanyService.EmpresaBuscada"
               OnRowClick="@((TableRowClickEventArgs<CompanyService.EmpresaBuscada> args) => VerHistorial(args.Item))">
       <HeaderContent>
         <MudTh>Razón social</MudTh>

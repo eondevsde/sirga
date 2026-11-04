@@ -34,7 +34,7 @@
 }
 else
 {
-  <MudTable Items="@_declarations" Hover="true" Dense="true" Elevation="1"
+  <MudTable HorizontalScroll="true" Items="@_declarations" Hover="true" Dense="true" Elevation="1"
             Filter="new Func<DeclarationResponseDto,bool>(FilterFunc)">
     <ToolBarContent>
       <MudText Typo="Typo.h6">Presentaciones Anteriores</MudText>

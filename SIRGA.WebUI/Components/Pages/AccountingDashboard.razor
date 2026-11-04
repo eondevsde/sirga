@@ -28,7 +28,7 @@
 </MudGrid>
 
 <MudPaper Class="mt-6 pa-4">
-  <MudTable Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+  <MudTable HorizontalScroll="true" Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
             LoadingProgressColor="Color.Info" Filter="new Func<CompanyDashboardDto,bool>(FilterFunc1)">
     <ToolBarContent>
       <MudText Typo="Typo.h6">Mis Empresas Administradas</MudText>

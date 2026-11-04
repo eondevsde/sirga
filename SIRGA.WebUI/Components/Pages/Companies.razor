@@ -45,7 +45,7 @@
   </MudAlert>
 }
 
-<MudTable Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+<MudTable HorizontalScroll="true" Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
           Filter="new Func<Company,bool>(FilterFunc1)" Elevation="2">
   <ToolBarContent>
     @* A 1360x768 el titulo, el boton y cuatro filtros no entran en una sola linea (se partian en

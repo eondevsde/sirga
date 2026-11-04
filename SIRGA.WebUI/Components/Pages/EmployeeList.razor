@@ -37,7 +37,7 @@
       </MudAlert>
     }
 
-    <MudTable Items="@_employees" Hover="true" Loading="@_loading" Filter="new Func<EmployeeDto,bool>(FilterFunc)">
+    <MudTable HorizontalScroll="true" Items="@_employees" Hover="true" Loading="@_loading" Filter="new Func<EmployeeDto,bool>(FilterFunc)">
       <HeaderContent>
         <MudTh>DNI</MudTh>
         <MudTh>Nombre Completo</MudTh>
