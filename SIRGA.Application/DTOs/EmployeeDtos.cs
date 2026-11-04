@@ -35,6 +35,19 @@ public class EmployeeDto
   public string? AffiliationNumber { get; set; }
   public string? CardNumber { get; set; }
 
+  // ---- Actividad, obra social, legajo y condiciones (datos del sistema anterior) ---------
+  /// <summary>Actividad en ESTA empresa (código del catálogo). No reemplaza a la categoría.</summary>
+  public string? ActivityCode { get; set; }
+  public string? ActivityName { get; set; }
+
+  /// <summary>Número de legajo del empleado en esta empresa.</summary>
+  public string? FileNumber { get; set; }
+
+  public string? HealthInsuranceCode { get; set; }
+  public string? HealthInsuranceName { get; set; }
+  public bool IsRetired { get; set; }
+  public bool HasFamilyCharge { get; set; }
+
   /// <summary>
   /// "APELLIDO, Nombre" si están separados; si todavía no se migraron, el nombre completo tal cual.
   /// Evita que la pantalla muestre dos columnas vacías mientras el respaldo no se aplicó.
@@ -113,6 +126,16 @@ public class CreateEmployeeDto
 
   /// <summary>Jornada en esta empresa: Parcial = 50% del mínimo de escala.</summary>
   public JornadaType Jornada { get; set; } = JornadaType.Completa;
+
+  /// <summary>Actividad en esta empresa (código del catálogo).</summary>
+  public string? ActivityCode { get; set; }
+
+  /// <summary>Número de legajo en esta empresa.</summary>
+  public string? FileNumber { get; set; }
+
+  public string? HealthInsuranceCode { get; set; }
+  public bool IsRetired { get; set; }
+  public bool HasFamilyCharge { get; set; }
 
   /// <summary>
   /// Fecha de ingreso del empleado A LA EMPRESA (Assignments.CreatedAt). Si no se indica, se usa la

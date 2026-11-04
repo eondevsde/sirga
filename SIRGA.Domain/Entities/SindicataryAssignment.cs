@@ -23,6 +23,21 @@ public class SindicataryAssignment
     public string? CategoryCode { get; set; }
 
     /// <summary>
+    /// Actividad en esta empresa (código del catálogo <see cref="Activity"/>, origen <c>MAESOC_CODACT</c>).
+    /// Es POR EMPRESA, igual que la categoría, y no reemplaza a la categoría: la categoría fija el mínimo.
+    /// </summary>
+    [MaxLength(20)]
+    public string? ActivityCode { get; set; }
+
+    /// <summary>
+    /// Número de legajo del empleado EN ESTA EMPRESA (origen <c>socemp.SOCEMP_NROLEG</c>: 35.959 de 36.019
+    /// lo tienen). Va en la asignación y no en el empleado porque el mismo socio tiene otro legajo en cada
+    /// empresa, que es como lo guarda el sistema anterior.
+    /// </summary>
+    [MaxLength(30)]
+    public string? FileNumber { get; set; }
+
+    /// <summary>
     /// Jornada del empleado en esta empresa. Prorratea el mínimo de escala (Parcial = 50%).
     /// El valor por defecto es <see cref="JornadaType.Completa"/> porque el sistema anterior no
     /// tenía el dato: darlo por parcial sería inventar una quita de haberes.

@@ -82,6 +82,11 @@ public class EmployeeService(IUnitOfWork unitOfWork)
         // codigo pelado (Codigo 7) en lugar del nombre real de la categoria (MAESTRANZA B).
         var nombresCategoria = await CategoriasPorCodigoAsync(assignments.Select(a => a.UnionId));
 
+        // Catálogos chicos (349 actividades y 297 obras sociales): se traen una vez por pantalla para
+        // mostrar el nombre en lugar del código pelado.
+        var nombresActividad = await ActividadesPorCodigoAsync();
+        var nombresObraSocial = await ObrasSocialesPorCodigoAsync();
+
         var result = new List<EmployeeDto>();
         foreach (var assign in assignments)
         {
@@ -122,6 +127,13 @@ public class EmployeeService(IUnitOfWork unitOfWork)
                     AssignmentId = assign.Id,
                     CategoryCode = assign.CategoryCode,
                     CategoryName = assign.CategoryCode is { } codigoCategoria ? nombresCategoria.GetValueOrDefault(codigoCategoria.Trim()) : null,
+                    ActivityCode = assign.ActivityCode,
+                    ActivityName = assign.ActivityCode is { } codigoActividad ? nombresActividad.GetValueOrDefault(codigoActividad.Trim()) : null,
+                    FileNumber = assign.FileNumber,
+                    HealthInsuranceCode = employee.HealthInsuranceCode,
+                    HealthInsuranceName = employee.HealthInsuranceCode is { } codigoOs ? nombresObraSocial.GetValueOrDefault(codigoOs.Trim()) : null,
+                    IsRetired = employee.IsRetired,
+                    HasFamilyCharge = employee.HasFamilyCharge,
                     AssignmentEntryDate = assign.CreatedAt,
                     Jornada = assign.Jornada
                 });
@@ -159,7 +171,40 @@ public class EmployeeService(IUnitOfWork unitOfWork)
     /// Categorías que se le pueden asignar a un empleado de esta empresa: las de la rama del sindicato
     /// que corresponde. Es lo que alimenta el desplegable de la ficha.
     /// </summary>
-    public async Task<List<EmployeeCategory>> GetCategoriesByCompanyAsync(int companyId)
+    /// <summary>Mapa código → nombre de las actividades del convenio.</summary>
+  private async Task<Dictionary<string, string>> ActividadesPorCodigoAsync()
+  {
+    var actividades = await unitOfWork.Activities.GetAllAsync();
+    return actividades
+        .Where(a => !string.IsNullOrWhiteSpace(a.Code))
+        .GroupBy(a => a.Code.Trim(), StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+  }
+
+  /// <summary>Mapa código → nombre de las obras sociales.</summary>
+  private async Task<Dictionary<string, string>> ObrasSocialesPorCodigoAsync()
+  {
+    var obras = await unitOfWork.HealthInsurances.GetAllAsync();
+    return obras
+        .Where(o => !string.IsNullOrWhiteSpace(o.Code))
+        .GroupBy(o => o.Code.Trim(), StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+  }
+
+  /// <summary>Actividades para el desplegable del alta y la edición, ordenadas por nombre.</summary>
+  public async Task<List<Activity>> GetActivitiesAsync()
+  {
+    var actividades = await unitOfWork.Activities.GetAllAsync();
+    return actividades.Where(a => a.IsActive).OrderBy(a => a.Name).ToList();
+  }
+
+  /// <summary>Obras sociales para el desplegable, ordenadas por nombre.</summary>
+  public async Task<List<HealthInsurance>> GetHealthInsurancesAsync()
+  {
+    var obras = await unitOfWork.HealthInsurances.GetAllAsync();
+    return obras.Where(o => o.IsActive).OrderBy(o => o.Name).ToList();
+  }
+  public async Task<List<EmployeeCategory>> GetCategoriesByCompanyAsync(int companyId)
     {
         var assignments = await unitOfWork.Assignments.FindAsync(a => a.CompanyId == companyId);
         var ramas = new HashSet<int>();
@@ -400,6 +445,9 @@ public class EmployeeService(IUnitOfWork unitOfWork)
                 Mobile = dto.Mobile?.Trim(),
                 Email = dto.Email?.Trim(),
                 Address = dto.Address?.Trim(),
+                HealthInsuranceCode = string.IsNullOrWhiteSpace(dto.HealthInsuranceCode) ? null : dto.HealthInsuranceCode.Trim(),
+                IsRetired = dto.IsRetired,
+                HasFamilyCharge = dto.HasFamilyCharge,
                 HireDate = DateTime.Now,
                 Status = EmployeeStatus.Active
             };
@@ -426,7 +474,9 @@ public class EmployeeService(IUnitOfWork unitOfWork)
             Jornada = dto.Jornada,
             // Fecha de ingreso A LA EMPRESA: de aca sale la antiguedad del minimo de escala. Si no se
             // indica, se usa la fecha del alta (comportamiento anterior).
-            CreatedAt = dto.EntryDate ?? DateTime.Now
+            CreatedAt = dto.EntryDate ?? DateTime.Now,
+            ActivityCode = string.IsNullOrWhiteSpace(dto.ActivityCode) ? null : dto.ActivityCode.Trim(),
+            FileNumber = dto.FileNumber?.Trim()
         };
 
         await unitOfWork.Assignments.AddAsync(assignment);
@@ -464,6 +514,9 @@ public class EmployeeService(IUnitOfWork unitOfWork)
         employee.Apartment = dto.Apartment?.Trim();
         employee.Neighborhood = dto.Neighborhood?.Trim();
         employee.ZipCode = dto.ZipCode?.Trim();
+        employee.HealthInsuranceCode = string.IsNullOrWhiteSpace(dto.HealthInsuranceCode) ? null : dto.HealthInsuranceCode.Trim();
+        employee.IsRetired = dto.IsRetired;
+        employee.HasFamilyCharge = dto.HasFamilyCharge;
 
         if (dto.AssignmentId > 0)
         {
@@ -472,6 +525,8 @@ public class EmployeeService(IUnitOfWork unitOfWork)
 
             assignment.CategoryCode = string.IsNullOrWhiteSpace(dto.CategoryCode) ? null : dto.CategoryCode.Trim();
             assignment.Jornada = dto.Jornada;
+            assignment.ActivityCode = string.IsNullOrWhiteSpace(dto.ActivityCode) ? null : dto.ActivityCode.Trim();
+            assignment.FileNumber = dto.FileNumber?.Trim();
             // Se puede corregir la fecha de ingreso a la empresa: cambia la antiguedad y, con ella, el
             // minimo de escala. Si viene vacia (default) se deja la que estaba.
             if (dto.AssignmentEntryDate != default)

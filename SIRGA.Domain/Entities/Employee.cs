@@ -92,6 +92,22 @@ public class Employee
   [MaxLength(30)]
   public string? CardNumber { get; set; }
 
+  /// <summary>
+  /// Obra social del empleado: código del catálogo (<see cref="HealthInsurance"/>, origen
+  /// <c>MAESOC_CODOSM</c>). El catálogo tiene 297 obras sociales y el 100% de los socios tiene código.
+  /// </summary>
+  [MaxLength(20)]
+  public string? HealthInsuranceCode { get; set; }
+
+  /// <summary>
+  /// Jubilado (<c>MAESOC_JUBIL</c>). En el sistema anterior 0 = no, 1 = sí (261 socios) y 2 = otro
+  /// estado previsional (20): los dos últimos se toman como jubilado.
+  /// </summary>
+  public bool IsRetired { get; set; }
+
+  /// <summary>Carga familiar (<c>MAESOC_CARGAFLIA</c>): en el origen es 0 o 1, o sea sí/no.</summary>
+  public bool HasFamilyCharge { get; set; }
+
   public DateTime HireDate { get; set; } // Fecha de Alta
 
   public DateTime? TerminationDate { get; set; } // Fecha de Baja

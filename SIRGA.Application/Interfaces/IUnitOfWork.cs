@@ -32,6 +32,8 @@ public interface IUnitOfWork : IDisposable
   IRepository<BalanceHistory> BalanceHistories { get; }
   IRepository<CompanyAssociationRequest> AssociationRequests { get; }
   IRepository<EmployeeCategory> EmployeeCategories { get; }
+  IRepository<Activity> Activities { get; }
+  IRepository<HealthInsurance> HealthInsurances { get; }
   IRepository<AuditLog> AuditLogs { get; }
   IRepository<InspectionAct> InspectionActs { get; }
   IRepository<PaymentPlan> PaymentPlans { get; }

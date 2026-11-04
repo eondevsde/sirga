@@ -18,6 +18,12 @@ public class SIRG_DbContext : IdentityDbContext
     public DbSet<DeclarationRegistry> Declarations => Set<DeclarationRegistry>();
     public DbSet<DeclarationDetail> DeclarationDetails => Set<DeclarationDetail>();
     public DbSet<EmployeeCategory> EmployeeCategories => Set<EmployeeCategory>();
+
+  /// <summary>Catálogo de actividades del convenio (origen <c>actividad</c> del sistema anterior).</summary>
+  public DbSet<Activity> Activities => Set<Activity>();
+
+  /// <summary>Catálogo de obras sociales (origen <c>obrasocial</c> del sistema anterior).</summary>
+  public DbSet<HealthInsurance> HealthInsurances => Set<HealthInsurance>();
     public DbSet<SalaryScale> SalaryScales => Set<SalaryScale>();
     public DbSet<AccountingStudio> AccountingStudios => Set<AccountingStudio>();
     public DbSet<InterestRate> InterestRates => Set<InterestRate>();

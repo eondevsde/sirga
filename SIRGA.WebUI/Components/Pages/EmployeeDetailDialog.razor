@@ -60,10 +60,15 @@
         <DatoFicha Etiqueta="Socio" Valor="@(Empleado.IsVoluntaryMember ? "Sí" : "No")" />
         <DatoFicha Etiqueta="Categoría" Valor="@(string.IsNullOrWhiteSpace(Empleado.CategoryCode) ? null : $"Código {Empleado.CategoryCode}")" />
         <DatoFicha Etiqueta="Ingreso a la empresa" Valor="@Fecha(Empleado.AssignmentEntryDate)" />
+        <DatoFicha Etiqueta="Actividad" Valor="@Empleado.ActivityName" />
+        <DatoFicha Etiqueta="N° de legajo" Valor="@Empleado.FileNumber" />
         <DatoFicha Etiqueta="Jornada" Valor="@(Empleado.Jornada == JornadaType.Parcial ? "Parcial (50%)" : "Completa")" />
         <DatoFicha Etiqueta="Alta al sindicato" Valor="@Fecha(Empleado.JoinedDate)" />
         <DatoFicha Etiqueta="N° de afiliado" Valor="@Empleado.AffiliationNumber" />
         <DatoFicha Etiqueta="N° de carnet" Valor="@Empleado.CardNumber" />
+        <DatoFicha Etiqueta="Obra social" Valor="@Empleado.HealthInsuranceName" />
+        <DatoFicha Etiqueta="Jubilado" Valor="@(Empleado.IsRetired ? "Sí" : "No")" />
+        <DatoFicha Etiqueta="Carga familiar" Valor="@(Empleado.HasFamilyCharge ? "Sí" : "No")" />
       </MudItem>
 
       @if (Empleado.MembershipResignationRequested)

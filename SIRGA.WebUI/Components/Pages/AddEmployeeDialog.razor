@@ -109,10 +109,30 @@
         </MudItem>
       </MudGrid>
 
+      <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Obra social y condiciones</MudText>
+      <MudDivider Class="mt-1 mb-3" />
+      <MudGrid>
+        <MudItem xs="12" md="8">
+          <MudSelect T="string" Label="Obra social" @bind-Value="model.HealthInsuranceCode"
+                     Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+            @foreach (var obra in _obrasSociales)
+            {
+              <MudSelectItem Value="@obra.Code">@obra.Name</MudSelectItem>
+            }
+          </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="4" Class="d-flex align-center">
+          <MudCheckBox T="bool" @bind-Value="model.IsRetired" Label="Es jubilado" Color="Color.Primary" />
+        </MudItem>
+        <MudItem xs="12">
+          <MudCheckBox T="bool" @bind-Value="model.HasFamilyCharge" Label="Tiene carga familiar" Color="Color.Primary" />
+        </MudItem>
+      </MudGrid>
+
       <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Situación en esta empresa</MudText>
       <MudDivider Class="mt-1 mb-3" />
       <MudGrid>
-        <MudItem xs="12" md="6">
+        <MudItem xs="12" md="4">
           <MudSelect T="string" Label="Categoría" @bind-Value="model.CategoryCode" Variant="Variant.Outlined"
                      Margin="Margin.Dense" Clearable="true"
                      HelperText="Sin categoría no se calcula el mínimo de escala.">
@@ -122,17 +142,32 @@
             }
           </MudSelect>
         </MudItem>
-        <MudItem xs="12" md="3">
+        <MudItem xs="12" md="4">
           <MudSelect T="JornadaType" Label="Jornada" @bind-Value="model.Jornada" Variant="Variant.Outlined"
                      Margin="Margin.Dense">
             <MudSelectItem Value="@JornadaType.Completa">Completa</MudSelectItem>
             <MudSelectItem Value="@JornadaType.Parcial">Parcial (50%)</MudSelectItem>
           </MudSelect>
         </MudItem>
-        <MudItem xs="12" md="3">
+        <MudItem xs="12" md="4">
+          <MudSelect T="string" Label="Actividad" @bind-Value="model.ActivityCode" Variant="Variant.Outlined"
+                     Margin="Margin.Dense" Clearable="true"
+                     HelperText="La actividad del convenio, distinta de la categoría.">
+            @foreach (var actividad in _actividades)
+            {
+              <MudSelectItem Value="@actividad.Code">@actividad.Name</MudSelectItem>
+            }
+          </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="4">
           @* Fecha de ingreso A LA EMPRESA: de acá sale la antigüedad. Se puede escribir o elegir. *@
           <MudDatePicker @bind-Date="_fechaIngreso" Label="Ingreso a la empresa"
                          Variant="Variant.Outlined" Margin="Margin.Dense" DateFormat="dd/MM/yyyy" Editable="true" />
+        </MudItem>
+        <MudItem xs="12" md="4">
+          <MudTextField T="string" Label="Nro. de legajo" @bind-Value="model.FileNumber"
+                        Variant="Variant.Outlined" Margin="Margin.Dense"
+                        HelperText="El legajo de esta empresa (puede ser distinto en otra)." />
         </MudItem>
         <MudItem xs="12">
           <MudCheckBox T="bool" @bind-Value="model.IsVoluntaryMember"
@@ -174,6 +209,8 @@
   private EmployeeDto model = new();
   private Company? company;
   private List<EmployeeCategory> _categorias = new();
+  private List<Activity> _actividades = new();
+  private List<HealthInsurance> _obrasSociales = new();
   /// <summary>Fecha de ingreso a la empresa. Nullable porque MudDatePicker.Date lo es.</summary>
   private DateTime? _fechaIngreso;
 
@@ -208,7 +245,12 @@
 
         CategoryCode = Empleado.CategoryCode,
         Jornada = Empleado.Jornada,
-        IsVoluntaryMember = Empleado.IsVoluntaryMember
+        IsVoluntaryMember = Empleado.IsVoluntaryMember,
+        ActivityCode = Empleado.ActivityCode,
+        FileNumber = Empleado.FileNumber,
+        HealthInsuranceCode = Empleado.HealthInsuranceCode,
+        IsRetired = Empleado.IsRetired,
+        HasFamilyCharge = Empleado.HasFamilyCharge
       };
       // La fecha de ingreso se edita en un campo aparte (nullable) y se copia al modelo al guardar.
       _fechaIngreso = Empleado.AssignmentEntryDate == default ? null : Empleado.AssignmentEntryDate;
@@ -225,6 +267,8 @@
     try
     {
       _categorias = await EmpService.GetCategoriesByCompanyAsync(CompanyId);
+      _actividades = await EmpService.GetActivitiesAsync();
+      _obrasSociales = await EmpService.GetHealthInsurancesAsync();
     }
     catch (Exception ex)
     {
@@ -273,6 +317,11 @@
           CategoryCode = model.CategoryCode,
           Jornada = model.Jornada,
           EntryDate = _fechaIngreso,
+          ActivityCode = model.ActivityCode,
+          FileNumber = model.FileNumber,
+          HealthInsuranceCode = model.HealthInsuranceCode,
+          IsRetired = model.IsRetired,
+          HasFamilyCharge = model.HasFamilyCharge,
           CompanyId = CompanyId,
           IsVoluntaryMember = model.IsVoluntaryMember
         });

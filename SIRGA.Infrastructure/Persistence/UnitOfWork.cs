@@ -26,6 +26,8 @@ public class UnitOfWork : IUnitOfWork
     BalanceHistories = new Repository<BalanceHistory>(_context, dbLock);
     AssociationRequests = new Repository<CompanyAssociationRequest>(_context, dbLock);
     EmployeeCategories = new Repository<EmployeeCategory>(_context, dbLock);
+    Activities = new Repository<Activity>(_context, dbLock);
+    HealthInsurances = new Repository<HealthInsurance>(_context, dbLock);
     AuditLogs = new Repository<AuditLog>(_context, dbLock);
     InspectionActs = new Repository<InspectionAct>(_context, dbLock);
     PaymentPlans = new Repository<PaymentPlan>(_context, dbLock);
@@ -60,6 +62,8 @@ public class UnitOfWork : IUnitOfWork
   public IRepository<BalanceHistory> BalanceHistories { get; }
   public IRepository<CompanyAssociationRequest> AssociationRequests { get; }
   public IRepository<EmployeeCategory> EmployeeCategories { get; }
+  public IRepository<Activity> Activities { get; }
+  public IRepository<HealthInsurance> HealthInsurances { get; }
   public IRepository<AuditLog> AuditLogs { get; }
   public IRepository<InspectionAct> InspectionActs { get; }
   public IRepository<PaymentPlan> PaymentPlans { get; }
