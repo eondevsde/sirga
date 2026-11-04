@@ -335,35 +335,47 @@ else
               <MudTd DataLabel="Total"><b>@((context.LawContribution + context.VoluntaryContribution).ToString("C"))</b>
               </MudTd>
             </RowTemplate>
-            @* Totales al pie, alineados con su columna: lo que se ingresó, lo que marca la escala, la
-               diferencia entre los dos y los aportes. *@
-            <FooterContent>
-              <MudTFootRow>
-                <MudTd colspan="3">
-                  <MudText Typo="Typo.body2"><b>Totales</b></MudText>
-                  <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                    @_details.Count empleado(s) · @_details.Count(d => d.MinSalary > 0) con escala
-                  </MudText>
-                </MudTd>
-                <MudTd>
-                  <MudText Typo="Typo.caption" Class="mud-text-secondary">Remuneración ingresada</MudText>
-                  <MudText Typo="Typo.body2"><b>@_details.Sum(x => x.GrossSalary).ToString("C")</b></MudText>
-                </MudTd>
-                <MudTd>
-                  <MudText Typo="Typo.caption" Class="mud-text-secondary">Total por escala</MudText>
-                  <MudText Typo="Typo.body2"><b>@TotalEscala.ToString("C")</b></MudText>
-                  <MudText Typo="Typo.caption" Color="@(TotalDiferencia >= 0 ? Color.Success : Color.Error)"
-                           Style="font-weight: 600;">
-                    Diferencia @TextoDiferencia(TotalDiferencia)
-                  </MudText>
-                </MudTd>
-                <MudTd><b>@_details.Sum(x => x.LawContribution).ToString("C")</b></MudTd>
-                <MudTd><b>@_details.Sum(x => x.VoluntaryContribution).ToString("C")</b></MudTd>
-                <MudTd><b>@_details.Sum(x => x.LawContribution + x.VoluntaryContribution).ToString("C")</b></MudTd>
-              </MudTFootRow>
-            </FooterContent>
+
           </MudTable>
           </div>
+
+          @* Totales aparte, en su panel: dentro del pie de la tabla las columnas de aportes quedan de
+             60 px y los importes se parten en dos renglones. *@
+          <MudPaper Elevation="0" Class="pa-4 mt-3" Style="width: 100%;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px;">
+              <div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Remuneración ingresada</MudText>
+                <MudText Typo="Typo.h6" Class="mb-0">@_details.Sum(x => x.GrossSalary).ToString("C")</MudText>
+              </div>
+              <div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Total por escala</MudText>
+                <MudText Typo="Typo.h6" Class="mb-0">@TotalEscala.ToString("C")</MudText>
+              </div>
+              <div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Diferencia</MudText>
+                <MudText Typo="Typo.h6" Class="mb-0"
+                         Color="@(TotalDiferencia >= 0 ? Color.Success : Color.Error)">
+                  @TextoDiferencia(TotalDiferencia)
+                </MudText>
+              </div>
+              <div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Aportes (ley + voluntario)</MudText>
+                <MudText Typo="Typo.h6" Class="mb-0">
+                  @_details.Sum(x => x.LawContribution + x.VoluntaryContribution).ToString("C")
+                </MudText>
+              </div>
+            </div>
+            <MudDivider Class="my-3" />
+            <div class="d-flex flex-wrap align-center justify-space-between" style="gap: 12px;">
+              <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                @_details.Count empleado(s) · @_details.Count(d => d.MinSalary > 0) con escala
+              </MudText>
+              <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Aporte ley @_details.Sum(x => x.LawContribution).ToString("C") ·
+                aporte voluntario @_details.Sum(x => x.VoluntaryContribution).ToString("C")
+              </MudText>
+            </div>
+          </MudPaper>
         }
       </MudStep>
 
