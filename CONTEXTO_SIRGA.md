@@ -1266,4 +1266,11 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   > `<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>` al csproj, compilar y mirar
   > `obj\...\generated\...\NewDeclaration_razor.g.cs` (cada ítem debe recibir su propio `mesActual`);
   > después **quitar la bandera**.
+- **Paso 2 de la DDJJ (detalle de empleados) despejado** (commit `0fbd7f3`, pedido del usuario:
+  *"información muy amontonada, sobre todo la composición del sueldo de escala"*): encabezado con título
+  y explicación (antes un `MudAlert` que empujaba los botones), **columna Empleado con el CUIL debajo**,
+  y el mínimo de escala en **renglones alineados** —Básico / Antigüedad (con los años) / No remunerativo,
+  importes a la derecha— en lugar de la frase corrida *"Básico X + antig. Y + NR Z"* que se partía en
+  tres líneas. Se quitó el **"Debajo de escala" duplicado** (estaba como chip y como texto de error del
+  campo) y las filas dejaron de ser densas.
 
