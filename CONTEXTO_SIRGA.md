@@ -1352,4 +1352,36 @@ para que el estudio no salga de lo que ya usa. Se comparó campo por campo y se 
 4. **Localidad del empleado ligada a provincia/ciudad** y **causa de baja** (`socemp.SOCEMP_CAUSABAJA`).
 5. **Grupo sanguíneo** (`MAESOC_GRUPOSANG`, 100%): es dato de salud, no se migró sin preguntar.
 
+### 10.13. ✅ AL PRESENTAR LA DDJJ SE CREA EL SOCIO EN EL PADRÓN DEL SINDICATO (2026-11-04)
+
+**El problema que descubrió el usuario**: la tabla `ddjj` **no lleva el nombre del empleado**. SIGES WEB
+arma el nombre buscándolo en `fotos_.maesoc` por CUIL y, si no está, **muestra el CUIL con el nombre y el
+DNI vacíos, sin avisar**. Medido: **295** renglones de `ddjj` con un CUIL sin maestro y **10** empleados
+de SIRGA que no están en `maesoc`. Como SIRGA pasó a ser el que da de alta a los empleados, cada alta
+nueva iba a sumarse a esa lista.
+
+- **`LegacyDeclarationWriter.EscribirAsync`** ahora, **dentro de la misma transacción** en que vuelca
+  `ddjj`/`ddjjt`, llama a `AsegurarMaestroAsync`: crea el socio en **`fotos_.maesoc`** y su relación con
+  la empresa en **`fotos_.socemp`**.
+  > **Sólo INSERTA lo que falta** (`ExisteSocioAsync` / `ExisteRelacionAsync` por CUIL y CUIT): el padrón
+  > lo mantiene el sindicato a mano desde hace años y **no se pisa**.
+  > **Va en la presentación** (decisión del usuario): antes, el empleado no "existe" para el sindicato.
+- Los datos salen del empleado (apellido, nombre, documento, nacimiento, sexo, contacto, domicilio, obra
+  social, jubilado, carga familiar) y de la asignación (categoría, actividad, legajo, fecha de ingreso).
+  **Lo que SIRGA no tiene va vacío** (decisión del usuario: no se inventan valores).
+- **Centinelas del legado copiados de una fila real**: las fechas desconocidas van con **`1000-01-01`**
+  (`MAESOC_FECHADOC`, `MAESOC_FECHADESEMPLEO`, `SOCEMP_FECHABAJA`), `MAESOC_ESTCIV = ' '`,
+  `MAESOC_ESTADO = 1`, `SOCEMP_ULT_EMPRESA = 'S'` y `MAESOC_USUMOD = 'SIRGA'`. **Todas las columnas son
+  NOT NULL** (aun las que no tienen dato), así que hay que llenarlas todas.
+  > **`SOCEMP_CODSUC`** se hereda del que ya usan los demás empleados de esa empresa (el legado lo numera
+  > por sucursal); si la empresa no tiene a nadie, 0.
+  > **`maesoc` no tiene identity ni clave**: la clave es `MAESOC_CUIL` (numérico, float).
+- **Verificado contra una copia de las tablas** (base `SIRGA_Test_Legado`, creada y borrada en la misma
+  sesión; `.dsh-tools/verif-padron`, no versionado): la primera presentación crea el socio y la relación
+  con todos los datos; la segunda dice **"padrón sin cambios"** (idempotente); un socio preexistente
+  queda intacto; y el padrón real terminó con las mismas 27.924 filas.
+  > **Nunca probar esto contra `Sindicato` directamente**: `EscribirAsync` hace `COMMIT` por dentro, así
+  > que no se puede revertir desde afuera. La forma segura es la copia en otra base.
+
+
 
