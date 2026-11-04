@@ -179,6 +179,7 @@ public class LegacyDeclarationWriter : ILegacyDeclarationWriter
       SqlConnection conexion, SqlTransaction transaccion, DeclaracionLegado declaracion, DateTime fecha, CancellationToken ct)
   {
     var sociosNuevos = 0;
+    var sociosActualizados = 0;
     var relacionesNuevas = 0;
 
     if (!decimal.TryParse(declaracion.Cuit, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cuite))
@@ -194,6 +195,12 @@ public class LegacyDeclarationWriter : ILegacyDeclarationWriter
         await InsertarSocioAsync(conexion, transaccion, detalle, cuil, ct);
         sociosNuevos++;
       }
+      else if (await ActualizarSocioAsync(conexion, transaccion, detalle, cuil, ct) > 0)
+      {
+        // El socio ya estaba: se espejan los datos que SIRGA maneja (decisión del usuario). Los campos
+        // que SIRGA no tiene no se tocan y los vacíos tampoco pisan lo que haya en el padrón.
+        sociosActualizados++;
+      }
 
       if (!await ExisteRelacionAsync(conexion, transaccion, cuil, cuite, ct))
       {
@@ -202,9 +209,15 @@ public class LegacyDeclarationWriter : ILegacyDeclarationWriter
       }
     }
 
-    return sociosNuevos == 0 && relacionesNuevas == 0
-        ? "padrón sin cambios (los empleados ya estaban)"
-        : $"{sociosNuevos} socio(s) nuevo(s) en el padrón y {relacionesNuevas} relación(es) socio-empresa";
+    if (sociosNuevos == 0 && sociosActualizados == 0 && relacionesNuevas == 0)
+      return "padrón sin cambios (ya estaba todo igual)";
+
+    var partes = new List<string>();
+    if (sociosNuevos > 0) partes.Add($"{sociosNuevos} socio(s) nuevo(s)");
+    if (sociosActualizados > 0) partes.Add($"{sociosActualizados} socio(s) con datos actualizados");
+    if (relacionesNuevas > 0) partes.Add($"{relacionesNuevas} relación(es) socio-empresa");
+
+    return string.Join(" y ", partes);
   }
 
   private static async Task<bool> ExisteSocioAsync(
@@ -288,6 +301,99 @@ public class LegacyDeclarationWriter : ILegacyDeclarationWriter
     await comando.ExecuteNonQueryAsync(ct);
   }
 
+  /// <summary>
+  /// Espeja en el padrón los datos que SIRGA maneja, para un socio que YA existe. Reglas (decididas por el
+  /// usuario el 2026-11-04):
+  ///   * un valor VACÍO en SIRGA **no pisa** lo que haya en el padrón;
+  ///   * los campos que SIRGA no tiene (estado civil, nacionalidad, grupo sanguíneo, CBU, impuestos,
+  ///     nro. de afiliado, carnet, fechas de alta/baja, estado) **no se tocan**;
+  ///   * jubilado y carga familiar sólo se ponen en 1: nunca se borra un "sí" que haya cargado el sindicato.
+  /// Devuelve 1 si la fila cambió y 0 si ya estaba igual (el WHERE evita escrituras y conteos falsos).
+  /// </summary>
+  private static async Task<int> ActualizarSocioAsync(
+      SqlConnection conexion, SqlTransaction transaccion, DetalleLegado detalle, decimal cuil, CancellationToken ct)
+  {
+    const string sql = """
+        UPDATE fotos_.maesoc SET
+            MAESOC_APELLIDO = ISNULL(NULLIF(@apellido, ''), MAESOC_APELLIDO),
+            MAESOC_NOMBRE   = ISNULL(NULLIF(@nombre, ''),   MAESOC_NOMBRE),
+            APENOM          = ISNULL(NULLIF(@apenom, ''),   APENOM),
+            MAESOC_NRODOC   = ISNULL(NULLIF(@nrodoc, ''),   MAESOC_NRODOC),
+            MAESOC_TIPODOC  = CASE WHEN @tipodoc > 0 THEN @tipodoc ELSE MAESOC_TIPODOC END,
+            MAESOC_FECHANAC = ISNULL(@fechanac, MAESOC_FECHANAC),
+            MAESOC_SEXO     = ISNULL(NULLIF(@sexo, ''),     MAESOC_SEXO),
+            MAESOC_TEL      = ISNULL(NULLIF(@tel, ''),      MAESOC_TEL),
+            MAESOC_TELCEL   = ISNULL(NULLIF(@telcel, ''),   MAESOC_TELCEL),
+            MAESOC_EMAIL    = ISNULL(NULLIF(@email, ''),    MAESOC_EMAIL),
+            MAESOC_EMAILLAB = ISNULL(NULLIF(@emaillab, ''), MAESOC_EMAILLAB),
+            MAESOC_CALLE    = ISNULL(NULLIF(@calle, ''),    MAESOC_CALLE),
+            MAESOC_NROCALLE = ISNULL(NULLIF(@nrocalle, ''), MAESOC_NROCALLE),
+            MAESOC_PISO     = ISNULL(NULLIF(@piso, ''),     MAESOC_PISO),
+            MAESOC_DTO      = ISNULL(NULLIF(@dto, ''),      MAESOC_DTO),
+            MAESOC_BARRIO   = ISNULL(NULLIF(@barrio, ''),   MAESOC_BARRIO),
+            MAESOC_CODPOS   = ISNULL(NULLIF(@codpos, ''),   MAESOC_CODPOS),
+            MAESOC_CODCAT   = CASE WHEN @categoria > 0  THEN @categoria  ELSE MAESOC_CODCAT  END,
+            MAESOC_CODACT   = CASE WHEN @actividad > 0  THEN @actividad  ELSE MAESOC_CODACT  END,
+            MAESOC_CODOSM   = CASE WHEN @obrasocial > 0 THEN @obrasocial ELSE MAESOC_CODOSM  END,
+            MAESOC_JUBIL    = CASE WHEN @jubil = 1  THEN 1 ELSE MAESOC_JUBIL END,
+            MAESOC_CARGAFLIA= CASE WHEN @cargaf = 1 THEN 1 ELSE MAESOC_CARGAFLIA END,
+            MAESOC_FECHAMOD = GETDATE(),
+            MAESOC_USUMOD   = 'SIRGA'
+        WHERE MAESOC_CUIL = @cuil
+          AND (
+                (NULLIF(@apellido, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_APELLIDO), '') <> @apellido)
+             OR (NULLIF(@nombre, '')   IS NOT NULL AND ISNULL(RTRIM(MAESOC_NOMBRE), '')   <> @nombre)
+             OR (NULLIF(@apenom, '')   IS NOT NULL AND ISNULL(RTRIM(APENOM), '')          <> @apenom)
+             OR (NULLIF(@nrodoc, '')   IS NOT NULL AND ISNULL(RTRIM(MAESOC_NRODOC), '')   <> @nrodoc)
+             OR (@tipodoc > 0  AND ISNULL(MAESOC_TIPODOC, 0) <> @tipodoc)
+             OR (@fechanac IS NOT NULL AND ISNULL(MAESOC_FECHANAC, '10000101') <> @fechanac)
+             OR (NULLIF(@sexo, '')     IS NOT NULL AND ISNULL(RTRIM(MAESOC_SEXO), '')     <> @sexo)
+             OR (NULLIF(@tel, '')      IS NOT NULL AND ISNULL(RTRIM(MAESOC_TEL), '')      <> @tel)
+             OR (NULLIF(@telcel, '')   IS NOT NULL AND ISNULL(RTRIM(MAESOC_TELCEL), '')   <> @telcel)
+             OR (NULLIF(@email, '')    IS NOT NULL AND ISNULL(RTRIM(MAESOC_EMAIL), '')    <> @email)
+             OR (NULLIF(@emaillab, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_EMAILLAB), '') <> @emaillab)
+             OR (NULLIF(@calle, '')    IS NOT NULL AND ISNULL(RTRIM(MAESOC_CALLE), '')    <> @calle)
+             OR (NULLIF(@nrocalle, '') IS NOT NULL AND ISNULL(RTRIM(MAESOC_NROCALLE), '') <> @nrocalle)
+             OR (NULLIF(@piso, '')     IS NOT NULL AND ISNULL(RTRIM(MAESOC_PISO), '')     <> @piso)
+             OR (NULLIF(@dto, '')      IS NOT NULL AND ISNULL(RTRIM(MAESOC_DTO), '')      <> @dto)
+             OR (NULLIF(@barrio, '')   IS NOT NULL AND ISNULL(RTRIM(MAESOC_BARRIO), '')   <> @barrio)
+             OR (NULLIF(@codpos, '')   IS NOT NULL AND ISNULL(RTRIM(MAESOC_CODPOS), '')   <> @codpos)
+             OR (@categoria > 0  AND ISNULL(MAESOC_CODCAT, 0) <> @categoria)
+             OR (@actividad > 0  AND ISNULL(MAESOC_CODACT, 0) <> @actividad)
+             OR (@obrasocial > 0 AND ISNULL(MAESOC_CODOSM, 0) <> @obrasocial)
+             OR (@jubil = 1  AND ISNULL(MAESOC_JUBIL, 0) <> 1)
+             OR (@cargaf = 1 AND ISNULL(MAESOC_CARGAFLIA, 0) <> 1)
+          );
+        """;
+
+    await using var comando = new SqlCommand(sql, conexion, transaccion);
+    comando.Parameters.AddWithValue("@cuil", (double)cuil);
+    comando.Parameters.AddWithValue("@apellido", Recortar(detalle.Apellido.ToUpperInvariant(), 30));
+    comando.Parameters.AddWithValue("@nombre", Recortar(detalle.Nombre.ToUpperInvariant(), 30));
+    comando.Parameters.AddWithValue("@apenom",
+        Recortar($"{detalle.Apellido} {detalle.Nombre}".Trim().ToUpperInvariant(), 100));
+    comando.Parameters.AddWithValue("@nrodoc", Recortar(detalle.Documento, 11));
+    comando.Parameters.AddWithValue("@tipodoc", int.TryParse(detalle.TipoDocumento, out var tipo) ? tipo : 0);
+    comando.Parameters.AddWithValue("@fechanac", (object?)(detalle.FechaNacimiento?.Date) ?? DBNull.Value);
+    comando.Parameters.AddWithValue("@sexo", Recortar(detalle.Sexo?.ToUpperInvariant(), 1));
+    comando.Parameters.AddWithValue("@tel", Recortar(detalle.Telefono, 20));
+    comando.Parameters.AddWithValue("@telcel", Recortar(detalle.Celular, 30));
+    comando.Parameters.AddWithValue("@email", Recortar(detalle.Email, 50));
+    comando.Parameters.AddWithValue("@emaillab", Recortar(detalle.EmailLaboral, 50));
+    comando.Parameters.AddWithValue("@calle", Recortar(detalle.Calle?.ToUpperInvariant(), 30));
+    comando.Parameters.AddWithValue("@nrocalle", Recortar(detalle.Numero, 10));
+    comando.Parameters.AddWithValue("@piso", Recortar(detalle.Piso, 10));
+    comando.Parameters.AddWithValue("@dto", Recortar(detalle.Depto, 10));
+    comando.Parameters.AddWithValue("@barrio", Recortar(detalle.Barrio?.ToUpperInvariant(), 30));
+    comando.Parameters.AddWithValue("@codpos", Recortar(detalle.CodigoPostal, 10));
+    comando.Parameters.AddWithValue("@categoria", short.TryParse(detalle.Categoria, out var cat) ? cat : (short)0);
+    comando.Parameters.AddWithValue("@actividad", short.TryParse(detalle.Actividad, out var act) ? act : (short)0);
+    comando.Parameters.AddWithValue("@obrasocial", int.TryParse(detalle.ObraSocial, out var os) ? os : 0);
+    comando.Parameters.AddWithValue("@jubil", detalle.Jubilado ? 1 : 0);
+    comando.Parameters.AddWithValue("@cargaf", detalle.CargaFamiliar ? 1 : 0);
+
+    return await comando.ExecuteNonQueryAsync(ct);
+  }
   private static async Task InsertarRelacionAsync(
       SqlConnection conexion, SqlTransaction transaccion, DetalleLegado detalle, decimal cuil, decimal cuite,
       DateTime fechaPeriodo, CancellationToken ct)
