@@ -5,91 +5,172 @@
 @inject EmployeeService EmpService
 @inject ISnackbar Snackbar
 
+@* Alta de empleado. Antes sólo pedía "DNI" y "Nombre Completo", aunque en SIRGA el Dni es el CUIL:
+   se pedía un dato con el nombre de otro y la ficha quedaba sin apellido, sin nacimiento y sin
+   contacto. Ahora pide el CUIL (validado) y el apellido y el nombre por separado, como están en la
+   tabla real de empleados (maesoc). *@
 <MudDialog>
-    <TitleContent>
-        <MudText Typo="Typo.h6">
-            <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="mr-3 mb-n1" />
-            Nuevo Empleado
-        </MudText>
-    </TitleContent>
-    <DialogContent>
+  <TitleContent>
+    <div class="d-flex align-center" style="gap: 12px;">
+      <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
+        <MudIcon Icon="@Icons.Material.Filled.PersonAdd" />
+      </MudAvatar>
+      <div>
+        <MudText Typo="Typo.h6" Class="mb-0">Nuevo empleado</MudText>
         @if (company != null)
         {
-            <MudPaper Class="pa-4 mb-4" Style="background-color: var(--mud-palette-background-grey);">
-                <MudStack Row="true" AlignItems="AlignItems.Center">
-                    <MudIcon Icon="@Icons.Material.Filled.LocationCity" Color="Color.Info" />
-                    <div>
-                        <MudText Typo="Typo.subtitle2">Sucursal / Empresa destino:</MudText>
-                        <MudText Typo="Typo.body2"><b>@company.BusinessName</b> @(string.IsNullOrEmpty(company.BranchName) ?
-                                                                                      "" : $"({company.BranchName})")</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                Ubicación: @(company.City?.Name ?? "Sede Central")
-                                @company.Address
-                            </MudText>
-                        </div>
-                    </MudStack>
-                </MudPaper>
-            }
+          <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            @company.BusinessName@(string.IsNullOrEmpty(company.BranchName) ? "" : $" ({company.BranchName})")
+          </MudText>
+        }
+      </div>
+    </div>
+  </TitleContent>
+  <DialogContent>
+    <MudForm @ref="form" @bind-IsValid="@success">
 
-            <MudForm @ref="form" @bind-IsValid="@success">
-                <MudTextField T="string" Label="DNI" Required="true" RequiredError="DNI es requerido"
-                              @bind-Value="model.Dni" HelperText="Sin puntos ni espacios" MaxLength="10" />
-                <MudTextField T="string" Label="Nombre Completo" Required="true" RequiredError="El nombre es requerido"
-                              @bind-Value="model.FullName" />
-                <MudCheckBox T="bool" @bind-Value="model.IsVoluntaryMember" Label="Es Socio Voluntario (Aporte +2%)"
-                             Color="Color.Primary" />
-            
-                <MudAlert Severity="Severity.Info" Dense="true" Class="mt-4">
-                    El sistema asignará automáticamente el Sindicato según la ciudad de la sucursal.
-                </MudAlert>
-            </MudForm>
-        </DialogContent>
-        <DialogActions>
-            <MudButton OnClick="Cancel">Cancelar</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit" Disabled="@(!success)">Guardar
-                Empleado</MudButton>
-            </DialogActions>
-        </MudDialog>
+      <MudText Typo="Typo.overline" Color="Color.Primary">Identificación</MudText>
+      <MudDivider Class="mt-1 mb-3" />
+      <MudGrid>
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="CUIL" @bind-Value="model.Dni" Required="true"
+                        RequiredError="El CUIL es obligatorio" Variant="Variant.Outlined" Margin="Margin.Dense"
+                        Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Badge"
+                        Mask="@(new PatternMask("00-00000000-0"))" MaxLength="13"
+                        Validation="@(new Func<string, string?>(ValidateCuil))"
+                        HelperText="11 dígitos: 20/23/24/27 para varones, 27 para mujeres" />
+        </MudItem>
+        <MudItem xs="12" md="6" Class="d-flex align-center">
+          <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            El CUIL es la llave del empleado: con él se cruzan las DDJJ y los datos del sistema anterior.
+          </MudText>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="Apellido" @bind-Value="model.LastName" Required="true"
+                        RequiredError="El apellido es obligatorio" Variant="Variant.Outlined"
+                        Margin="Margin.Dense" Adornment="Adornment.Start"
+                        AdornmentIcon="@Icons.Material.Filled.Person" />
+        </MudItem>
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="Nombre" @bind-Value="model.FirstName" Required="true"
+                        RequiredError="El nombre es obligatorio" Variant="Variant.Outlined"
+                        Margin="Margin.Dense" />
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+          <MudSelect T="string" Label="Tipo de documento" @bind-Value="model.DocumentTypeCode"
+                     Variant="Variant.Outlined" Margin="Margin.Dense">
+            <MudSelectItem Value="@("3")">DNI</MudSelectItem>
+            <MudSelectItem Value="@("1")">LC</MudSelectItem>
+            <MudSelectItem Value="@("2")">LE</MudSelectItem>
+            <MudSelectItem Value="@("4")">CI</MudSelectItem>
+          </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="4">
+          <MudTextField T="string" Label="Número de documento" @bind-Value="model.DocumentNumber"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="12" md="4">
+          <MudDatePicker @bind-Date="model.BirthDate" Label="Fecha de nacimiento" Variant="Variant.Outlined"
+                         Margin="Margin.Dense" DateFormat="dd/MM/yyyy" />
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+          <MudSelect T="string" Label="Sexo" @bind-Value="model.Sex" Variant="Variant.Outlined" Margin="Margin.Dense">
+            <MudSelectItem Value="@("M")">Masculino</MudSelectItem>
+            <MudSelectItem Value="@("F")">Femenino</MudSelectItem>
+          </MudSelect>
+        </MudItem>
+      </MudGrid>
+
+      <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Contacto</MudText>
+      <MudDivider Class="mt-1 mb-3" />
+      <MudGrid>
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="Celular" @bind-Value="model.Mobile" Variant="Variant.Outlined"
+                        Margin="Margin.Dense" Adornment="Adornment.Start"
+                        AdornmentIcon="@Icons.Material.Filled.Smartphone" />
+        </MudItem>
+        <MudItem xs="12" md="6">
+          <MudTextField T="string" Label="Teléfono" @bind-Value="model.Phone" Variant="Variant.Outlined"
+                        Margin="Margin.Dense" Adornment="Adornment.Start"
+                        AdornmentIcon="@Icons.Material.Filled.Phone" />
+        </MudItem>
+        <MudItem xs="12">
+          <MudTextField T="string" Label="Email" @bind-Value="model.Email" Variant="Variant.Outlined"
+                        Margin="Margin.Dense" InputType="InputType.Email" Adornment="Adornment.Start"
+                        AdornmentIcon="@Icons.Material.Filled.Email" />
+        </MudItem>
+        <MudItem xs="12">
+          <MudTextField T="string" Label="Domicilio (calle y número)" @bind-Value="model.Address"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start"
+                        AdornmentIcon="@Icons.Material.Filled.Place" />
+        </MudItem>
+      </MudGrid>
+
+      <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Situación sindical</MudText>
+      <MudDivider Class="mt-1 mb-3" />
+      <MudCheckBox T="bool" @bind-Value="model.IsVoluntaryMember" Label="Es socio voluntario (aporta el 2% de cuota socio)"
+                   Color="Color.Primary" />
+      <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+        El sindicato se asigna solo, según la localidad de la sucursal.
+      </MudAlert>
+    </MudForm>
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cancel">Cancelar</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit" Disabled="@(!success || _guardando)">
+      @(_guardando ? "Guardando..." : "Guardar empleado")
+    </MudButton>
+  </DialogActions>
+</MudDialog>
 
 @code {
-    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
-    [Parameter] public int CompanyId { get; set; }
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+  [Parameter] public int CompanyId { get; set; }
 
-    private CreateEmployeeDto model = new();
-    private Company? company;
-    private bool success;
-    private MudForm form = default!;
+  private CreateEmployeeDto model = new();
+  private Company? company;
+  private bool success;
+  private bool _guardando;
+  private MudForm form = default!;
 
-    protected override async Task OnInitializedAsync()
+  protected override async Task OnInitializedAsync()
+  {
+    model.CompanyId = CompanyId;
+    company = await EmpService.GetCompanyByIdAsync(CompanyId);
+  }
+
+  private string? ValidateCuil(string value)
+  {
+    if (string.IsNullOrWhiteSpace(value)) return null;
+    var (ok, error) = CompanyValidationService.ValidateCuit(value);
+    return ok ? null : error;
+  }
+
+  private void Cancel() => MudDialog.Cancel();
+
+  private async Task Submit()
+  {
+    await form.ValidateAsync();
+    if (!form.IsValid) return;
+
+    _guardando = true;
+    try
     {
-        model.CompanyId = CompanyId;
-        company = await EmpService.GetCompanyByIdAsync(CompanyId);
+      await EmpService.CreateEmployeeWithAssignmentAsync(model);
+      Snackbar.Add($"Empleado registrado en {company?.BusinessName ?? "la empresa"}", Severity.Success);
+      MudDialog.Close(DialogResult.Ok(true));
     }
-
-    private void Cancel() => MudDialog.Cancel();
-
-    private async Task Submit()
+    catch (Exception ex)
     {
-        await form.ValidateAsync();
-        if (form.IsValid)
-        {
-            try
-            {
-                await EmpService.CreateEmployeeWithAssignmentAsync(model);
-                Snackbar.Add($"Empleado registrado en {company?.Address ?? "Sede Central"}", Severity.Success);
-                MudDialog.Close(DialogResult.Ok(true));
-            }
-            catch (Exception ex)
-            {
-                Snackbar.Add("Error al registrar: " + ex.Message, Severity.Error);
-            }
-        }
+      // Nunca cerrar el diálogo si falló: el usuario perdería todo lo cargado.
+      Snackbar.Add("Error al registrar: " + ex.Message, Severity.Error);
     }
+    finally
+    {
+      _guardando = false;
+    }
+  }
 }
-
-
-
-
-
-
-

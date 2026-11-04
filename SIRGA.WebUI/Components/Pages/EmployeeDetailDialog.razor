@@ -1,0 +1,129 @@
+@using SIRGA.Application.DTOs
+@using SIRGA.Domain.Enums
+@using SIRGA.WebUI.Services
+
+@* Ficha del empleado: TODO lo que hay del socio, agrupado. Antes la pantalla sólo mostraba el
+   nombre completo y no había forma de ver el resto de los datos que sí están en la base
+   (nacimiento, documento, contacto, domicilio, número de afiliado). *@
+<MudDialog>
+  <TitleContent>
+    <div class="d-flex align-center" style="gap: 12px;">
+      <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
+        <MudText Typo="Typo.subtitle1">@Iniciales</MudText>
+      </MudAvatar>
+      <div>
+        <MudText Typo="Typo.h6" Class="mb-0">@Empleado.NombreParaMostrar</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+          CUIL @CuilFormateado
+          @if (!string.IsNullOrWhiteSpace(Empleado.AffiliationNumber))
+          {
+            <text> · afiliado @Empleado.AffiliationNumber</text>
+          }
+        </MudText>
+      </div>
+    </div>
+  </TitleContent>
+  <DialogContent>
+    <MudGrid>
+      <MudItem xs="12" md="6">
+        <MudText Typo="Typo.overline" Color="Color.Primary">Identidad</MudText>
+        <MudDivider Class="mt-1 mb-2" />
+        <DatoFicha Etiqueta="Apellido" Valor="@Empleado.LastName" />
+        <DatoFicha Etiqueta="Nombre" Valor="@Empleado.FirstName" />
+        <DatoFicha Etiqueta="CUIL" Valor="@CuilFormateado" />
+        <DatoFicha Etiqueta="Documento" Valor="@TextoDocumento" />
+        <DatoFicha Etiqueta="Fecha de nacimiento" Valor="@Fecha(Empleado.BirthDate)" />
+        <DatoFicha Etiqueta="Sexo" Valor="@SexoTexto" />
+      </MudItem>
+
+      <MudItem xs="12" md="6">
+        <MudText Typo="Typo.overline" Color="Color.Primary">Contacto</MudText>
+        <MudDivider Class="mt-1 mb-2" />
+        <DatoFicha Etiqueta="Celular" Valor="@Empleado.Mobile" />
+        <DatoFicha Etiqueta="Teléfono" Valor="@Empleado.Phone" />
+        <DatoFicha Etiqueta="Email" Valor="@Empleado.Email" />
+        <DatoFicha Etiqueta="Email laboral" Valor="@Empleado.WorkEmail" />
+      </MudItem>
+
+      <MudItem xs="12" md="6">
+        <MudText Typo="Typo.overline" Color="Color.Primary">Domicilio</MudText>
+        <MudDivider Class="mt-1 mb-2" />
+        <DatoFicha Etiqueta="Dirección" Valor="@Empleado.DomicilioParaMostrar" />
+        <DatoFicha Etiqueta="Barrio" Valor="@Empleado.Neighborhood" />
+        <DatoFicha Etiqueta="Código postal" Valor="@Empleado.ZipCode" />
+      </MudItem>
+
+      <MudItem xs="12" md="6">
+        <MudText Typo="Typo.overline" Color="Color.Primary">Situación sindical</MudText>
+        <MudDivider Class="mt-1 mb-2" />
+        <DatoFicha Etiqueta="Estado" Valor="@(Empleado.IsActive ? "Activo" : "Baja")" />
+        <DatoFicha Etiqueta="Socio" Valor="@(Empleado.IsVoluntaryMember ? "Sí" : "No")" />
+        <DatoFicha Etiqueta="Categoría" Valor="@(string.IsNullOrWhiteSpace(Empleado.CategoryCode) ? null : $"Código {Empleado.CategoryCode}")" />
+        <DatoFicha Etiqueta="Ingreso a la empresa" Valor="@Fecha(Empleado.AssignmentEntryDate)" />
+        <DatoFicha Etiqueta="Jornada" Valor="@(Empleado.Jornada == JornadaType.Parcial ? "Parcial (50%)" : "Completa")" />
+        <DatoFicha Etiqueta="Alta al sindicato" Valor="@Fecha(Empleado.JoinedDate)" />
+        <DatoFicha Etiqueta="N° de afiliado" Valor="@Empleado.AffiliationNumber" />
+        <DatoFicha Etiqueta="N° de carnet" Valor="@Empleado.CardNumber" />
+      </MudItem>
+
+      @if (Empleado.MembershipResignationRequested)
+      {
+        <MudItem xs="12">
+          <MudAlert Severity="Severity.Warning" Dense="true">
+            Tiene una <b>renuncia como socio pendiente de aprobación</b>.
+          </MudAlert>
+        </MudItem>
+      }
+    </MudGrid>
+
+    @if (string.IsNullOrWhiteSpace(Empleado.LastName) && string.IsNullOrWhiteSpace(Empleado.FirstName))
+    {
+      <MudAlert Severity="Severity.Info" Dense="true" Class="mt-4">
+        Este empleado todavía no tiene los datos del sistema anterior cargados (apellido y nombre
+        separados, nacimiento, documento): se completan con
+        <code>script_sirga_db_empleados_desde_maesoc.sql</code>.
+      </MudAlert>
+    }
+  </DialogContent>
+  <DialogActions>
+    <MudButton OnClick="Cerrar">Cerrar</MudButton>
+  </DialogActions>
+</MudDialog>
+
+@code {
+  [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+  [Parameter] public EmployeeDto Empleado { get; set; } = new();
+
+  private void Cerrar() => MudDialog.Close();
+
+  private string Iniciales
+  {
+    get
+    {
+      var nombre = Empleado.FirstName ?? Empleado.FullName ?? "";
+      var apellido = Empleado.LastName ?? "";
+      var a = apellido.Length > 0 ? apellido[..1] : "";
+      var n = nombre.Length > 0 ? nombre[..1] : "";
+      return $"{a}{n}".ToUpperInvariant();
+    }
+  }
+
+  private string CuilFormateado =>
+      Empleado.Dni is { Length: 11 } c ? $"{c[..2]}-{c[2..10]}-{c[10..]}" : Empleado.Dni;
+
+  private string? TextoDocumento =>
+      string.IsNullOrWhiteSpace(Empleado.DocumentNumber)
+          ? null
+          : $"{Textos.TipoDocumento(Empleado.DocumentTypeCode)} {Empleado.DocumentNumber}";
+
+  private string? SexoTexto => Empleado.Sex?.ToUpperInvariant() switch
+  {
+    "M" => "Masculino",
+    "F" => "Femenino",
+    _ => null
+  };
+
+  private static string Fecha(DateTime? fecha) => fecha?.ToString("dd/MM/yyyy") ?? "—";
+
+  private static string Fecha(DateTime fecha) => fecha == default ? "—" : fecha.ToString("dd/MM/yyyy");
+}

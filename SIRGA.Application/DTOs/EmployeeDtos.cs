@@ -5,8 +5,56 @@ namespace SIRGA.Application.DTOs;
 public class EmployeeDto
 {
   public int Id { get; set; }
+
+  /// <summary>CUIL del empleado (en SIRGA, <c>Employees.Dni</c> guarda el CUIL).</summary>
   public string Dni { get; set; } = string.Empty;
+
+  /// <summary>Apellido y nombre juntos. Se mantiene por compatibilidad; la ficha usa los separados.</summary>
   public string FullName { get; set; } = string.Empty;
+
+  // ---- Datos del sistema anterior (maesoc) ----------------------------------------------
+  public string? LastName { get; set; }
+  public string? FirstName { get; set; }
+  public DateTime? BirthDate { get; set; }
+
+  /// <summary>"M" o "F", tal como viene del sistema anterior.</summary>
+  public string? Sex { get; set; }
+
+  public string? DocumentTypeCode { get; set; }
+  public string? DocumentNumber { get; set; }
+  public string? Phone { get; set; }
+  public string? Mobile { get; set; }
+  public string? Email { get; set; }
+  public string? WorkEmail { get; set; }
+  public string? Address { get; set; }
+  public string? AddressNumber { get; set; }
+  public string? Floor { get; set; }
+  public string? Apartment { get; set; }
+  public string? Neighborhood { get; set; }
+  public string? ZipCode { get; set; }
+  public string? AffiliationNumber { get; set; }
+  public string? CardNumber { get; set; }
+
+  /// <summary>
+  /// "APELLIDO, Nombre" si están separados; si todavía no se migraron, el nombre completo tal cual.
+  /// Evita que la pantalla muestre dos columnas vacías mientras el respaldo no se aplicó.
+  /// </summary>
+  public string NombreParaMostrar =>
+      !string.IsNullOrWhiteSpace(LastName) || !string.IsNullOrWhiteSpace(FirstName)
+          ? $"{LastName?.Trim()}, {FirstName?.Trim()}".Trim(',', ' ')
+          : FullName;
+
+  public string DomicilioParaMostrar
+  {
+    get
+    {
+      if (string.IsNullOrWhiteSpace(Address)) return "—";
+      var numero = string.IsNullOrWhiteSpace(AddressNumber) ? "" : $" {AddressNumber}";
+      var piso = string.IsNullOrWhiteSpace(Floor) ? "" : $", piso {Floor}";
+      var dpto = string.IsNullOrWhiteSpace(Apartment) ? "" : $" dto. {Apartment}";
+      return $"{Address}{numero}{piso}{dpto}";
+    }
+  }
 
   /// <summary>Fecha de alta del empleado (Employees.HireDate). NO es la fecha de ingreso a la empresa.</summary>
   public DateTime JoinedDate { get; set; }
@@ -24,6 +72,9 @@ public class EmployeeDto
   /// </summary>
   public string? CategoryCode { get; set; }
 
+  /// <summary>Nombre de la categoría, resuelto para mostrar (si se pudo).</summary>
+  public string? CategoryName { get; set; }
+
   /// <summary>
   /// Fecha de ingreso del empleado A ESTA EMPRESA (Assignments.CreatedAt, origen SOCEMP_FECHAING).
   /// Es la fecha desde la que se cuenta la antigüedad para el mínimo de escala.
@@ -36,8 +87,27 @@ public class EmployeeDto
 
 public class CreateEmployeeDto
 {
+  /// <summary>CUIL (11 dígitos). Es la llave del empleado en SIRGA.</summary>
   public string Dni { get; set; } = string.Empty;
+
+  public string LastName { get; set; } = string.Empty;
+  public string FirstName { get; set; } = string.Empty;
+
+  /// <summary>Se completa solo con Apellido + Nombre; no lo pide la pantalla.</summary>
   public string FullName { get; set; } = string.Empty;
+
+  public DateTime? BirthDate { get; set; }
+
+  /// <summary>"M" o "F".</summary>
+  public string? Sex { get; set; }
+
+  public string? DocumentTypeCode { get; set; }
+  public string? DocumentNumber { get; set; }
+  public string? Phone { get; set; }
+  public string? Mobile { get; set; }
+  public string? Email { get; set; }
+  public string? Address { get; set; }
+
   public int CompanyId { get; set; }
   public int UnionId { get; set; }
   public bool IsVoluntaryMember { get; set; }

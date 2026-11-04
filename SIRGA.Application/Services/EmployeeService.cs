@@ -38,6 +38,25 @@ public class EmployeeService(IUnitOfWork unitOfWork)
                     Id = employee.Id,
                     Dni = employee.Dni,
                     FullName = employee.FullName,
+                    // Datos de la ficha que vienen del sistema anterior (ver Employees en el dominio).
+                    LastName = employee.LastName,
+                    FirstName = employee.FirstName,
+                    BirthDate = employee.BirthDate,
+                    Sex = employee.Sex,
+                    DocumentTypeCode = employee.DocumentTypeCode,
+                    DocumentNumber = employee.DocumentNumber,
+                    Phone = employee.Phone,
+                    Mobile = employee.Mobile,
+                    Email = employee.Email,
+                    WorkEmail = employee.WorkEmail,
+                    Address = employee.Address,
+                    AddressNumber = employee.AddressNumber,
+                    Floor = employee.Floor,
+                    Apartment = employee.Apartment,
+                    Neighborhood = employee.Neighborhood,
+                    ZipCode = employee.ZipCode,
+                    AffiliationNumber = employee.AffiliationNumber,
+                    CardNumber = employee.CardNumber,
                     JoinedDate = employee.HireDate,
                     LeftDate = assign.TerminationDate,
                     IsActive = assign.IsActive,
@@ -70,6 +89,25 @@ public class EmployeeService(IUnitOfWork unitOfWork)
                     Id = employee.Id,
                     Dni = employee.Dni,
                     FullName = employee.FullName,
+                    // Datos de la ficha que vienen del sistema anterior (ver Employees en el dominio).
+                    LastName = employee.LastName,
+                    FirstName = employee.FirstName,
+                    BirthDate = employee.BirthDate,
+                    Sex = employee.Sex,
+                    DocumentTypeCode = employee.DocumentTypeCode,
+                    DocumentNumber = employee.DocumentNumber,
+                    Phone = employee.Phone,
+                    Mobile = employee.Mobile,
+                    Email = employee.Email,
+                    WorkEmail = employee.WorkEmail,
+                    Address = employee.Address,
+                    AddressNumber = employee.AddressNumber,
+                    Floor = employee.Floor,
+                    Apartment = employee.Apartment,
+                    Neighborhood = employee.Neighborhood,
+                    ZipCode = employee.ZipCode,
+                    AffiliationNumber = employee.AffiliationNumber,
+                    CardNumber = employee.CardNumber,
                     JoinedDate = employee.HireDate,
                     LeftDate = assign.TerminationDate,
                     IsActive = assign.IsActive,
@@ -229,6 +267,8 @@ public class EmployeeService(IUnitOfWork unitOfWork)
                 Id = e.Id,
                 Dni = e.Dni,
                 FullName = e.FullName,
+                LastName = e.LastName,
+                FirstName = e.FirstName,
                 JoinedDate = e.HireDate,
                 IsActive = e.Assignments.Any(a => a.IsActive)
             }).ToListAsync());
@@ -274,15 +314,38 @@ public class EmployeeService(IUnitOfWork unitOfWork)
         {
             throw new Exception($"No existe un Sindicato configurado para la provincia {provinceName} que cubra la ciudad de {cityName}.");
         }
-        var existing = (await unitOfWork.Employees.FindAsync(e => e.Dni == dto.Dni)).FirstOrDefault();
+        // El CUIL se guarda siempre normalizado (11 dígitos): es la llave del cruce con el sistema
+        // anterior y con las DDJJ, y si entra con guiones después no cruza con nada.
+        var cuil = CompanyValidationService.NormalizeCuit(dto.Dni);
+        if (cuil.Length != 11)
+            throw new Exception("El CUIL debe tener 11 dígitos.");
+
+        var apellido = (dto.LastName ?? "").Trim();
+        var nombre = (dto.FirstName ?? "").Trim();
+        if (apellido.Length == 0 || nombre.Length == 0)
+            throw new Exception("Hay que cargar el apellido y el nombre del empleado.");
+
+        var existing = (await unitOfWork.Employees.FindAsync(e => e.Dni == cuil)).FirstOrDefault();
         int employeeId;
 
         if (existing == null)
         {
             var newEmployee = new Employee
             {
-                Dni = dto.Dni,
-                FullName = dto.FullName,
+                Dni = cuil,
+                LastName = apellido,
+                FirstName = nombre,
+                // FullName se arma siempre igual (Apellido + Nombre) para que las pantallas que lo
+                // usan no dependan de cómo lo tipeó el usuario.
+                FullName = $"{apellido} {nombre}".Trim(),
+                BirthDate = dto.BirthDate,
+                Sex = string.IsNullOrWhiteSpace(dto.Sex) ? null : dto.Sex.Trim().ToUpperInvariant(),
+                DocumentTypeCode = dto.DocumentTypeCode,
+                DocumentNumber = dto.DocumentNumber?.Trim(),
+                Phone = dto.Phone?.Trim(),
+                Mobile = dto.Mobile?.Trim(),
+                Email = dto.Email?.Trim(),
+                Address = dto.Address?.Trim(),
                 HireDate = DateTime.Now,
                 Status = EmployeeStatus.Active
             };

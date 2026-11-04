@@ -1,0 +1,11 @@
+@* Renglón "Etiqueta: valor" de una ficha. Lo que viene vacío se muestra como "—" y no como un
+   hueco: un dato que falta tiene que verse, no desaparecer (regla de no fallos silenciosos). *@
+<div class="d-flex align-baseline mb-2" style="gap: 12px;">
+  <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="min-width: 150px;">@Etiqueta</MudText>
+  <MudText Typo="Typo.body2">@(string.IsNullOrWhiteSpace(Valor) ? "—" : Valor)</MudText>
+</div>
+
+@code {
+  [Parameter] public string Etiqueta { get; set; } = string.Empty;
+  [Parameter] public string? Valor { get; set; }
+}

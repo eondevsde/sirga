@@ -11,101 +11,182 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudText Typo="Typo.h4" Class="mb-4">Gestión de Empleados - @_companyName</MudText>
+<PageTitle>SIRGA - Empleados de la empresa</PageTitle>
 
-<MudPaper Class="pa-4">
-  <div class="d-flex mb-4">
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-               Disabled="@(_companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active)" OnClick="OpenAddDialog" Class="mr-2">
-      Agregar Empleado</MudButton>
-      <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download"
-                 OnClick="ExportExcel">Exportar Padrón (Excel)</MudButton>
-      <MudSpacer />
-      <MudSelect T="string" Label="Estado" @bind-Value="_statusFilter" Class="ml-4" Style="min-width: 140px;">
+<div class="d-flex flex-wrap align-center justify-space-between mb-3">
+  <div>
+    <MudText Typo="Typo.h4" Class="mb-0">Gestión de Empleados</MudText>
+    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
+      @_companyName · @_employees.Count empleado(s) en esta empresa
+    </MudText>
+  </div>
+  <div class="d-flex align-center" style="gap: 8px;">
+    <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download"
+               OnClick="ExportExcel">Exportar padrón</MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+               Disabled="@(_companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active)" OnClick="OpenAddDialog">
+      Agregar empleado</MudButton>
+  </div>
+</div>
+
+@if (!_loading)
+{
+  <div class="d-flex flex-wrap align-center mb-3" style="gap: 8px;">
+    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+      Total: @_employees.Count
+    </MudChip>
+    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success">
+      Activos: @Activos
+    </MudChip>
+    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">
+      Socios: @Socios
+    </MudChip>
+    @if (Bajas > 0)
+    {
+      <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error">
+        Bajas: @Bajas
+      </MudChip>
+    }
+  </div>
+}
+
+@* Filtros en su propia franja, a todo el ancho, repartidos en partes iguales (mismo patrón que
+   /companies). Dentro de la barra de la tabla el ancho de estos controles no se puede fijar. *@
+<MudPaper Elevation="2" Style="padding: 16px; margin-bottom: 16px; width: 100%;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; width: 100%;">
+    <div style="display: flex; align-items: flex-end;">
+      <MudTextField @bind-Value="_searchString" Label="Buscar" Placeholder="CUIL, apellido o nombre"
+                    Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                    IconSize="Size.Medium" Margin="Margin.Dense" Immediate="true"></MudTextField>
+    </div>
+    <div style="display: flex; align-items: flex-end;">
+      <MudSelect T="string" Label="Estado" @bind-Value="_statusFilter" Margin="Margin.Dense">
         <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
         <MudSelectItem Value="@("activos")">Activos</MudSelectItem>
-        <MudSelectItem Value="@("inactivos")">Inactivos</MudSelectItem>
+        <MudSelectItem Value="@("inactivos")">Bajas</MudSelectItem>
       </MudSelect>
-      <MudTextField @bind-Value="_searchString" Placeholder="Buscar por DNI o Nombre" Adornment="Adornment.Start"
-                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0" Immediate="true"></MudTextField>
     </div>
+    <div style="display: flex; align-items: flex-end;">
+      <MudSelect T="string" Label="Socio" @bind-Value="_socioFilter" Margin="Margin.Dense">
+        <MudSelectItem Value="@("todos")">Todos</MudSelectItem>
+        <MudSelectItem Value="@("socios")">Sólo socios</MudSelectItem>
+        <MudSelectItem Value="@("nosocios")">No socios</MudSelectItem>
+      </MudSelect>
+    </div>
+    <div style="display: flex; align-items: flex-end;">
+      <MudSelect T="string" Label="Categoría" @bind-Value="_categoryFilter" Margin="Margin.Dense">
+        <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
+        @foreach (var cat in Categorias)
+        {
+          <MudSelectItem Value="@cat">Código @cat</MudSelectItem>
+        }
+      </MudSelect>
+    </div>
+  </div>
+</MudPaper>
 
-    @if (_companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active && !_loading)
-    {
-      <MudAlert Severity="Severity.Warning" Class="mb-4">
-        Esta empresa aún no ha sido aprobada por el sindicato. No se pueden realizar cambios en el padrón de empleados.
-      </MudAlert>
-    }
+@if (_companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active && !_loading)
+{
+  <MudAlert Severity="Severity.Warning" Class="mb-4">
+    Esta empresa aún no ha sido aprobada por el sindicato. No se pueden realizar cambios en el padrón de empleados.
+  </MudAlert>
+}
 
-    <MudTable HorizontalScrollbar="true" Items="@_employees" Hover="true" Loading="@_loading" Filter="new Func<EmployeeDto,bool>(FilterFunc)">
-      <HeaderContent>
-        <MudTh>DNI</MudTh>
-        <MudTh>Nombre Completo</MudTh>
-        <MudTh>Fecha Alta</MudTh>
-        <MudTh>Estado</MudTh>
-        <MudTh>Socio ?</MudTh>
-        <MudTh>Acciones</MudTh>
-      </HeaderContent>
-      <RowTemplate>
-        <MudTd DataLabel="DNI">@context.Dni</MudTd>
-        <MudTd DataLabel="Nombre Completo">@context.FullName</MudTd>
-        <MudTd DataLabel="Fecha Alta">@context.JoinedDate.ToShortDateString()</MudTd>
-        <MudTd DataLabel="Estado">
-          @if (context.IsActive)
-          {
-            <MudChip T="string" Color="Color.Success" Size="Size.Small">Activo</MudChip>
-          }
-          else
-          {
-            <MudChip T="string" Color="Color.Error" Size="Size.Small">Baja</MudChip>
-          }
-        </MudTd>
-        <MudTd DataLabel="Socio">
-          <MudCheckBox T="bool" Value="@context.IsVoluntaryMember" ReadOnly="true" Color="Color.Primary" />
-          @if (context.MembershipResignationRequested)
-          {
-            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined">Renuncia solicitada</MudChip>
-          }
-        </MudTd>
-        <MudTd DataLabel="Acciones">
-          <MudTooltip Text="Transferir a otra Sucursal">
-            <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz" Color="Color.Warning" Size="Size.Small"
-                           OnClick="@(() => OpenTransferDialog(context))"
-                           Disabled="@(_companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active)" />
-          </MudTooltip>
+<MudTable HorizontalScrollbar="true" Items="@_employees" Hover="true" Loading="@_loading"
+          Filter="new Func<EmployeeDto,bool>(FilterFunc)" Elevation="2">
+  <HeaderContent>
+    <MudTh>CUIL</MudTh>
+    <MudTh>Apellido</MudTh>
+    <MudTh>Nombre</MudTh>
+    <MudTh>Categoría</MudTh>
+    <MudTh>Ingreso a la empresa</MudTh>
+    <MudTh>Estado</MudTh>
+    <MudTh>Socio</MudTh>
+    <MudTh>Acciones</MudTh>
+  </HeaderContent>
+  <RowTemplate>
+    <MudTd DataLabel="CUIL">@CuilFormateado(context.Dni)</MudTd>
+    <MudTd DataLabel="Apellido">@(string.IsNullOrWhiteSpace(context.LastName) ? "—" : context.LastName)</MudTd>
+    <MudTd DataLabel="Nombre">@(string.IsNullOrWhiteSpace(context.FirstName) ? context.FullName : context.FirstName)</MudTd>
+    <MudTd DataLabel="Categoría">
+      @(string.IsNullOrWhiteSpace(context.CategoryCode) ? "—" : $"Código {context.CategoryCode}")
+    </MudTd>
+    <MudTd DataLabel="Ingreso a la empresa">
+      @(context.AssignmentEntryDate == default ? "—" : context.AssignmentEntryDate.ToString("dd/MM/yyyy"))
+    </MudTd>
+    <MudTd DataLabel="Estado">
+      @if (context.IsActive)
+      {
+        <MudChip T="string" Color="Color.Success" Size="Size.Small">Activo</MudChip>
+      }
+      else
+      {
+        <MudChip T="string" Color="Color.Error" Size="Size.Small">Baja</MudChip>
+      }
+    </MudTd>
+    <MudTd DataLabel="Socio">
+      <MudCheckBox T="bool" Value="@context.IsVoluntaryMember" ReadOnly="true" Color="Color.Primary" Dense="true" />
+      @if (context.MembershipResignationRequested)
+      {
+        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined">Renuncia pedida</MudChip>
+      }
+    </MudTd>
+    <MudTd DataLabel="Acciones">
+      <div class="d-flex align-center flex-nowrap">
+        <MudTooltip Text="Ver ficha">
+          <MudIconButton Icon="@Icons.Material.Filled.Badge" Color="Color.Info" Size="Size.Small"
+                         OnClick="@(() => OpenFicha(context))" />
+        </MudTooltip>
+        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Default" Size="Size.Small"
+                 AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="Más acciones">
+          <MudMenuItem Icon="@Icons.Material.Filled.SwapHoriz" IconColor="Color.Warning"
+                       OnClick="@(() => OpenTransferDialog(context))"
+                       Disabled="@(_companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active)">
+            Transferir a otra sucursal</MudMenuItem>
           <AuthorizeView Roles="EstudioContable,Admin" Context="accionesView">
             @if (context.IsVoluntaryMember)
             {
-              <MudTooltip Text="@(context.MembershipResignationRequested ? "Renuncia pendiente de aprobación" : "Solicitar renuncia como socio")">
-                <MudIconButton Icon="@Icons.Material.Filled.PersonOff" Color="Color.Error" Size="Size.Small"
-                               OnClick="@(() => OpenResignDialog(context))"
-                               Disabled="@(context.MembershipResignationRequested || _companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active)" />
-              </MudTooltip>
+              <MudMenuItem Icon="@Icons.Material.Filled.PersonOff" IconColor="Color.Error"
+                           OnClick="@(() => OpenResignDialog(context))"
+                           Disabled="@(context.MembershipResignationRequested || _companyStatus != SIRGA.Domain.Enums.CompanyStatus.Active)">
+                @(context.MembershipResignationRequested ? "Renuncia pendiente de aprobación" : "Solicitar renuncia como socio")
+              </MudMenuItem>
             }
           </AuthorizeView>
-          <MudTooltip Text="Editar Empleado">
-            @* Este botón estaba SIN OnClick: no hacía nada nunca. La edición de empleados todavía no
-             está implementada (no hay diálogo de edición), así que ahora lo dice en pantalla en vez
-             de quedarse mudo, que es lo que hacía pensar que la pantalla estaba rota. *@
-          <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" Size="Size.Small"
-                         OnClick="@(() => Snackbar.Add("La edición de empleados todavía no está implementada.", Severity.Info))" />
-          </MudTooltip>
-        </MudTd>
-      </RowTemplate>
-      <PagerContent>
-        <MudTablePager />
-      </PagerContent>
-    </MudTable>
-  </MudPaper>
+          <MudMenuItem Icon="@Icons.Material.Filled.Edit" IconColor="Color.Info"
+                       OnClick="@(() => Snackbar.Add("La edición de empleados todavía no está implementada.", Severity.Info))">
+            Editar empleado</MudMenuItem>
+        </MudMenu>
+      </div>
+    </MudTd>
+  </RowTemplate>
+  <PagerContent>
+    <MudTablePager InfoFormat="{first_item}-{last_item} de {all_items}" RowsPerPageString="Filas por página:" />
+  </PagerContent>
+</MudTable>
 
 @code {
   [Parameter] public int CompanyId { get; set; }
   private bool _loading = true;
   private string _searchString = "";
   private string _statusFilter = "todas";
+  private string _socioFilter = "todos";
+  private string _categoryFilter = "todas";
   private string _companyName = "";
   private SIRGA.Domain.Enums.CompanyStatus _companyStatus;
   private List<EmployeeDto> _employees = new();
+
+  private int Activos => _employees.Count(e => e.IsActive);
+  private int Bajas => _employees.Count(e => !e.IsActive);
+  private int Socios => _employees.Count(e => e.IsVoluntaryMember);
+
+  /// <summary>Códigos de categoría que aparecen en esta empresa, para el filtro.</summary>
+  private IEnumerable<string> Categorias => _employees
+      .Select(e => e.CategoryCode)
+      .Where(c => !string.IsNullOrWhiteSpace(c))
+      .Select(c => c!.Trim())
+      .Distinct()
+      .OrderBy(c => c);
 
   protected override async Task OnInitializedAsync()
   {
@@ -140,21 +221,50 @@
     }
   }
 
+  /// <summary>CUIL con guiones (xx-xxxxxxxx-x). Se muestra formateado, en la base va sin guiones.</summary>
+  private static string CuilFormateado(string? cuil) =>
+      cuil is { Length: 11 } c ? $"{c[..2]}-{c[2..10]}-{c[10..]}" : cuil ?? "";
+
   private bool FilterFunc(EmployeeDto element)
   {
     if (_statusFilter == "activos" && !element.IsActive) return false;
     if (_statusFilter == "inactivos" && element.IsActive) return false;
 
-    if (string.IsNullOrWhiteSpace(_searchString)) return true;
-    if (element.FullName.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
-    if (element.Dni.Contains(_searchString, StringComparison.OrdinalIgnoreCase)) return true;
-    return false;
+    if (_socioFilter == "socios" && !element.IsVoluntaryMember) return false;
+    if (_socioFilter == "nosocios" && element.IsVoluntaryMember) return false;
+
+    if (_categoryFilter != "todas" &&
+        !string.Equals(element.CategoryCode?.Trim(), _categoryFilter, StringComparison.OrdinalIgnoreCase))
+      return false;
+
+    var busqueda = _searchString?.Trim();
+    if (string.IsNullOrEmpty(busqueda)) return true;
+
+    // Busca por CUIL (con o sin guiones), apellido, nombre y por el nombre completo armado.
+    var soloDigitos = new string(busqueda.Where(char.IsDigit).ToArray());
+    if (soloDigitos.Length > 0 && (element.Dni ?? "").Contains(soloDigitos)) return true;
+
+    if (!string.IsNullOrEmpty(element.LastName) &&
+        element.LastName.Contains(busqueda, StringComparison.OrdinalIgnoreCase)) return true;
+
+    if (!string.IsNullOrEmpty(element.FirstName) &&
+        element.FirstName.Contains(busqueda, StringComparison.OrdinalIgnoreCase)) return true;
+
+    return !string.IsNullOrEmpty(element.FullName) &&
+           element.FullName.Contains(busqueda, StringComparison.OrdinalIgnoreCase);
+  }
+
+  private async Task OpenFicha(EmployeeDto employee)
+  {
+    var parameters = new DialogParameters { ["Empleado"] = employee };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+    await DialogService.ShowAsync<EmployeeDetailDialog>("Ficha del empleado", parameters, options);
   }
 
   private async Task OpenAddDialog()
   {
     var parameters = new DialogParameters { ["CompanyId"] = CompanyId };
-    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
 
     var dialog = await DialogService.ShowAsync<AddEmployeeDialog>("Nuevo Empleado", parameters, options);
     var result = await dialog.Result;

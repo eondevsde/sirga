@@ -83,4 +83,19 @@ public static class Textos
     EmployeeStatus.Inactive => "Inactivo",
     _ => estado.ToString()
   };
+
+  /// <summary>
+  /// Tipo de documento. Los códigos vienen del sistema anterior (<c>MAESOC_TIPODOC</c>), que no trae
+  /// tabla de descripción: los más usados son 3 = DNI (27.910 de 27.924 filas), 2 = LE, 1 = LC y
+  /// 4 = CI. Si aparece un código desconocido se muestra el código, nunca una etiqueta inventada.
+  /// </summary>
+  public static string TipoDocumento(string? codigo) => codigo?.Trim() switch
+  {
+    "3" => "DNI",
+    "2" => "LE",
+    "1" => "LC",
+    "4" => "CI",
+    null or "" => "Documento",
+    _ => $"Documento (cód. {codigo})"
+  };
 }
