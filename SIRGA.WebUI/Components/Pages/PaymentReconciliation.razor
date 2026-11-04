@@ -14,7 +14,7 @@
 
 <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-6">
   <MudTabPanel Text="Pagos Recibidos">
-    <MudTable HorizontalScroll="true" Items="@_payments" Dense="true" Hover="true" Loading="@_loading"
+    <MudTable HorizontalScrollbar="true" Items="@_payments" Dense="true" Hover="true" Loading="@_loading"
               Filter="new Func<PaymentTransaction,bool>(FilterFunc1)">
       <ToolBarContent>
         <MudText Typo="Typo.h6">Historial de Transacciones</MudText>
@@ -102,7 +102,7 @@
           Se encontraron @_reconciliationResult.MatchedPayments.Count pagos coincidentes.
         </MudAlert>
 
-        <MudTable HorizontalScroll="true" Items="@_reconciliationResult.MatchedPayments" Dense="true" Class="mt-4">
+        <MudTable HorizontalScrollbar="true" Items="@_reconciliationResult.MatchedPayments" Dense="true" Class="mt-4">
           <HeaderContent>
             <MudTh>ID DDJJ</MudTh>
             <MudTh>Fecha</MudTh>

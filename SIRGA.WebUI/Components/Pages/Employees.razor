@@ -16,7 +16,7 @@
 <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
   <MudText Typo="Typo.h4" Class="mb-4">Gestión de Empleados</MudText>
 
-  <MudTable HorizontalScroll="true" Items="@_employees" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+  <MudTable HorizontalScrollbar="true" Items="@_employees" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
             Filter="new Func<EmployeeDto,bool>(FilterFunc1)">
     <ToolBarContent>
       <MudText Typo="Typo.h6">Padrón General de Empleados</MudText>

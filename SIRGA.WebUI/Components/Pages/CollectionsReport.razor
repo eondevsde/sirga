@@ -84,7 +84,7 @@
             <MudIconButton Icon="@Icons.Material.Filled.Email" Color="Color.Error" OnClick="NotifyDebtors"
                            title="Notificar por Email" />
           </MudStack>
-          <MudTable HorizontalScroll="true" Items="@_data.Debtors.Take(10)" Dense="true" Hover="true" FixedHeader="true" Height="330px"
+          <MudTable HorizontalScrollbar="true" Items="@_data.Debtors.Take(10)" Dense="true" Hover="true" FixedHeader="true" Height="330px"
                     Elevation="0">
             <HeaderContent>
               <MudTh>Empresa</MudTh>
