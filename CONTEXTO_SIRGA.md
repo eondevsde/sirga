@@ -1257,4 +1257,13 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   > **La versión que manda es la vigente**: se agrupa por período y se toma la de **mayor
   > `VersionNumber` que no esté `Rectificada`**. Los estados se cargan al elegir empresa/sindicato y al
   > cambiar el año (`CargarEstadoDelAnioAsync`, con `GetDeclarationsByCompanyAsync`).
+  > **⚠️ TRAMPA (me pasó y lo vio el usuario): `@for` + `MudSelectItem` muestra el ÚLTIMO valor.**
+  > El contenido del ítem es un `RenderFragment` que se evalúa **al final del bucle**, así que los doce
+  > meses leían la misma variable `mes` (que terminaba en 13) y la pantalla mostraba **"Mes 13"** en
+  > todos, con "Sin DDJJ". Hay que **copiar la variable en cada vuelta**: `var mesActual = mes;` y usar
+  > `mesActual` en el `Value` y en el contenido. Es el cierre sobre la variable del bucle de siempre, y
+  > **compila igual**: sólo se ve ejecutando. **Cómo verificarlo sin navegador**: agregar
+  > `<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>` al csproj, compilar y mirar
+  > `obj\...\generated\...\NewDeclaration_razor.g.cs` (cada ítem debe recibir su propio `mesActual`);
+  > después **quitar la bandera**.
 
