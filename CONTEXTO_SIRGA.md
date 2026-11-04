@@ -1289,4 +1289,8 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   > como columna**: el usuario la pidió así y agregar una novena columna volvía a apretar la tabla.
   > La resta la hace la app (C#) sobre el `MinSalary` que calculó `SalaryMinimumCalculator`; **no rehacer
   > esa cuenta en SQL** (ver trampa 17).
+- **Totales al pie de la tabla del paso 2** (commit `02cdff3`): cada columna cierra con su total —
+  **Remuneración ingresada**, **Total por escala** y, debajo, la **Diferencia** en verde/rojo— más los
+  aportes de ley, voluntarios y el total general. La primera celda dice cuántos empleados hay y cuántos
+  tienen escala. **Los empleados sin escala no entran en la diferencia** (no tienen con qué compararse).
 
