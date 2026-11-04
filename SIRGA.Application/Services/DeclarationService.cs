@@ -108,7 +108,14 @@ public class DeclarationService(
         TotalWithheld = fila.TotalWithheld, // En SIRGA "TotalWithheld" es el pago al sindicato
         // Se guarda el ORIGEN del importe: es lo que permite pre-cargar una rectificativa copiando sólo los
         // que se cargaron a mano, sin congelar los mínimos viejos.
-        UsaEscala = fila.UsoEscala
+        UsaEscala = fila.UsoEscala,
+        // Los dos importes y la diferencia quedan guardados CON la DDJJ: la escala cambia y después nadie
+        // puede reconstruir qué mínimo regía cuando se presentó.
+        ScaleSalary = fila.SalarioEscala,
+        EnteredSalary = fila.SalarioIngresado,
+        // La diferencia sólo tiene sentido si el estudio cargó un importe: si se liquidó por escala, no hay
+        // nada con qué comparar (mostrar -1.600.000 haría parecer que se declaró de menos).
+        Difference = fila.UsoEscala ? null : fila.SalarioIngresado - fila.SalarioEscala
       });
     }
 
@@ -553,6 +560,9 @@ await unitOfWork.CompleteAsync();
           MemberContribution = dt.MemberContribution,
           TotalWithheld = dt.TotalWithheld,
           IsSocio = dt.Assignment.IsVoluntaryMember,
+          ScaleSalary = dt.ScaleSalary,
+          EnteredSalary = dt.EnteredSalary,
+          Difference = dt.Difference,
           UsaEscala = dt.UsaEscala
         })
         .ToListAsync());
@@ -707,6 +717,13 @@ await unitOfWork.CompleteAsync();
 
       decimal totalWithheld = lawContribution + socioContribution;
       empleados.TryGetValue(assign.EmployeeId, out var empleado);
+
+      // Los dos importes que hay que dejar guardados para la auditoría: lo que proponía la escala (con los
+      // no remunerativos incluidos, igual que la pantalla) y lo que cargó el estudio (0 si no cargó nada).
+      decimal salarioEscala = SalaryMinimumCalculator.Minimo(scale, assign.CreatedAt, targetDate, assign.Jornada);
+      decimal salarioIngresado = remunerativeTotal;
+      if (usoEscala) salarioIngresado = 0;
+
       filas.Add(new FilaCalculada(
           assign.Id,
           assign.EmployeeId,
@@ -719,7 +736,9 @@ await unitOfWork.CompleteAsync();
           socioContribution,
           totalWithheld,
           assign.IsVoluntaryMember,
-          usoEscala));
+          usoEscala,
+          salarioEscala,
+          salarioIngresado));
 
       total += totalWithheld;
       totalAporteLey += lawContribution;
@@ -810,7 +829,9 @@ await unitOfWork.CompleteAsync();
       decimal MemberContribution,
       decimal TotalWithheld,
       bool EsSocio,
-      bool UsoEscala);
+      bool UsoEscala,
+      decimal SalarioEscala,
+      decimal SalarioIngresado);
 
   /// <summary>Resultado del cálculo de una DDJJ, antes de guardarla.</summary>
   private record CalculoDeclaracion(

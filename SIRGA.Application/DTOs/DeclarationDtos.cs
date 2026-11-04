@@ -116,6 +116,15 @@ public class DeclarationDetailDto
   /// pre-cargar una rectificativa copiando SÓLO los importes cargados a mano.
   /// </summary>
   public bool UsaEscala { get; set; }
+
+  /// <summary>Lo que proponía la escala para ese empleado (básico + antigüedad + NR, prorrateado).</summary>
+  public decimal? ScaleSalary { get; set; }
+
+  /// <summary>Lo que cargó el estudio como remuneración.</summary>
+  public decimal? EnteredSalary { get; set; }
+
+  /// <summary>Remuneración ingresada − mínimo de escala (negativo = debajo de escala).</summary>
+  public decimal? Difference { get; set; }
 }
 
 public class PagedDeclarationsDto

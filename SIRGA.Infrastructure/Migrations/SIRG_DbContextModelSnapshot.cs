@@ -653,6 +653,12 @@ namespace SIRGA.Infrastructure.Migrations
                     b.Property<decimal>("BaseSalary")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal?>("Difference")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("EnteredSalary")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("LawContribution")
                         .HasColumnType("decimal(18,2)");
 
@@ -661,6 +667,9 @@ namespace SIRGA.Infrastructure.Migrations
 
                     b.Property<int>("RegistryId")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("ScaleSalary")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("TotalWithheld")
                         .HasColumnType("decimal(18,2)");

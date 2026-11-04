@@ -35,4 +35,21 @@ public class DeclarationDetail
   /// porque así no se copia como si fuera un importe cargado a mano.
   /// </summary>
   public bool UsaEscala { get; set; } = true;
+
+  /// <summary>
+  /// **Lo que proponía la escala** para ese empleado en ese período: básico + antigüedad + acuerdos no
+  /// remunerativos, prorrateado por la jornada (el mismo número que muestra la pantalla en "Mínimo Escala").
+  /// Se guarda con la DDJJ para poder auditarla después: la escala cambia y sin este dato no se puede
+  /// reconstruir qué mínimo regía cuando se presentó (pedido del usuario, 2026-11-04).
+  /// </summary>
+  public decimal? ScaleSalary { get; set; }
+
+  /// <summary>**Lo que cargó el estudio** como remuneración del recibo. 0 si no cargó nada (se liquidó el mínimo).</summary>
+  public decimal? EnteredSalary { get; set; }
+
+  /// <summary>
+  /// Diferencia: **remuneración ingresada − mínimo de escala**. Positiva si paga igual o por encima del
+  /// mínimo, negativa si está por debajo. Se guarda calculada para que la auditoría no dependa de reconstruirla.
+  /// </summary>
+  public decimal? Difference { get; set; }
 }
