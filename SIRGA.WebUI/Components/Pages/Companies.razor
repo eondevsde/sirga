@@ -18,7 +18,16 @@
 
 <PageTitle>SIRGA - Gestión de Empresas</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Gestión de Empresas</MudText>
+<div class="d-flex flex-wrap align-center justify-space-between mb-4">
+  <div>
+    <MudText Typo="Typo.h4" Class="mb-0">Gestión de Empresas</MudText>
+    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
+      @_companies.Count empresa(s) a cargo · buscá, filtrá o dá de alta una nueva
+    </MudText>
+  </div>
+  <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+             OnClick="OpenCreateDialog">Nueva Empresa</MudButton>
+</div>
 
 @* Aviso al estudio: empresas que salieron de su cartera por un traspaso que decidió el sindicato. *@
 @if (_empresasQueSalieron.Any())
@@ -81,7 +90,7 @@
           }
         </MudSelect>
 
-        <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged" Class="ml-4" Style="min-width: 130px;">
+        <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged" Class="mt-0">
           <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
           <MudSelectItem Value="@("activas")">Activas</MudSelectItem>
           <MudSelectItem Value="@("inactivas")">Inactivas</MudSelectItem>
