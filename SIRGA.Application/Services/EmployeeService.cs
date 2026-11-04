@@ -493,10 +493,16 @@ public class EmployeeService(IUnitOfWork unitOfWork, ILegacyPadronWriter? padron
     /// 2026-11-04). Devuelve un aviso si el padrón no se pudo actualizar, o <c>null</c> si salió todo bien.
     /// El guardado del empleado NUNCA falla por el padrón: se avisa y se sigue.
     /// </summary>
-    public async Task<string?> UpdateEmployeeAsync(EmployeeDto dto)
+    public async Task<string?> UpdateEmployeeAsync(EmployeeDto dto, string? usuario = null)
     {
         var employee = await unitOfWork.Employees.GetByIdAsync(dto.Id)
             ?? throw new Exception("El empleado no existe.");
+
+        // Foto del estado ANTERIOR: la bitácora necesita el valor viejo de cada campo.
+        var asignacionActual = dto.AssignmentId > 0
+            ? await unitOfWork.Assignments.GetByIdAsync(dto.AssignmentId)
+            : null;
+        var antes = Snapshot(employee, asignacionActual);
 
         var apellido = (dto.LastName ?? "").Trim();
         var nombre = (dto.FirstName ?? "").Trim();
@@ -541,7 +547,101 @@ public class EmployeeService(IUnitOfWork unitOfWork, ILegacyPadronWriter? padron
 
         await unitOfWork.CompleteAsync();
 
+        // BITÁCORA: un renglón por campo que cambió, con el valor anterior y el nuevo.
+        await RegistrarCambiosAsync(employee, asignacionActual, antes, usuario, "SIRGA", null);
+
         return await SincronizarPadronAsync(employee, dto.AssignmentId);
+    }
+
+    /// <summary>
+    /// Foto del estado de la ficha, con los nombres de campo que se muestran en la bitácora. Se toma ANTES de
+    /// modificar; después se compara contra el estado nuevo.
+    /// </summary>
+    private static Dictionary<string, string?> Snapshot(Employee e, SindicataryAssignment? a) => new()
+    {
+        ["Apellido"] = e.LastName,
+        ["Nombre"] = e.FirstName,
+        ["Tipo de documento"] = e.DocumentTypeCode,
+        ["Nro. de documento"] = e.DocumentNumber,
+        ["Fecha de nacimiento"] = FechaTexto(e.BirthDate),
+        ["Sexo"] = e.Sex,
+        ["Teléfono"] = e.Phone,
+        ["Celular"] = e.Mobile,
+        ["Email"] = e.Email,
+        ["Email laboral"] = e.WorkEmail,
+        ["Domicilio (calle)"] = e.Address,
+        ["Nro. de domicilio"] = e.AddressNumber,
+        ["Piso"] = e.Floor,
+        ["Depto"] = e.Apartment,
+        ["Barrio"] = e.Neighborhood,
+        ["Código postal"] = e.ZipCode,
+        ["Obra social"] = e.HealthInsuranceCode,
+        ["Jubilado"] = SiNo(e.IsRetired),
+        ["Carga familiar"] = SiNo(e.HasFamilyCharge),
+        ["Categoría"] = a?.CategoryCode,
+        ["Jornada"] = a is null ? null : (a.Jornada == JornadaType.Parcial ? "Parcial (50%)" : "Completa"),
+        ["Actividad"] = a?.ActivityCode,
+        ["Nro. de legajo"] = a?.FileNumber,
+        ["Fecha de ingreso a la empresa"] = FechaTexto(a?.CreatedAt),
+        ["Socio voluntario"] = a is null ? null : SiNo(a.IsVoluntaryMember)
+    };
+
+    private static string? FechaTexto(DateTime? fecha) =>
+        fecha is { Year: >= 1950 } f ? f.ToString("dd/MM/yyyy") : (fecha is null ? null : "—");
+
+    private static string SiNo(bool valor) => valor ? "Sí" : "No";
+
+    /// <summary>
+    /// Escribe en la bitácora un renglón por cada campo que cambió. <paramref name="origen"/> dice de dónde
+    /// vino el cambio (SIRGA, SIGES, SISTEMA) para poder auditar quién pisó qué.
+    /// </summary>
+    private async Task RegistrarCambiosAsync(
+        Employee employee, SindicataryAssignment? asignacion, Dictionary<string, string?> antes,
+        string? usuario, string origen, string? detalle)
+    {
+        var despues = Snapshot(employee, asignacion);
+        var cambios = new List<EmployeeChangeLog>();
+
+        foreach (var (campo, valorNuevo) in despues)
+        {
+            antes.TryGetValue(campo, out var valorAnterior);
+
+            // Se comparan como texto y sin distinguir vacíos de nulos: " " y "" son lo mismo para la ficha.
+            var anterior = string.IsNullOrWhiteSpace(valorAnterior) ? null : valorAnterior.Trim();
+            var nuevo = string.IsNullOrWhiteSpace(valorNuevo) ? null : valorNuevo.Trim();
+            if (anterior == nuevo) continue;
+
+            cambios.Add(new EmployeeChangeLog
+            {
+                EmployeeId = employee.Id,
+                AssignmentId = asignacion?.Id,
+                Campo = campo,
+                ValorAnterior = anterior,
+                ValorNuevo = nuevo,
+                Origen = origen,
+                Usuario = usuario,
+                Fecha = DateTime.Now,
+                Detalle = detalle
+            });
+        }
+
+        if (cambios.Count == 0) return;
+
+        foreach (var cambio in cambios)
+            await unitOfWork.EmployeeChangeLogs.AddAsync(cambio);
+
+        await unitOfWork.CompleteAsync();
+    }
+
+    /// <summary>Historial de cambios de la ficha, del más nuevo al más viejo (para la auditoría).</summary>
+    public async Task<List<EmployeeChangeLog>> GetHistorialAsync(int employeeId, int tomar = 100)
+    {
+        var registros = await unitOfWork.EmployeeChangeLogs.FindAsync(l => l.EmployeeId == employeeId);
+        return registros
+            .OrderByDescending(l => l.Fecha)
+            .ThenByDescending(l => l.Id)
+            .Take(tomar)
+            .ToList();
     }
 
     /// <summary>

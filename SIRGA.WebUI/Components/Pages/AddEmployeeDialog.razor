@@ -5,6 +5,7 @@
 @using MudBlazor
 @inject EmployeeService EmpService
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthStateProvider
 
 @* Alta y edición de empleado. Antes sólo pedía "DNI" y "Nombre Completo" (aunque en SIRGA el Dni es
    el CUIL) y no dejaba cargar ni la CATEGORÍA ni la JORNADA, que son las dos cosas que necesita la
@@ -298,7 +299,9 @@
         model.AssignmentEntryDate = _fechaIngreso ?? default;
         // El servicio devuelve un aviso si el padrón del sindicato no se pudo actualizar: se muestra, no se
         // esconde. El empleado ya quedó guardado igual.
-        var avisoPadron = await EmpService.UpdateEmployeeAsync(model);
+        // El usuario queda en la bitácora: es lo que permite auditar quién cambió qué.
+        var usuario = (await AuthStateProvider.GetAuthenticationStateAsync()).User.Identity?.Name;
+        var avisoPadron = await EmpService.UpdateEmployeeAsync(model, usuario);
         Snackbar.Add("Empleado actualizado.", Severity.Success);
         if (!string.IsNullOrWhiteSpace(avisoPadron))
           Snackbar.Add(avisoPadron!, Severity.Warning, config => config.VisibleStateDuration = 10000);

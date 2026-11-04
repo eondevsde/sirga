@@ -28,6 +28,7 @@ public class UnitOfWork : IUnitOfWork
     EmployeeCategories = new Repository<EmployeeCategory>(_context, dbLock);
     Activities = new Repository<Activity>(_context, dbLock);
     HealthInsurances = new Repository<HealthInsurance>(_context, dbLock);
+    EmployeeChangeLogs = new Repository<EmployeeChangeLog>(_context, dbLock);
     AuditLogs = new Repository<AuditLog>(_context, dbLock);
     InspectionActs = new Repository<InspectionAct>(_context, dbLock);
     PaymentPlans = new Repository<PaymentPlan>(_context, dbLock);
@@ -64,6 +65,7 @@ public class UnitOfWork : IUnitOfWork
   public IRepository<EmployeeCategory> EmployeeCategories { get; }
   public IRepository<Activity> Activities { get; }
   public IRepository<HealthInsurance> HealthInsurances { get; }
+  public IRepository<EmployeeChangeLog> EmployeeChangeLogs { get; }
   public IRepository<AuditLog> AuditLogs { get; }
   public IRepository<InspectionAct> InspectionActs { get; }
   public IRepository<PaymentPlan> PaymentPlans { get; }

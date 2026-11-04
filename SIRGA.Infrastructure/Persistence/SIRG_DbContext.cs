@@ -24,6 +24,8 @@ public class SIRG_DbContext : IdentityDbContext
 
   /// <summary>Catálogo de obras sociales (origen <c>obrasocial</c> del sistema anterior).</summary>
   public DbSet<HealthInsurance> HealthInsurances => Set<HealthInsurance>();
+  /// <summary>Bitácora de cambios de la ficha de cada empleado (auditoría campo por campo).</summary>
+  public DbSet<EmployeeChangeLog> EmployeeChangeLogs => Set<EmployeeChangeLog>();
     public DbSet<SalaryScale> SalaryScales => Set<SalaryScale>();
     public DbSet<AccountingStudio> AccountingStudios => Set<AccountingStudio>();
     public DbSet<InterestRate> InterestRates => Set<InterestRate>();

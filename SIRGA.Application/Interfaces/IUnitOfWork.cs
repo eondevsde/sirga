@@ -34,6 +34,8 @@ public interface IUnitOfWork : IDisposable
   IRepository<EmployeeCategory> EmployeeCategories { get; }
   IRepository<Activity> Activities { get; }
   IRepository<HealthInsurance> HealthInsurances { get; }
+  /// <summary>Bitácora de cambios de la ficha del empleado.</summary>
+  IRepository<EmployeeChangeLog> EmployeeChangeLogs { get; }
   IRepository<AuditLog> AuditLogs { get; }
   IRepository<InspectionAct> InspectionActs { get; }
   IRepository<PaymentPlan> PaymentPlans { get; }

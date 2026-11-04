@@ -1,6 +1,9 @@
 @using SIRGA.Application.DTOs
 @using SIRGA.Domain.Enums
 @using SIRGA.WebUI.Services
+@using SIRGA.Domain.Entities
+@using SIRGA.Application.Services
+@inject EmployeeService EmpService
 
 @* Ficha del empleado: TODO lo que hay del socio, agrupado. Antes la pantalla sólo mostraba el
    nombre completo y no había forma de ver el resto de los datos que sí están en la base
@@ -81,6 +84,48 @@
       }
     </MudGrid>
 
+    @* HISTORIAL: un renglón por campo modificado, con el valor anterior. Es la auditoría de la ficha. *@
+    <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-4">Historial de cambios</MudText>
+    <MudDivider Class="mt-1 mb-2" />
+    @if (_historial is null)
+    {
+      <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-2" />
+    }
+    else if (_historial.Count == 0)
+    {
+      <MudText Typo="Typo.caption" Class="mud-text-secondary">
+        Todavía no hay cambios registrados de esta ficha.
+      </MudText>
+    }
+    else
+    {
+      <MudSimpleTable Dense="true" Elevation="0" Class="tabla-historial">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Campo</th>
+            <th>Antes</th>
+            <th>Después</th>
+            <th>Quién</th>
+            <th>Origen</th>
+          </tr>
+        </thead>
+        <tbody>
+          @foreach (var cambio in _historial)
+          {
+            <tr>
+              <td>@cambio.Fecha.ToString("dd/MM/yyyy HH:mm")</td>
+              <td>@cambio.Campo</td>
+              <td>@(cambio.ValorAnterior ?? "—")</td>
+              <td>@(cambio.ValorNuevo ?? "—")</td>
+              <td>@(cambio.Usuario ?? "—")</td>
+              <td>@cambio.Origen</td>
+            </tr>
+          }
+        </tbody>
+      </MudSimpleTable>
+    }
+
     @if (string.IsNullOrWhiteSpace(Empleado.LastName) && string.IsNullOrWhiteSpace(Empleado.FirstName))
     {
       <MudAlert Severity="Severity.Info" Dense="true" Class="mt-4">
@@ -98,6 +143,22 @@
 @code {
   [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
   [Parameter] public EmployeeDto Empleado { get; set; } = new();
+
+  /// <summary>Cambios registrados de la ficha. Null mientras carga.</summary>
+  private List<EmployeeChangeLog>? _historial;
+
+  protected override async Task OnInitializedAsync()
+  {
+    try
+    {
+      _historial = await EmpService.GetHistorialAsync(Empleado.Id);
+    }
+    catch
+    {
+      // Que no se pueda leer la bitácora no puede romper la ficha: se muestra vacía.
+      _historial = new List<EmployeeChangeLog>();
+    }
+  }
 
   private void Cerrar() => MudDialog.Close();
 

@@ -899,6 +899,56 @@ namespace SIRGA.Infrastructure.Migrations
                     b.ToTable("EmployeeCategories");
                 });
 
+            modelBuilder.Entity("SIRGA.Domain.Entities.EmployeeChangeLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AssignmentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Campo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Detalle")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Fecha")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Usuario")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ValorAnterior")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ValorNuevo")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("EmployeeChangeLogs");
+                });
+
             modelBuilder.Entity("SIRGA.Domain.Entities.HealthInsurance", b =>
                 {
                     b.Property<int>("Id")
@@ -1922,6 +1972,17 @@ namespace SIRGA.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Rama");
+                });
+
+            modelBuilder.Entity("SIRGA.Domain.Entities.EmployeeChangeLog", b =>
+                {
+                    b.HasOne("SIRGA.Domain.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
                 });
 
             modelBuilder.Entity("SIRGA.Domain.Entities.InspectionAct", b =>
