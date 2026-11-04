@@ -248,6 +248,7 @@ else
               <MudTh>Jornada</MudTh>
               <MudTh>Remuneración</MudTh>
               <MudTh>Mínimo Escala</MudTh>
+              <MudTh>Diferencia</MudTh>
               <MudTh>@($"Aporte Ley ({LawPercent:0.##}%)")</MudTh>
               <MudTh>@($"Aporte Vol. ({MemberPercent:0.##}%)")</MudTh>
               <MudTh>Total</MudTh>
@@ -323,14 +324,27 @@ else
                   }
                 }
               </MudTd>
-              <MudTd DataLabel="Aporte Ley">@context.LawContribution.ToString("C")</MudTd>
+              <MudTd DataLabel="Diferencia">
+                @if (context.MinSalary <= 0)
+                {
+                  <MudText Typo="Typo.body2" Class="mud-text-secondary">—</MudText>
+                }
+                else
+                {
+                  @* Remuneración menos mínimo de escala: en verde si está igual o por encima, en rojo si
+                     está por debajo. El signo va siempre, para que no haya que restar de memoria. *@
+                  <MudText Typo="Typo.body2" Color="@(Diferencia(context) >= 0 ? Color.Success : Color.Error)">
+                    <b>@TextoDiferencia(Diferencia(context))</b>
+                  </MudText>
+                }
+              </MudTd>              <MudTd DataLabel="Aporte Ley">@context.LawContribution.ToString("C")</MudTd>
               <MudTd DataLabel="Aporte Vol.">@context.VoluntaryContribution.ToString("C")</MudTd>
               <MudTd DataLabel="Total"><b>@((context.LawContribution + context.VoluntaryContribution).ToString("C"))</b>
               </MudTd>
             </RowTemplate>
             <FooterContent>
               <MudTFootRow>
-                <MudTd colspan="7" Style="text-align:right">Total General:</MudTd>
+                <MudTd colspan="8" Style="text-align:right">Total General:</MudTd>
                 <MudTd><b>@_details.Sum(x => x.LawContribution + x.VoluntaryContribution).ToString("C")</b></MudTd>
               </MudTFootRow>
             </FooterContent>
@@ -576,6 +590,20 @@ else
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
   };
 
+  /// <summary>
+  /// Diferencia entre lo que declara el estudio y el mínimo de escala: positiva si paga igual o por
+  /// encima del mínimo, negativa si paga por debajo.
+  /// </summary>
+  private static decimal Diferencia(DeclarationDetailViewModel detalle) =>
+      detalle.GrossSalary - detalle.MinSalary;
+
+  /// <summary>Importe con signo: + si está por encima, − si está por debajo, sin signo si es cero.</summary>
+  private static string TextoDiferencia(decimal diferencia) => diferencia switch
+  {
+    > 0 => "+" + diferencia.ToString("C"),
+    < 0 => "−" + Math.Abs(diferencia).ToString("C"),
+    _ => diferencia.ToString("C")
+  };
   private static string NombreMes(int mes) => mes is >= 1 and <= 12 ? NombresMes[mes - 1] : $"Mes {mes}";
 
   private EstadoPeriodo? EstadoDelMes(int mes) =>
