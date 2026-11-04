@@ -54,47 +54,55 @@
   </MudAlert>
 }
 
-<MudTable HorizontalScrollbar="true" Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
-          Filter="new Func<Company,bool>(FilterFunc1)" Elevation="2">
-  <ToolBarContent>
-    @* Los filtros ocupan TODO el ancho del contenedor: la busqueda se lleva el resto del espacio y
-       cada filtro crece con ella, con un ancho minimo para que no se aplasten. Con flex-wrap se
-       acomodan solos en pantallas angostas, en vez de apretarse en un bloque a la izquierda. *@
-    <div class="d-flex flex-wrap align-center w-100 mt-2" style="gap: 12px;">
+@* Los filtros van en su PROPIA franja, fuera de la barra de la tabla y a todo el ancho de la pagina.
+   Dentro de MudTable la fila no se estiraba hasta el borde (quedaba un hueco a la derecha): el ancho
+   de esos controles lo decide el contenedor de MudBlazor, no el Style que se les pasa. Aca el ancho
+   es el del contenedor de la pagina, la grilla reparte en partes iguales y el hueco no puede quedar. *@
+<MudPaper Elevation="2" Style="padding: 16px; margin-bottom: 16px; width: 100%;">
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; width: 100%;">
+    <div>
       <MudTextField @bind-Value="_searchString" Placeholder="Buscar por CUIT, razón social o localidad"
-                    Adornment="Adornment.Start"
-                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"
-                    Style="flex: 2 1 300px; min-width: 240px;" Immediate="true"></MudTextField>
+                    Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                    IconSize="Size.Medium" Margin="Margin.Dense" Immediate="true"></MudTextField>
+    </div>
 
-      @* Provincia y Localidad salen de las tablas Provinces y Cities. La localidad se llena con
-         las ciudades de la provincia elegida, y al cambiar de provincia se limpia si no pertenece. *@
+    @* Provincia y Localidad salen de las tablas Provinces y Cities. La localidad se llena con
+       las ciudades de la provincia elegida, y al cambiar de provincia se limpia si no pertenece. *@
+    <div>
       <MudSelect T="int?" Label="Provincia" @bind-Value="_provinceFilterId" @bind-Value:after="OnProvinceChanged"
-                 Class="mt-0" Style="flex: 1 1 200px; min-width: 170px;" Clearable="true">
+                 Margin="Margin.Dense" Clearable="true">
         <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
         @foreach (var provincia in _provinces)
         {
           <MudSelectItem T="int?" Value="@((int?)provincia.Id)">@provincia.Name</MudSelectItem>
         }
       </MudSelect>
+    </div>
 
+    <div>
       <MudSelect T="int?" Label="Localidad" @bind-Value="_cityFilterId" @bind-Value:after="StateHasChanged"
-                 Class="mt-0" Style="flex: 1 1 200px; min-width: 170px;" Clearable="true"
-                 Disabled="@(_provinceFilterId is null)">
+                 Margin="Margin.Dense" Clearable="true" Disabled="@(_provinceFilterId is null)">
         <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
         @foreach (var localidad in LocalidadesDeLaProvincia)
         {
           <MudSelectItem T="int?" Value="@((int?)localidad.Id)">@localidad.Name</MudSelectItem>
         }
       </MudSelect>
+    </div>
 
+    <div>
       <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged"
-                 Class="mt-0" Style="flex: 0 1 180px; min-width: 150px;">
+                 Margin="Margin.Dense">
         <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
         <MudSelectItem Value="@("activas")">Activas</MudSelectItem>
         <MudSelectItem Value="@("inactivas")">Inactivas</MudSelectItem>
       </MudSelect>
     </div>
-  </ToolBarContent>
+  </div>
+</MudPaper>
+
+<MudTable HorizontalScrollbar="true" Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
+          Filter="new Func<Company,bool>(FilterFunc1)" Elevation="2">
   <HeaderContent>
     <MudTh>CUIT</MudTh>
     <MudTh>Empresa / Casa Central</MudTh>
