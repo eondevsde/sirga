@@ -108,6 +108,12 @@ public class CreateEmployeeDto
   public string? Email { get; set; }
   public string? Address { get; set; }
 
+  /// <summary>Categoría del convenio (código de la rama). Sin categoría la DDJJ liquida el mínimo en cero.</summary>
+  public string? CategoryCode { get; set; }
+
+  /// <summary>Jornada en esta empresa: Parcial = 50% del mínimo de escala.</summary>
+  public JornadaType Jornada { get; set; } = JornadaType.Completa;
+
   public int CompanyId { get; set; }
   public int UnionId { get; set; }
   public bool IsVoluntaryMember { get; set; }

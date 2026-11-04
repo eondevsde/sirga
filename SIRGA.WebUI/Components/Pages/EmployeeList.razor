@@ -78,7 +78,7 @@
         <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
         @foreach (var cat in Categorias)
         {
-          <MudSelectItem Value="@cat">Código @cat</MudSelectItem>
+          <MudSelectItem Value="@cat">@EtiquetaCategoria(cat)</MudSelectItem>
         }
       </MudSelect>
     </div>
@@ -109,7 +109,7 @@
     <MudTd DataLabel="Apellido">@(string.IsNullOrWhiteSpace(context.LastName) ? "—" : context.LastName)</MudTd>
     <MudTd DataLabel="Nombre">@(string.IsNullOrWhiteSpace(context.FirstName) ? context.FullName : context.FirstName)</MudTd>
     <MudTd DataLabel="Categoría">
-      @(string.IsNullOrWhiteSpace(context.CategoryCode) ? "—" : $"Código {context.CategoryCode}")
+      @CategoriaTexto(context)
     </MudTd>
     <MudTd DataLabel="Ingreso a la empresa">
       @(context.AssignmentEntryDate == default ? "—" : context.AssignmentEntryDate.ToString("dd/MM/yyyy"))
@@ -154,7 +154,7 @@
             }
           </AuthorizeView>
           <MudMenuItem Icon="@Icons.Material.Filled.Edit" IconColor="Color.Info"
-                       OnClick="@(() => Snackbar.Add("La edición de empleados todavía no está implementada.", Severity.Info))">
+                       OnClick="@(() => OpenEditDialog(context))">
             Editar empleado</MudMenuItem>
         </MudMenu>
       </div>
@@ -275,6 +275,40 @@
     }
   }
 
+  /// <summary>
+  /// Nombre de la categoría para mostrar. Si la categoría no tiene nombre resuelto (sindicato sin
+  /// rama o código que ya no existe) se muestra el código, nunca un nombre inventado.
+  /// </summary>
+  private static string CategoriaTexto(EmployeeDto e) =>
+      !string.IsNullOrWhiteSpace(e.CategoryName) ? e.CategoryName!
+      : !string.IsNullOrWhiteSpace(e.CategoryCode) ? $"Código {e.CategoryCode}"
+      : "—";
+
+  /// <summary>Etiqueta del filtro: "7 — MAESTRANZA B" (código y nombre).</summary>
+  private string EtiquetaCategoria(string codigo)
+  {
+    var nombre = _employees.FirstOrDefault(e =>
+        string.Equals(e.CategoryCode?.Trim(), codigo, StringComparison.OrdinalIgnoreCase))?.CategoryName;
+    return string.IsNullOrWhiteSpace(nombre) ? $"Código {codigo}" : $"{codigo} — {nombre}";
+  }
+
+  private async Task OpenEditDialog(EmployeeDto employee)
+  {
+    var parameters = new DialogParameters
+    {
+      ["CompanyId"] = CompanyId,
+      ["Empleado"] = employee
+    };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+    var dialog = await DialogService.ShowAsync<AddEmployeeDialog>("Editar empleado", parameters, options);
+    var result = await dialog.Result;
+
+    if (result is { Canceled: false })
+    {
+      await LoadEmployees();
+    }
+  }
   private async Task OpenTransferDialog(EmployeeDto employee)
   {
     var parameters = new DialogParameters

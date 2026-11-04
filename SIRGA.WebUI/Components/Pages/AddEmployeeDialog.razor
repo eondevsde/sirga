@@ -1,22 +1,22 @@
 @using SIRGA.Application.DTOs
 @using SIRGA.Application.Services
 @using SIRGA.Domain.Entities
+@using SIRGA.Domain.Enums
 @using MudBlazor
 @inject EmployeeService EmpService
 @inject ISnackbar Snackbar
 
-@* Alta de empleado. Antes sólo pedía "DNI" y "Nombre Completo", aunque en SIRGA el Dni es el CUIL:
-   se pedía un dato con el nombre de otro y la ficha quedaba sin apellido, sin nacimiento y sin
-   contacto. Ahora pide el CUIL (validado) y el apellido y el nombre por separado, como están en la
-   tabla real de empleados (maesoc). *@
+@* Alta y edición de empleado. Antes sólo pedía "DNI" y "Nombre Completo" (aunque en SIRGA el Dni es
+   el CUIL) y no dejaba cargar ni la CATEGORÍA ni la JORNADA, que son las dos cosas que necesita la
+   DDJJ: sin categoría el mínimo de escala da cero y la jornada decide si corresponde el 50%. *@
 <MudDialog>
   <TitleContent>
     <div class="d-flex align-center" style="gap: 12px;">
       <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
-        <MudIcon Icon="@Icons.Material.Filled.PersonAdd" />
+        <MudIcon Icon="@(IsEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.PersonAdd)" />
       </MudAvatar>
       <div>
-        <MudText Typo="Typo.h6" Class="mb-0">Nuevo empleado</MudText>
+        <MudText Typo="Typo.h6" Class="mb-0">@(IsEdit ? "Editar empleado" : "Nuevo empleado")</MudText>
         @if (company != null)
         {
           <MudText Typo="Typo.caption" Class="mud-text-secondary">
@@ -37,13 +37,17 @@
                         RequiredError="El CUIL es obligatorio" Variant="Variant.Outlined" Margin="Margin.Dense"
                         Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Badge"
                         Mask="@(new PatternMask("00-00000000-0"))" MaxLength="13"
+                        Disabled="IsEdit"
                         Validation="@(new Func<string, string?>(ValidateCuil))"
-                        HelperText="11 dígitos: 20/23/24/27 para varones, 27 para mujeres" />
+                        HelperText="@(IsEdit ? "El CUIL no se edita: es la llave del empleado" : "11 dígitos")" />
         </MudItem>
         <MudItem xs="12" md="6" Class="d-flex align-center">
-          <MudText Typo="Typo.caption" Class="mud-text-secondary">
-            El CUIL es la llave del empleado: con él se cruzan las DDJJ y los datos del sistema anterior.
-          </MudText>
+          @if (!IsEdit)
+          {
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+              Con el CUIL se cruzan las DDJJ, el padrón y los datos del sistema anterior.
+            </MudText>
+          }
         </MudItem>
 
         <MudItem xs="12" md="6">
@@ -79,7 +83,7 @@
         <MudItem xs="12" md="6">
           <MudSelect T="string" Label="Sexo" @bind-Value="model.Sex" Variant="Variant.Outlined" Margin="Margin.Dense">
             <MudSelectItem Value="@("M")">Masculino</MudSelectItem>
-            <MudSelectItem Value="@("F")">Femenino</MudSelectItem>
+            <MudSelectItem T="string" Value="@("F")">Femenino</MudSelectItem>
           </MudSelect>
         </MudItem>
       </MudGrid>
@@ -102,26 +106,62 @@
                         Margin="Margin.Dense" InputType="InputType.Email" Adornment="Adornment.Start"
                         AdornmentIcon="@Icons.Material.Filled.Email" />
         </MudItem>
-        <MudItem xs="12">
-          <MudTextField T="string" Label="Domicilio (calle y número)" @bind-Value="model.Address"
+        <MudItem xs="12" md="8">
+          <MudTextField T="string" Label="Domicilio (calle)" @bind-Value="model.Address"
                         Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start"
                         AdornmentIcon="@Icons.Material.Filled.Place" />
         </MudItem>
+        <MudItem xs="12" md="4">
+          <MudTextField T="string" Label="Número" @bind-Value="model.AddressNumber"
+                        Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudItem>
       </MudGrid>
 
-      <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Situación sindical</MudText>
+      <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Situación en esta empresa</MudText>
       <MudDivider Class="mt-1 mb-3" />
-      <MudCheckBox T="bool" @bind-Value="model.IsVoluntaryMember" Label="Es socio voluntario (aporta el 2% de cuota socio)"
-                   Color="Color.Primary" />
-      <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
-        El sindicato se asigna solo, según la localidad de la sucursal.
-      </MudAlert>
+      <MudGrid>
+        <MudItem xs="12" md="8">
+          <MudSelect T="string" Label="Categoría" @bind-Value="model.CategoryCode" Variant="Variant.Outlined"
+                     Margin="Margin.Dense" Clearable="true"
+                     HelperText="Sin categoría, la DDJJ no puede calcular el mínimo de escala.">
+            @foreach (var categoria in _categorias)
+            {
+              <MudSelectItem Value="@categoria.Code">@($"{categoria.Code} — {categoria.Name}")</MudSelectItem>
+            }
+          </MudSelect>
+        </MudItem>
+        <MudItem xs="12" md="4">
+          <MudSelect T="JornadaType" Label="Jornada" @bind-Value="model.Jornada" Variant="Variant.Outlined"
+                     Margin="Margin.Dense">
+            <MudSelectItem Value="@JornadaType.Completa">Completa</MudSelectItem>
+            <MudSelectItem Value="@JornadaType.Parcial">Parcial (50%)</MudSelectItem>
+          </MudSelect>
+        </MudItem>
+        <MudItem xs="12">
+          <MudCheckBox T="bool" @bind-Value="model.IsVoluntaryMember"
+                       Label="Es socio voluntario (aporta el 2% de cuota socio)" Color="Color.Primary" />
+        </MudItem>
+      </MudGrid>
+
+      @if (_categorias.Count == 0)
+      {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+          Este sindicato no tiene categorías cargadas para su rama, así que no se puede elegir una.
+          Cargalas desde la pantalla de categorías antes de liquidar.
+        </MudAlert>
+      }
+      @if (!IsEdit)
+      {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+          El sindicato se asigna solo, según la localidad de la sucursal.
+        </MudAlert>
+      }
     </MudForm>
   </DialogContent>
   <DialogActions>
     <MudButton OnClick="Cancel">Cancelar</MudButton>
     <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit" Disabled="@(!success || _guardando)">
-      @(_guardando ? "Guardando..." : "Guardar empleado")
+      @(_guardando ? "Guardando..." : IsEdit ? "Guardar cambios" : "Guardar empleado")
     </MudButton>
   </DialogActions>
 </MudDialog>
@@ -130,16 +170,61 @@
   [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
   [Parameter] public int CompanyId { get; set; }
 
-  private CreateEmployeeDto model = new();
+  /// <summary>Empleado a editar. Si viene null, el diálogo da de alta.</summary>
+  [Parameter] public EmployeeDto? Empleado { get; set; }
+
+  private bool IsEdit => Empleado != null;
+  private EmployeeDto model = new();
   private Company? company;
+  private List<EmployeeCategory> _categorias = new();
   private bool success;
   private bool _guardando;
   private MudForm form = default!;
 
   protected override async Task OnInitializedAsync()
   {
-    model.CompanyId = CompanyId;
-    company = await EmpService.GetCompanyByIdAsync(CompanyId);
+    if (Empleado != null)
+    {
+      // Copia: si se cancela, la fila de la grilla no queda cambiada.
+      model = new EmployeeDto
+      {
+        Id = Empleado.Id,
+        Dni = Empleado.Dni,
+        FullName = Empleado.FullName,
+        LastName = Empleado.LastName,
+        FirstName = Empleado.FirstName,
+        BirthDate = Empleado.BirthDate,
+        Sex = Empleado.Sex,
+        DocumentTypeCode = Empleado.DocumentTypeCode,
+        DocumentNumber = Empleado.DocumentNumber,
+        Phone = Empleado.Phone,
+        Mobile = Empleado.Mobile,
+        Email = Empleado.Email,
+        Address = Empleado.Address,
+        AddressNumber = Empleado.AddressNumber,
+        Neighborhood = Empleado.Neighborhood,
+        ZipCode = Empleado.ZipCode,
+        AssignmentId = Empleado.AssignmentId,
+        CategoryCode = Empleado.CategoryCode,
+        Jornada = Empleado.Jornada,
+        IsVoluntaryMember = Empleado.IsVoluntaryMember
+      };
+
+      company = await EmpService.GetCompanyByIdAsync(CompanyId);
+    }
+    else
+    {
+      company = await EmpService.GetCompanyByIdAsync(CompanyId);
+    }
+
+    try
+    {
+      _categorias = await EmpService.GetCategoriesByCompanyAsync(CompanyId);
+    }
+    catch (Exception ex)
+    {
+      Snackbar.Add("No se pudieron cargar las categorías: " + ex.Message, Severity.Warning);
+    }
   }
 
   private string? ValidateCuil(string value)
@@ -159,14 +244,40 @@
     _guardando = true;
     try
     {
-      await EmpService.CreateEmployeeWithAssignmentAsync(model);
-      Snackbar.Add($"Empleado registrado en {company?.BusinessName ?? "la empresa"}", Severity.Success);
+      if (IsEdit)
+      {
+        await EmpService.UpdateEmployeeAsync(model);
+        Snackbar.Add("Empleado actualizado.", Severity.Success);
+      }
+      else
+      {
+        await EmpService.CreateEmployeeWithAssignmentAsync(new CreateEmployeeDto
+        {
+          Dni = model.Dni,
+          LastName = model.LastName ?? "",
+          FirstName = model.FirstName ?? "",
+          BirthDate = model.BirthDate,
+          Sex = model.Sex,
+          DocumentTypeCode = model.DocumentTypeCode,
+          DocumentNumber = model.DocumentNumber,
+          Phone = model.Phone,
+          Mobile = model.Mobile,
+          Email = model.Email,
+          Address = model.Address,
+          CategoryCode = model.CategoryCode,
+          Jornada = model.Jornada,
+          CompanyId = CompanyId,
+          IsVoluntaryMember = model.IsVoluntaryMember
+        });
+        Snackbar.Add($"Empleado registrado en {company?.BusinessName ?? "la empresa"}", Severity.Success);
+      }
+
       MudDialog.Close(DialogResult.Ok(true));
     }
     catch (Exception ex)
     {
       // Nunca cerrar el diálogo si falló: el usuario perdería todo lo cargado.
-      Snackbar.Add("Error al registrar: " + ex.Message, Severity.Error);
+      Snackbar.Add("Error al guardar: " + ex.Message, Severity.Error);
     }
     finally
     {

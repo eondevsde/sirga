@@ -78,6 +78,10 @@ public class EmployeeService(IUnitOfWork unitOfWork)
     {
         var assignments = await unitOfWork.Assignments.FindAsync(a => a.CompanyId == companyId);
 
+        // Las categorias cuelgan de la RAMA del sindicato: sin este mapa la pantalla mostraba el
+        // codigo pelado (Codigo 7) en lugar del nombre real de la categoria (MAESTRANZA B).
+        var nombresCategoria = await CategoriasPorCodigoAsync(assignments.Select(a => a.UnionId));
+
         var result = new List<EmployeeDto>();
         foreach (var assign in assignments)
         {
@@ -117,6 +121,7 @@ public class EmployeeService(IUnitOfWork unitOfWork)
                     // como socio" se cortaba en silencio: el diálogo nunca se abría.
                     AssignmentId = assign.Id,
                     CategoryCode = assign.CategoryCode,
+                    CategoryName = assign.CategoryCode is { } codigoCategoria ? nombresCategoria.GetValueOrDefault(codigoCategoria.Trim()) : null,
                     AssignmentEntryDate = assign.CreatedAt,
                     Jornada = assign.Jornada
                 });
@@ -125,6 +130,55 @@ public class EmployeeService(IUnitOfWork unitOfWork)
         return result;
     }
 
+    /// <summary>
+    /// Mapa código → nombre de categoría para las ramas de los sindicatos indicados. La categoría
+    /// cuelga de la rama, así que dos sindicatos de la misma rama comparten el mismo juego.
+    /// </summary>
+    private async Task<Dictionary<string, string>> CategoriasPorCodigoAsync(IEnumerable<int> unionIds)
+    {
+        var mapa = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var ramas = new HashSet<int>();
+
+        foreach (var unionId in unionIds.Distinct())
+        {
+            var union = await unitOfWork.Unions.GetByIdAsync(unionId);
+            if (union?.RamaId is { } ramaId) ramas.Add(ramaId);
+        }
+
+        foreach (var ramaId in ramas)
+        {
+            var categorias = await unitOfWork.EmployeeCategories.FindAsync(c => c.RamaId == ramaId && c.IsActive);
+            foreach (var categoria in categorias)
+                mapa[categoria.Code.Trim()] = categoria.Name;
+        }
+
+        return mapa;
+    }
+
+    /// <summary>
+    /// Categorías que se le pueden asignar a un empleado de esta empresa: las de la rama del sindicato
+    /// que corresponde. Es lo que alimenta el desplegable de la ficha.
+    /// </summary>
+    public async Task<List<EmployeeCategory>> GetCategoriesByCompanyAsync(int companyId)
+    {
+        var assignments = await unitOfWork.Assignments.FindAsync(a => a.CompanyId == companyId);
+        var ramas = new HashSet<int>();
+
+        foreach (var unionId in assignments.Select(a => a.UnionId).Distinct())
+        {
+            var union = await unitOfWork.Unions.GetByIdAsync(unionId);
+            if (union?.RamaId is { } ramaId) ramas.Add(ramaId);
+        }
+
+        var resultado = new List<EmployeeCategory>();
+        foreach (var ramaId in ramas)
+            resultado.AddRange(await unitOfWork.EmployeeCategories.FindAsync(c => c.RamaId == ramaId && c.IsActive));
+
+        return resultado
+            .OrderBy(c => c.Code.Length)
+            .ThenBy(c => c.Code, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
     public async Task<IEnumerable<Employee>> GetAllEmployeesRawAsync()
     {
         return await unitOfWork.Employees.GetAllAsync();
@@ -365,13 +419,61 @@ public class EmployeeService(IUnitOfWork unitOfWork)
             EmployeeId = employeeId,
             CompanyId = dto.CompanyId,
             UnionId = union.Id,
-            IsVoluntaryMember = dto.IsVoluntaryMember
+            IsVoluntaryMember = dto.IsVoluntaryMember,
+            // La categoría y la jornada se cargan en el alta: sin categoría la DDJJ liquidaba el
+            // mínimo de escala en cero, y la jornada decide si corresponde el 50%.
+            CategoryCode = string.IsNullOrWhiteSpace(dto.CategoryCode) ? null : dto.CategoryCode.Trim(),
+            Jornada = dto.Jornada
         };
 
         await unitOfWork.Assignments.AddAsync(assignment);
         await unitOfWork.CompleteAsync();
     }
 
+    /// <summary>
+    /// Guarda los cambios de la ficha de un empleado: los datos personales y, en la asignación de esa
+    /// empresa, la categoría, la jornada y si es socio. La jornada y la categoría van en la ASIGNACIÓN
+    /// y no en el empleado, porque el mismo empleado puede tener otra jornada en otra empresa.
+    /// </summary>
+    public async Task UpdateEmployeeAsync(EmployeeDto dto)
+    {
+        var employee = await unitOfWork.Employees.GetByIdAsync(dto.Id)
+            ?? throw new Exception("El empleado no existe.");
+
+        var apellido = (dto.LastName ?? "").Trim();
+        var nombre = (dto.FirstName ?? "").Trim();
+        if (apellido.Length == 0 || nombre.Length == 0)
+            throw new Exception("Hay que cargar el apellido y el nombre del empleado.");
+
+        employee.LastName = apellido;
+        employee.FirstName = nombre;
+        employee.FullName = $"{apellido} {nombre}".Trim();
+        employee.BirthDate = dto.BirthDate;
+        employee.Sex = string.IsNullOrWhiteSpace(dto.Sex) ? null : dto.Sex.Trim().ToUpperInvariant();
+        employee.DocumentTypeCode = dto.DocumentTypeCode;
+        employee.DocumentNumber = dto.DocumentNumber?.Trim();
+        employee.Phone = dto.Phone?.Trim();
+        employee.Mobile = dto.Mobile?.Trim();
+        employee.Email = dto.Email?.Trim();
+        employee.Address = dto.Address?.Trim();
+        employee.AddressNumber = dto.AddressNumber?.Trim();
+        employee.Floor = dto.Floor?.Trim();
+        employee.Apartment = dto.Apartment?.Trim();
+        employee.Neighborhood = dto.Neighborhood?.Trim();
+        employee.ZipCode = dto.ZipCode?.Trim();
+
+        if (dto.AssignmentId > 0)
+        {
+            var assignment = await unitOfWork.Assignments.GetByIdAsync(dto.AssignmentId)
+                ?? throw new Exception("El empleado no tiene asignación en esta empresa.");
+
+            assignment.CategoryCode = string.IsNullOrWhiteSpace(dto.CategoryCode) ? null : dto.CategoryCode.Trim();
+            assignment.Jornada = dto.Jornada;
+            assignment.IsVoluntaryMember = dto.IsVoluntaryMember;
+        }
+
+        await unitOfWork.CompleteAsync();
+    }
     public async Task<IEnumerable<Employee>> GetAllAsync() => await unitOfWork.Employees.GetAllAsync();
 
     /// <summary>
