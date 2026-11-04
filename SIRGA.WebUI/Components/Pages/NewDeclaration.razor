@@ -56,69 +56,102 @@ else
 {
   <MudStepper @ref="_stepper" CenterLabels="true" Class="mud-width-full">
     <MudStep Title="Empresa y Periodo">
-      <MudCard Elevation="0">
-        <MudCardContent>
-          <MudGrid>
-            <MudItem xs="12" sm="5">
-              @* T="int?" para que, sin empresa elegida, muestre la etiqueta en lugar de un "0". *@
-              <MudSelect T="int?" Label="Empresa (Casa Central)" Variant="Variant.Outlined"
-                         AnchorOrigin="Origin.BottomCenter" Value="_selectedParentId"
-                         ValueChanged="@(async (int? val) => await OnParentCompanyChanged(val))">
-                @foreach (var comp in _parentCompanies)
-                {
-                  @* El Value tiene que ser int? para que coincida con el T del MudSelect: si el ítem
-                     queda en int, MudBlazor no puede convertir el padre y el render explota. *@
-                  <MudSelectItem Value="@((int?)comp.Id)">@comp.BusinessName (@comp.Cuit)</MudSelectItem>
-                }
-              </MudSelect>
-            </MudItem>
+      <MudPaper Elevation="0" Class="pa-4">
+        @* Las dos decisiones del paso, cada una con su rótulo: para qué empresa y sindicato, y qué
+           período. Antes era una grilla de campos sueltos que se partía en dos renglones sin criterio. *@
+        <MudText Typo="Typo.overline" Color="Color.Primary">Empresa y sindicato</MudText>
+        <MudDivider Class="mt-1 mb-3" />
+        <MudGrid>
+          <MudItem xs="12" sm="5">
+            @* T="int?" para que, sin empresa elegida, muestre la etiqueta en lugar de un "0". *@
+            <MudSelect T="int?" Label="Empresa (Casa Central)" Variant="Variant.Outlined"
+                       AnchorOrigin="Origin.BottomCenter" Value="_selectedParentId"
+                       ValueChanged="@(async (int? val) => await OnParentCompanyChanged(val))">
+              @foreach (var comp in _parentCompanies)
+              {
+                @* El Value tiene que ser int? para que coincida con el T del MudSelect: si el ítem
+                   queda en int, MudBlazor no puede convertir el padre y el render explota. *@
+                <MudSelectItem Value="@((int?)comp.Id)">@comp.BusinessName (@comp.Cuit)</MudSelectItem>
+              }
+            </MudSelect>
+          </MudItem>
 
-            @if (_branches.Any())
-            {
-              <MudItem xs="12" sm="4">
-                <MudSelect T="int" Label="Sucursal / Sede" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter"
-                           @bind-Value="_selectedCompanyId" SelectedValuesChanged="OnBranchChanged">
-                  @foreach (var branch in _branches)
-                  {
-                    <MudSelectItem Value="@branch.Id">@branch.BranchName - @branch.Address</MudSelectItem>
-                  }
-                </MudSelect>
-              </MudItem>
-            }
-
+          @if (_branches.Any())
+          {
             <MudItem xs="12" sm="4">
-              <MudSelect T="int" Label="Sindicato" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter"
-                         @bind-Value="_selectedUnionId" SelectedValuesChanged="OnFiltersChanged">
-                @foreach (var union in _unions)
+              <MudSelect T="int" Label="Sucursal / Sede" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter"
+                         @bind-Value="_selectedCompanyId" SelectedValuesChanged="OnBranchChanged">
+                @foreach (var branch in _branches)
                 {
-                  <MudSelectItem Value="@union.Id">@union.Name - @union.JurisdictionProvince</MudSelectItem>
+                  <MudSelectItem Value="@branch.Id">@branch.BranchName - @branch.Address</MudSelectItem>
                 }
               </MudSelect>
             </MudItem>
-            <MudItem xs="12" sm="3" Class="mt-2">
-              <MudNumericField T="int" Value="_year" Label="Año" Variant="Variant.Outlined" Min="2020" Max="2030"
-                               ValueChanged="OnYearChanged" />
-            </MudItem>
-            <MudItem xs="12" sm="3" Class="mt-2">
-              <MudSelect T="int" Value="_month" Label="Mes" Variant="Variant.Outlined" ValueChanged="OnMonthChanged"
-                         AnchorOrigin="Origin.BottomCenter">
-                <MudSelectItem Value="1">Enero</MudSelectItem>
-                <MudSelectItem Value="2">Febrero</MudSelectItem>
-                <MudSelectItem Value="3">Marzo</MudSelectItem>
-                <MudSelectItem Value="4">Abril</MudSelectItem>
-                <MudSelectItem Value="5">Mayo</MudSelectItem>
-                <MudSelectItem Value="6">Junio</MudSelectItem>
-                <MudSelectItem Value="7">Julio</MudSelectItem>
-                <MudSelectItem Value="8">Agosto</MudSelectItem>
-                <MudSelectItem Value="9">Septiembre</MudSelectItem>
-                <MudSelectItem Value="10">Octubre</MudSelectItem>
-                <MudSelectItem Value="11">Noviembre</MudSelectItem>
-                <MudSelectItem Value="12">Diciembre</MudSelectItem>
-              </MudSelect>
-            </MudItem>
-          </MudGrid>
-        </MudCardContent>
-      </MudCard>
+          }
+
+          <MudItem xs="12" sm="4">
+            <MudSelect T="int" Label="Sindicato" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter"
+                       @bind-Value="_selectedUnionId" SelectedValuesChanged="OnFiltersChanged">
+              @foreach (var union in _unions)
+              {
+                <MudSelectItem Value="@union.Id">@union.Name - @union.JurisdictionProvince</MudSelectItem>
+              }
+            </MudSelect>
+          </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Período a declarar</MudText>
+        <MudDivider Class="mt-1 mb-3" />
+        <MudGrid>
+          <MudItem xs="6" sm="2" Class="mt-2">
+            <MudNumericField T="int" Value="_year" Label="Año" Variant="Variant.Outlined" Min="2020" Max="2030"
+                             ValueChanged="OnYearChanged" />
+          </MudItem>
+          <MudItem xs="6" sm="5" Class="mt-2">
+            @* Cada mes dice si ya tiene DDJJ presentada y en qué estado: antes había que ir al
+               historial o acordarse. La versión que se muestra es la vigente. *@
+            <MudSelect T="int" Value="_month" Label="Mes" Variant="Variant.Outlined" ValueChanged="OnMonthChanged"
+                       AnchorOrigin="Origin.BottomCenter">
+              @for (var mes = 1; mes <= 12; mes++)
+              {
+                <MudSelectItem Value="@mes">
+                  <div class="d-flex align-center justify-space-between" style="gap: 8px; width: 100%;">
+                    <span>@NombreMes(mes)</span>
+                    @if (EstadoDelMes(mes) is { } estadoMes)
+                    {
+                      <MudChip T="string" Size="Size.Small" Color="@estadoMes.Color" Variant="Variant.Text">
+                        @estadoMes.Texto
+                      </MudChip>
+                    }
+                    else
+                    {
+                      <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                        Sin DDJJ
+                      </MudChip>
+                    }
+                  </div>
+                </MudSelectItem>
+              }
+            </MudSelect>
+          </MudItem>
+          <MudItem xs="12" sm="5" Class="d-flex align-center">
+            <div>
+              <MudText Typo="Typo.caption" Class="mud-text-secondary">Estado del período</MudText>
+              @if (EstadoDelMes(_month) is { } estadoElegido)
+              {
+                <div class="d-flex align-center" style="gap: 8px;">
+                  <MudChip T="string" Size="Size.Small" Color="@estadoElegido.Color">@estadoElegido.Texto</MudChip>
+                  <MudText Typo="Typo.caption" Class="mud-text-secondary">@estadoElegido.Detalle</MudText>
+                </div>
+              }
+              else
+              {
+                <MudText Typo="Typo.body2">Sin DDJJ presentada para este período</MudText>
+              }
+            </div>
+          </MudItem>
+        </MudGrid>
+      </MudPaper>
     </MudStep>
         
     <MudStep Title="Detalle de Empleados">
@@ -509,6 +542,80 @@ else
     await OnFiltersChanged();
   }
 
+  /// <summary>Estado de la DDJJ de cada mes del año elegido (1 a 12), para mostrarlo en el selector.</summary>
+  private Dictionary<int, EstadoPeriodo> _estadoPorMes = new();
+
+  /// <summary>Estado resumido de un período: qué es, de qué color y el detalle para la línea de al lado.</summary>
+  private readonly record struct EstadoPeriodo(string Texto, Color Color, string Detalle);
+
+  private static readonly string[] NombresMes =
+  {
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  };
+
+  private static string NombreMes(int mes) => mes is >= 1 and <= 12 ? NombresMes[mes - 1] : $"Mes {mes}";
+
+  private EstadoPeriodo? EstadoDelMes(int mes) =>
+      _estadoPorMes.TryGetValue(mes, out var estado) ? estado : null;
+
+  /// <summary>Color del chip según el estado de la DDJJ (el texto sale de Textos.EstadoDeclaracion).</summary>
+  private static Color ColorDeEstado(string estado) => estado switch
+  {
+    "Draft" => Color.Info,
+    "Submitted" => Color.Primary,
+    "Approved" => Color.Success,
+    "Paid" => Color.Success,
+    "Rejected" => Color.Error,
+    _ => Color.Default
+  };
+
+  /// <summary>
+  /// Carga el estado de las DDJJ de la empresa y el sindicato elegidos para TODO el año, así en el
+  /// selector de mes se ve cuáles ya están presentadas. De cada período manda la versión vigente: las
+  /// que quedaron reemplazadas (Rectificada) no se muestran.
+  /// </summary>
+  private async Task CargarEstadoDelAnioAsync()
+  {
+    _estadoPorMes = new Dictionary<int, EstadoPeriodo>();
+    if (_selectedCompanyId == 0) return;
+
+    try
+    {
+      // Llamada directa al servicio: el endpoint exige rol y el HttpClient no lleva cookie.
+      var declaraciones = await DeclarationService.GetDeclarationsByCompanyAsync(_selectedCompanyId);
+
+      var delAnio = declaraciones.Where(d => d.Period.StartsWith($"{_year}-", StringComparison.Ordinal));
+      if (_selectedUnionId != 0)
+        delAnio = delAnio.Where(d => d.UnionId == _selectedUnionId);
+
+      foreach (var grupo in delAnio.GroupBy(d => d.Period))
+      {
+        if (grupo.Key.Length < 7 || !int.TryParse(grupo.Key.Substring(5, 2), out var mes)) continue;
+        if (mes is < 1 or > 12) continue;
+
+        var vigente = grupo
+            .Where(d => !string.Equals(d.Status, "Rectificada", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(d => d.VersionNumber)
+            .FirstOrDefault();
+        if (vigente is null) continue;
+
+        var fecha = vigente.SubmissionDate == default
+            ? ""
+            : vigente.SubmissionDate.ToString("dd/MM/yyyy") + " · ";
+
+        _estadoPorMes[mes] = new EstadoPeriodo(
+            Textos.EstadoDeclaracion(vigente.Status),
+            ColorDeEstado(vigente.Status),
+            $"{fecha}$ {vigente.TotalAmount:N2}");
+      }
+    }
+    catch (Exception ex)
+    {
+      // Que no se pueda leer el estado no puede trabar la carga de la DDJJ: se avisa y se sigue.
+      Snackbar.Add("No se pudo leer el estado de las DDJJ del año: " + ex.Message, Severity.Warning);
+    }
+  }
   private async Task OnFiltersChanged()
   {
     _loadingEmployees = true;
@@ -541,6 +648,9 @@ else
       // Con la empresa y el período ya elegidos se sabe si esto va a ser una rectificativa: el título y el
       // aviso tienen que decirlo desde el primer paso, no recién al presentar.
       await ActualizarRectificacionAsync();
+
+      // Estado de todos los meses del año elegido, para el selector del paso 1.
+      await CargarEstadoDelAnioAsync();
 
       // RECTIFICATIVA: se precargan las remuneraciones que se habían cargado A MANO en la versión anterior,
       // así el estudio cambia sólo lo que necesita en lugar de volver a cargar todos los sueldos.
@@ -580,6 +690,8 @@ else
   {
     _year = year;
     await OnPeriodChanged();
+    // Otro año, otro estado: se vuelven a leer las DDJJ de los 12 meses.
+    await CargarEstadoDelAnioAsync();
   }
 
   private async Task OnMonthChanged(int month)
