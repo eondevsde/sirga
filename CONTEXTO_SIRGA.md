@@ -1019,11 +1019,37 @@ archivo, hay que volver a cambiarla.
 
 ### 10.6. ⚠️ HALLAZGOS DE SEGURIDAD (sin resolver)
 
-- **Contraseñas de SQL en texto plano** en `SIGESWEB.Web\appsettings.json` y `publish\appsettings.json`,
-  **incluida la de producción** (`192.168.1.240`). Ya están en los commits. ⇒ **Antes de subir a GitHub**
-  hay que sacarlas a un archivo ignorado **y rotar la contraseña** (ya estuvo expuesta).
+- **Contraseñas de SQL en texto plano en SIGESWEB** — **PENDIENTE ABIERTO, anotado el 2026-11-04** (re-confirmado
+  al armar las publicaciones de la demo; volvió a quedar a la vista al inspeccionar los `appsettings`).
+
+  **Dónde está hoy** (verificado con un barrido de `Password=` en las cadenas, sin mostrar el valor):
+  | Archivo | ¿Versionado en git? |
+  |---|---|
+  | `SIGESWEB.Web/appsettings.json` | **SÍ** |
+  | `SIGESWEB.Web/appsettings.Production.json` | **SÍ** |
+  | `appsettings.produccion.json` (raíz del repo SIGESWEB) | **SÍ** |
+  | `publish/appsettings.json` y `publish/appsettings.Production.json` | **SÍ** |
+  | `SIGESWEB.Carnet.Api/appsettings.json` | no (está en disco) |
+
+  **Qué hay que hacer, en este orden:**
+  1. **Rotar la contraseña** del login de SQL que usa SIGESWEB (`sqladmin` o el que corresponda) y crear el
+     login nuevo con permisos sólo sobre las bases que necesita.
+  2. **Sacar el secreto de los archivos versionados**: dejarlos con un placeholder y tomar la cadena de una
+     **variable de entorno** (`ConnectionStrings__Sindicato`) o de un archivo **ignorado por git** (mismo
+     criterio que `.dsh-tools\.sqlpwd` en SIRGA).
+  3. **Actualizar todas las copias que hoy tienen la contraseña vieja**, o los sitios dejan de conectar:
+     `publish\`, `publish-carnet\`, `C:\Proyectos\SIGESWEB_DEMO\`, `C:\Proyectos\SIGESWEB_DEMO_CARNET\` y
+     `C:\Proyectos\_PUBLISH\2026-11-04\SIGESWEB*\`.
+  4. **Probar** que SIGESWEB y el Carnet.Api conectan (`/health` en el Carnet, login en SIGESWEB).
+  5. **Asumir que la vieja está comprometida**: ya está en los commits de SIGESWEB. Aunque se borre del
+     archivo, **sigue en el historial de git**; si ese repo se sube a un remoto, hay que reescribir el
+     historial **o** (lo más simple) haber rotado la contraseña antes.
+  > **SIRGA no está afectado**: sus cadenas usan autenticación de Windows y no llevan contraseña.
+  > **Nunca** pegar la contraseña en un informe, un commit, un log ni en el chat: se lee del archivo ignorado.
+
 - **`EstudioContableDb_Prod`** existe en este servidor local. El usuario dijo que producción está en **otra
   red**, así que debería ser una copia vieja — **pero el nombre dice lo contrario: confirmar qué es.**
+
 
 ### 10.7. LAS CAJAS: TODO DOCUMENTADO, NADA IMPLEMENTADO
 
@@ -1048,7 +1074,9 @@ nace sin ellos, hay que rehacerlo.
 1. **Copiar `_RESPALDOS` a otro disco** (lo único que protege contra un disco roto).
 2. **La respuesta al banco**: fecha de producción y convivencia de DVs (decisión del usuario) + preguntar
    si revirtieron el CB de producción.
-3. **Sacar las contraseñas de SQL del repositorio y rotarlas** (antes de GitHub).
+3. **Sacar las contraseñas de SQL del repositorio y rotarlas** (antes de GitHub). **El detalle, la lista
+   exacta de archivos y el orden de los pasos están en §10.6** — es un pendiente **abierto** (anotado el
+   2026-11-04).
 4. **Tests de integración de las 3 guardas de la boleta.**
 5. **Datos que dependen de terceros**: el **plan de cuentas** (Administración, "el martes"), **cómo facturan
    hoy cantina y farmacia** (AFIP web service vs controlador fiscal), **cuántos puntos de venta**, y el
