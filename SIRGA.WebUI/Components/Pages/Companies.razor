@@ -57,44 +57,42 @@
 <MudTable HorizontalScrollbar="true" Items="@_companies" Hover="true" Breakpoint="Breakpoint.Sm" Loading="@_loading"
           Filter="new Func<Company,bool>(FilterFunc1)" Elevation="2">
   <ToolBarContent>
-    @* A 1360x768 el titulo, el boton y cuatro filtros no entran en una sola linea (se partian en
-       dos renglones): titulo y boton arriba, filtros en su propia linea. *@
-    <div class="d-flex flex-wrap align-center w-100">
-      
-      
+    @* Los filtros ocupan TODO el ancho del contenedor: la busqueda se lleva el resto del espacio y
+       cada filtro crece con ella, con un ancho minimo para que no se aplasten. Con flex-wrap se
+       acomodan solos en pantallas angostas, en vez de apretarse en un bloque a la izquierda. *@
+    <div class="d-flex flex-wrap align-center w-100 mt-2" style="gap: 12px;">
+      <MudTextField @bind-Value="_searchString" Placeholder="Buscar por CUIT, razón social o localidad"
+                    Adornment="Adornment.Start"
+                    AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"
+                    Style="flex: 2 1 300px; min-width: 240px;" Immediate="true"></MudTextField>
 
-      <div class="d-flex flex-wrap align-center w-100 mt-2">
-        <MudTextField @bind-Value="_searchString" Placeholder="Buscar empresa" Adornment="Adornment.Start"
-                      AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"
-                      Style="min-width: 200px;" Immediate="true"></MudTextField>
+      @* Provincia y Localidad salen de las tablas Provinces y Cities. La localidad se llena con
+         las ciudades de la provincia elegida, y al cambiar de provincia se limpia si no pertenece. *@
+      <MudSelect T="int?" Label="Provincia" @bind-Value="_provinceFilterId" @bind-Value:after="OnProvinceChanged"
+                 Class="mt-0" Style="flex: 1 1 200px; min-width: 170px;" Clearable="true">
+        <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
+        @foreach (var provincia in _provinces)
+        {
+          <MudSelectItem T="int?" Value="@((int?)provincia.Id)">@provincia.Name</MudSelectItem>
+        }
+      </MudSelect>
 
-        @* Provincia y Localidad salen de las tablas Provinces y Cities. La localidad se llena con
-           las ciudades de la provincia elegida, y al cambiar de provincia se limpia si no pertenece. *@
-        <MudSelect T="int?" Label="Provincia" @bind-Value="_provinceFilterId" @bind-Value:after="OnProvinceChanged"
-                   Class="ml-2" Style="min-width: 180px;" Clearable="true">
-          <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
-          @foreach (var provincia in _provinces)
-          {
-            <MudSelectItem T="int?" Value="@((int?)provincia.Id)">@provincia.Name</MudSelectItem>
-          }
-        </MudSelect>
+      <MudSelect T="int?" Label="Localidad" @bind-Value="_cityFilterId" @bind-Value:after="StateHasChanged"
+                 Class="mt-0" Style="flex: 1 1 200px; min-width: 170px;" Clearable="true"
+                 Disabled="@(_provinceFilterId is null)">
+        <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
+        @foreach (var localidad in LocalidadesDeLaProvincia)
+        {
+          <MudSelectItem T="int?" Value="@((int?)localidad.Id)">@localidad.Name</MudSelectItem>
+        }
+      </MudSelect>
 
-        <MudSelect T="int?" Label="Localidad" @bind-Value="_cityFilterId" @bind-Value:after="StateHasChanged"
-                   Class="ml-2" Style="min-width: 200px;" Clearable="true"
-                   Disabled="@(_provinceFilterId is null)">
-          <MudSelectItem T="int?" Value="@((int?)null)">Todas</MudSelectItem>
-          @foreach (var localidad in LocalidadesDeLaProvincia)
-          {
-            <MudSelectItem T="int?" Value="@((int?)localidad.Id)">@localidad.Name</MudSelectItem>
-          }
-        </MudSelect>
-
-        <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged" Class="mt-0">
-          <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
-          <MudSelectItem Value="@("activas")">Activas</MudSelectItem>
-          <MudSelectItem Value="@("inactivas")">Inactivas</MudSelectItem>
-        </MudSelect>
-      </div>
+      <MudSelect T="string" Label="Estado" @bind-Value="_activeFilter" @bind-Value:after="OnActiveFilterChanged"
+                 Class="mt-0" Style="flex: 0 1 180px; min-width: 150px;">
+        <MudSelectItem Value="@("todas")">Todas</MudSelectItem>
+        <MudSelectItem Value="@("activas")">Activas</MudSelectItem>
+        <MudSelectItem Value="@("inactivas")">Inactivas</MudSelectItem>
+      </MudSelect>
     </div>
   </ToolBarContent>
   <HeaderContent>
@@ -417,16 +415,39 @@
     if (_activeFilter == "inactivas" && element.IsActive)
       return false;
 
-    if (string.IsNullOrWhiteSpace(_searchString))
+    var busqueda = _searchString?.Trim();
+    if (string.IsNullOrEmpty(busqueda))
       return true;
-        
-    if (element.Cuit.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+
+    // La busqueda mira lo que uno tipea cuando busca una empresa: CUIT (con o sin guiones),
+    // razon social, nombre de fantasia y localidad. Antes solo miraba CUIT y razon social, asi
+    // que buscar "Santiago" o "Emanuel" (fantasia) no encontraba nada. Todo null-safe: hay
+    // empresas sin CUIT, sin fantasia y sin localidad y la pantalla no puede romperse por eso.
+    var soloDigitos = new string(busqueda.Where(char.IsDigit).ToArray());
+
+    if (!string.IsNullOrEmpty(element.Cuit) &&
+        element.Cuit.Contains(busqueda, StringComparison.OrdinalIgnoreCase))
       return true;
-        
-    if (element.BusinessName.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+
+    if (!string.IsNullOrEmpty(element.NormalizedCuit) && soloDigitos.Length > 0 &&
+        element.NormalizedCuit.Contains(soloDigitos, StringComparison.Ordinal))
       return true;
-        
-    return false;
+
+    if (!string.IsNullOrEmpty(element.BusinessName) &&
+        element.BusinessName.Contains(busqueda, StringComparison.OrdinalIgnoreCase))
+      return true;
+
+    if (!string.IsNullOrEmpty(element.TradeName) &&
+        element.TradeName.Contains(busqueda, StringComparison.OrdinalIgnoreCase))
+      return true;
+
+    // Localidad de la empresa (tabla Cities). Se resuelve con el mapa que ya esta cargado.
+    var nombreLocalidad = element.CityId is { } idCiudad
+        ? _cities.FirstOrDefault(c => c.Id == idCiudad)?.Name
+        : null;
+
+    return nombreLocalidad is not null &&
+           nombreLocalidad.Contains(busqueda, StringComparison.OrdinalIgnoreCase);
   }
 
   private async Task OpenCreateDialog()
