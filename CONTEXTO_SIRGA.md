@@ -1484,6 +1484,17 @@ o seguimiento; debe ser lo más completo posible"*.
   diferencia** (verde/rojo; "por escala" cuando no hay importe), base, aporte de ley y cuota socio, más los
   totales al pie.
 
+**Informe de períodos sin DDJJ (commit `57b6d7a`)**
+
+- En el **paso 1 de Nueva DDJJ**, debajo del período, aparece un aviso con **los meses del año elegido que no
+  tienen NINGUNA declaración** (ni borrador ni presentada): *"Sin DDJJ en 2026: N período(s)"* y **un chip por
+  mes**; al tocarlo se selecciona ese mes y se recalcula.
+  > **Los meses futuros no cuentan** como faltantes (todavía no se pueden declarar): se listan desde enero
+  > hasta el mes actual (o los 12 del año si es un año pasado). Sale de `_estadoPorMes`, que ya se cargaba
+  > para los chips del selector.
+  > Para **DEL VALLE 2026** el informe da **5 períodos: julio a noviembre** (enero a junio están presentadas).
+
+
 
 ### 10.16. ✅ LA DDJJ GUARDA LA PROPUESTA DE LA ESCALA, LO CARGADO Y LA DIFERENCIA (2026-11-04)
 
