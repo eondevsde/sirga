@@ -1249,4 +1249,12 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
 - **Se agregó la FECHA DE INGRESO A LA EMPRESA** al alta y a la edición: **no existía**, y el alta la
   dejaba en la fecha del día. De esa fecha sale la **antigüedad** del mínimo de escala, así que ahora se
   puede cargar la real (el alta arranca con hoy y se corrige a mano).
+- **Nueva DDJJ: el selector de mes dice qué períodos ya tienen DDJJ** (commit `87fdcfe`, pedido del
+  usuario). El paso 1 se separó en **"Empresa y sindicato"** y **"Período a declarar"** (antes era una
+  grilla de 5 campos que se partía en dos renglones sin criterio), y **cada mes del selector lleva un
+  chip con su estado**: `Sin DDJJ` / Borrador / Presentada / Aprobada / Pagada / Rechazada, más la
+  fecha de presentación y el total al lado del mes elegido.
+  > **La versión que manda es la vigente**: se agrupa por período y se toma la de **mayor
+  > `VersionNumber` que no esté `Rectificada`**. Los estados se cargan al elegir empresa/sindicato y al
+  > cambiar el año (`CargarEstadoDelAnioAsync`, con `GetDeclarationsByCompanyAsync`).
 
