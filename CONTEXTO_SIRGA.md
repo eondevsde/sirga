@@ -1425,6 +1425,43 @@ corrige un celular y ese mes no presenta, el padrón no se enteraba hasta la pr�
   empleado sin padrón → **no se crea**; borrar el celular en SIRGA → **no se borra** en el padrón; sin cadena
   de conexión → **aviso, no excepción**; y el volcado de la DDJJ **sigue creando e idempotente**.
 
+### 10.14. ✅ BITÁCORA DE CAMBIOS DEL EMPLEADO — AUDITORÍA CAMPO POR CAMPO (2026-11-04)
+
+**Pedido del usuario**: *"que aplique la trazabilidad con todos los datos posibles para hacer una auditoría
+o seguimiento; debe ser lo más completo posible"*.
+
+- Tabla **`EmployeeChangeLogs`** (entidad `EmployeeChangeLog`): **un renglón por campo modificado** con
+  `Campo`, `ValorAnterior`, `ValorNuevo`, `Origen` (`SIRGA` / `SIGES` / `SISTEMA`), `Usuario`, `Fecha`,
+  `Detalle` y `AssignmentId` cuando el campo es de la empresa.
+  > **Por qué una tabla propia y no `AuditLogs`**: `AuditLogs` guarda ACCIONES ("aprobó la DDJJ 123"), no
+  > cambios de campo con el valor anterior. Para auditar una ficha hace falta el valor viejo.
+- **Se escribe en el SERVICIO** (`RegistrarCambiosAsync`), no en la pantalla: cualquier camino que modifique
+  un empleado deja rastro. Toma una **foto del estado anterior** antes de mutar y la compara contra el nuevo;
+  compara como texto y **no distingue vacío de nulo** (para la ficha son lo mismo).
+- Se registran **25 campos**: apellido, nombre, tipo y nro. de documento, nacimiento, sexo, teléfono, celular,
+  los dos emails, calle, número, piso, depto, barrio, CP, obra social, jubilado, carga familiar, categoría,
+  jornada, actividad, legajo, fecha de ingreso a la empresa y socio voluntario.
+- **La ficha del empleado muestra el historial** (fecha, campo, antes, después, quién y origen).
+- **Verificado con transacción revertida**: un cambio de **14 campos dejó 14 renglones** con los valores
+  anteriores correctos (categoría `13 → 2`, jornada `Completa → Parcial (50%)`, celular, legajo…) y todos con
+  el usuario que lo hizo; el `ROLLBACK` dejó la bitácora en **0**.
+
+### 10.15. ⚠️ POLÍTICA DE QUIÉN MANDA CADA DATO (definida por el usuario el 2026-11-04)
+
+| Momento | Regla |
+|---|---|
+| **Empleado NUEVO** | **SIRGA manda**: se cargan todos los campos y así se crean en el padrón. |
+| **Ya está en SIGES** | En SIGES se pueden cambiar **sólo TELÉFONO y DOMICILIO** (nunca importes). Esos cambios tienen que **reflejarse en SIRGA**. |
+| **Cualquier otro dato** | Se pide **por solicitud al estudio contable**, que lo cambia en SIRGA. El socio/SIGES no lo edita. |
+
+> **⚠️ ESTO TODAVÍA NO ESTÁ IMPLEMENTADO Y CAMBIA EL SENTIDO DE LA SINCRONIZACIÓN.** Hoy SIRGA **empuja**
+> todos los campos que maneja, incluidos teléfono y domicilio (commit `0579ec9`). Con esta política, una vez
+> que el socio existe, teléfono y domicilio pasan a ser **de SIGES**: SIRGA debería **dejar de pisarlos** y,
+> en cambio, **traerlos desde `maesoc`**. El resto de los campos sigue yendo de SIRGA hacia el padrón.
+> Falta definir **cómo se resuelve el conflicto** cuando los dos lados cambiaron el teléfono (¿gana SIGES
+> siempre? ¿el último que cambió, con `MAESOC_FECHAMOD`?).
+
+
 
 
 
