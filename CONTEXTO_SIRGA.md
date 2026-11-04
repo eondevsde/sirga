@@ -1239,4 +1239,14 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   servicio real, **relee de SQL con el `ChangeTracker` limpio** y comprueba nombre, categoría, jornada,
   socio y contacto; después `ROLLBACK` y confirma que volvió al estado original. **Un `SaveChanges`
   que compila no prueba que guarde**: esto sí.
+- **Fechas de doble entrada** (commit `dab877a`, pedido del usuario: *"que sea combinado el ingreso"*):
+  los `MudDatePicker` estaban **sólo con calendario** y había que cazar el día a clics. Ahora llevan
+  **`Editable="true"`** y aceptan el tipeo `dd/mm/aaaa` **o** el calendario: nacimiento e ingreso a la
+  empresa (ficha), fecha de pago (`PaymentDateDialog`), conciliación y vigencias de tasas.
+  > **Ojo con `@bind-Date`**: `MudDatePicker.Date` es `DateTime?`. Si el DTO tiene `DateTime`, el
+  > binding no compila (`EventCallback<DateTime>` vs `EventCallback`): se ata a un campo local
+  > `DateTime?` y se copia al DTO al guardar.
+- **Se agregó la FECHA DE INGRESO A LA EMPRESA** al alta y a la edición: **no existía**, y el alta la
+  dejaba en la fecha del día. De esa fecha sale la **antigüedad** del mínimo de escala, así que ahora se
+  puede cargar la real (el alta arranca con hoy y se corrige a mano).
 
