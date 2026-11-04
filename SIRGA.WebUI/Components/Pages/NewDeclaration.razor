@@ -177,9 +177,15 @@ else
           </MudAlert>
         }
 
-        <MudStack Row="true" Class="mb-4" AlignItems="AlignItems.Center">
-          <MudAlert Severity="Severity.Info" Class="flex-grow-1">Ingrese las remuneraciones brutas para cada empleado
-            activo.</MudAlert>
+        <div class="d-flex flex-wrap align-center justify-space-between mb-3" style="gap: 12px;">
+          <div>
+            <MudText Typo="Typo.h6" Class="mb-0">Detalle de empleados</MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+              Cargá la remuneración bruta del recibo. Si queda en cero, se liquida el mínimo de la escala
+              de la categoría, con su antigüedad.
+            </MudText>
+          </div>
+          <div class="d-flex align-center" style="gap: 8px;">
             <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.PersonAdd"
                        OnClick="OpenAddEmployeeDialog">
               Agregar Empleado
@@ -195,7 +201,8 @@ else
               </label>
               <InputFile id="salaries-upload" OnChange="OnExcelFileSelected" style="display:none" accept=".xlsx" />
             </div>
-          </MudStack>
+          </div>
+        </div>
 
           @* ACLARACIÓN: se dice de dónde vienen los importes que aparecen cargados, según sea una
              rectificativa (la base es la versión vigente) o la continuación de un borrador. *@
@@ -231,7 +238,7 @@ else
             </MudAlert>
           }
 
-          <MudTable HorizontalScrollbar="true" Items="@_details" Hover="true" Dense="true" Elevation="0">
+          <MudTable HorizontalScrollbar="true" Items="@_details" Hover="true" Elevation="0">
             <HeaderContent>
               <MudTh>Empleado</MudTh>
               <MudTh>Categoría</MudTh>
@@ -244,7 +251,8 @@ else
             </HeaderContent>
             <RowTemplate>
               <MudTd DataLabel="Empleado">
-                @context.EmployeeName
+                <MudText Typo="Typo.body2">@context.EmployeeName</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">CUIL @context.Dni</MudText>
                 @* Pluriempleo: se puede declarar igual (la cuota socio es por empresa), pero queda
                    marcado para que no pase desapercibido y para pedir el legajo. *@
                 @if (_pluriempleos.ContainsKey(context.EmployeeId))
@@ -277,7 +285,7 @@ else
                 @* Es el importe del recibo de sueldo, lo carga el estudio a mano. No se prellena. *@
                 <MudNumericField Value="context.GrossSalary" Format="G" Variant="Variant.Text" Margin="Margin.Dense"
                                  T="decimal" ValueChanged="@((v) => { context.GrossSalary = v; Recalculate(context); })"
-                                 Error="@context.IsUnderScale" ErrorText="Debajo de escala" />
+                                 Error="@context.IsUnderScale" />
               </MudTd>
               <MudTd DataLabel="Mínimo Escala">
                 @if (context.MinSalary <= 0)
@@ -288,15 +296,22 @@ else
                 }
                 else
                 {
-                  <MudText Typo="Typo.body2">@context.MinSalary.ToString("C")</MudText>
-                  <MudChip T="string" Size="Size.Small" Color="@ColorComparacion(context.Comparacion)">
-                    @TextoComparacion(context.Comparacion)
-                  </MudChip>
-                  <MudText Typo="Typo.caption">
-                    Básico @context.Basico.ToString("C")
-                    + antig. @context.AniosAntiguedad año(s) @context.AntiguedadImporte.ToString("C")
-                    + NR @context.NoRemunerativo.ToString("C")
-                  </MudText>
+                  @* La composición en tres renglones alineados en vez de una frase corrida que se
+                     partía en tres líneas y no se podía leer. *@
+                  <div class="d-flex align-center" style="gap: 8px;">
+                    <MudText Typo="Typo.body2"><b>@context.MinSalary.ToString("C")</b></MudText>
+                    <MudChip T="string" Size="Size.Small" Color="@ColorComparacion(context.Comparacion)">
+                      @TextoComparacion(context.Comparacion)
+                    </MudChip>
+                  </div>
+                  <div style="display: grid; grid-template-columns: auto auto; column-gap: 14px; row-gap: 1px; margin-top: 2px;">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Básico</MudText>
+                    <MudText Typo="Typo.caption" Style="text-align: right;">@context.Basico.ToString("C")</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Antigüedad (@context.AniosAntiguedad año(s))</MudText>
+                    <MudText Typo="Typo.caption" Style="text-align: right;">@context.AntiguedadImporte.ToString("C")</MudText>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">No remunerativo</MudText>
+                    <MudText Typo="Typo.caption" Style="text-align: right;">@context.NoRemunerativo.ToString("C")</MudText>
+                  </div>
                   @if (context.AntiguedadPercentage <= 0)
                   {
                     @* La escala no tiene cargado el % de antigüedad, así que la antigüedad suma
