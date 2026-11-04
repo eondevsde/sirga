@@ -1146,6 +1146,18 @@ Commits **`0989dad`** y **`27c0ede`**. Build **0 errores**, **0 avisos** del com
     (**"Buscar empresa"**, con el texto de ayuda como placeholder) y **cada celda alinea por abajo**
     (`display:flex; align-items:flex-end`), así la línea coincide aunque el control de arriba mida distinto.
     Medido: 4 columnas de **254 px**, las cuatro líneas terminan en **y=73**.
+- **El diálogo de alta de empresa se rediseñó** (commit `487a363`, pedido del usuario: *"debe ser más
+  profesional, no tan sencilla"*): encabezado con ícono y **título corto** ("Registrar nueva empresa") con
+  el estudio y quién aprueba en el **subtítulo** (antes el título se cortaba en dos renglones), **seis
+  secciones con rótulo** (`Typo.overline` + `MudDivider`): Identificación fiscal, Datos de la empresa,
+  Ubicación, Referencia en la empresa, Sucursales y Sindicato; campos **pareados en dos columnas**
+  (razón social a ancho completo), **ícono en cada campo** y ayuda junto al CUIT y en Sindicato. El
+  `MudDialog` pasa de `MaxWidth.Small` a **`MaxWidth.Medium`**.
+  > **La lógica no se tocó**: al rehacer el marcado se comparó contra el commit anterior y quedaron
+  > **iguales** los **13 `@bind-Value`**, los **8 campos obligatorios**, el bloqueo por CUIT
+  > (`inert` + atenuado), el aviso neón (`alerta-cuit-neon`) y los handlers (`HandleCuitBlur`,
+  > `ValidateCuitField`, `Submit`, `Cancel`). Si se vuelve a tocar el diálogo, **comparar esos conteos**
+  > antes de commitear: es la forma barata de no perder un campo en un rediseño.
   - **La búsqueda ahora mira más datos**: antes sólo CUIT y razón social, así que buscar una **localidad**
     o el **nombre de fantasía** no encontraba nada. Ahora también `TradeName` y el nombre de la ciudad
     (con el mapa de `_cities` que ya estaba cargado), y el **CUIT con o sin guiones** vía
