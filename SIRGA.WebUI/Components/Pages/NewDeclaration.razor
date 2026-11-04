@@ -238,6 +238,9 @@ else
             </MudAlert>
           }
 
+                    @* El div es del componente (y por eso lleva el atributo de scoping): el ::deep de
+             NewDeclaration.razor.css cuelga de acá. *@
+          <div class="tabla-ddjj">
           <MudTable HorizontalScrollbar="true" Items="@_details" Hover="true" Elevation="0">
             <HeaderContent>
               <MudTh>Empleado</MudTh>
@@ -332,6 +335,7 @@ else
               </MudTFootRow>
             </FooterContent>
           </MudTable>
+          </div>
         }
       </MudStep>
 

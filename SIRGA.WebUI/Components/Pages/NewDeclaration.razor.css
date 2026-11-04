@@ -1,0 +1,43 @@
+/* Paso 2 de la DDJJ: la tabla tiene 8 columnas (empleado, categoría, jornada, remuneración, mínimo con
+   su composición de tres renglones, los dos aportes y el total). Con la tipografía del cuerpo no entra
+   en el ancho del contenedor y aparece scroll horizontal. Se achica la letra de las celdas y de los
+   selectores, se recortan los márgenes y se alinea arriba para que la composición no estire la fila. */
+.tabla-ddjj ::deep .mud-table-cell {
+    font-size: 0.78rem;
+    padding: 6px 8px !important;
+    vertical-align: top;
+}
+
+.tabla-ddjj ::deep .mud-table-head .mud-table-cell {
+    font-size: 0.72rem;
+    line-height: 1.15;
+    white-space: normal;
+}
+
+/* Los selectores de categoría y jornada, con la letra del cuerpo y sin tope de ancho, se llevaban casi
+   un tercio de la tabla. */
+.tabla-ddjj ::deep .mud-select .mud-input,
+.tabla-ddjj ::deep .mud-select .mud-input-slot {
+    font-size: 0.78rem;
+}
+
+.tabla-ddjj ::deep .mud-input-control {
+    margin-top: 0 !important;
+}
+
+.tabla-ddjj ::deep .mud-select.mud-input-control {
+    max-width: 185px;
+}
+
+/* El nombre de la categoría es lo más largo de la fila: se recorta con puntos suspensivos en vez de
+   empujar la columna (el nombre completo se ve en el desplegable). */
+.tabla-ddjj ::deep .mud-select .mud-input-slot {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* El número de la remuneración tampoco necesita todo el ancho que pide por defecto. */
+.tabla-ddjj ::deep .mud-input-numeric .mud-input {
+    font-size: 0.8rem;
+}
