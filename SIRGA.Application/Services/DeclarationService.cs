@@ -205,7 +205,40 @@ public class DeclarationService(
             Dni = asignaciones.FirstOrDefault(a => a.Id == fila.AssignmentId)?.Employee?.Dni
         })
         .Where(x => !string.IsNullOrWhiteSpace(x.Dni))
-        .Select(x => new DetalleLegado(x.Dni!, x.Fila.BaseSalary, x.Fila.MemberContribution > 0))
+        .Select(x =>
+        {
+          var asignacion = asignaciones.FirstOrDefault(a => a.Id == x.Fila.AssignmentId);
+          var empleado = asignacion?.Employee;
+
+          // Los datos del padrón (maesoc) salen del empleado; la categoría, la actividad y la fecha de
+          // ingreso, de la asignación. Lo que no tenemos va vacío: no se inventan datos en el padrón.
+          return new DetalleLegado(x.Dni!, x.Fila.BaseSalary, x.Fila.MemberContribution > 0)
+          {
+            Apellido = empleado?.LastName ?? string.Empty,
+            Nombre = empleado?.FirstName ?? string.Empty,
+            Documento = empleado?.DocumentNumber,
+            TipoDocumento = empleado?.DocumentTypeCode,
+            FechaNacimiento = empleado?.BirthDate,
+            Sexo = empleado?.Sex,
+            Telefono = empleado?.Phone,
+            Celular = empleado?.Mobile,
+            Email = empleado?.Email,
+            EmailLaboral = empleado?.WorkEmail,
+            Calle = empleado?.Address,
+            Numero = empleado?.AddressNumber,
+            Piso = empleado?.Floor,
+            Depto = empleado?.Apartment,
+            Barrio = empleado?.Neighborhood,
+            CodigoPostal = empleado?.ZipCode,
+            Categoria = asignacion?.CategoryCode,
+            Actividad = asignacion?.ActivityCode,
+            ObraSocial = empleado?.HealthInsuranceCode,
+            Jubilado = empleado?.IsRetired ?? false,
+            CargaFamiliar = empleado?.HasFamilyCharge ?? false,
+            FechaIngreso = asignacion?.CreatedAt,
+            Legajo = asignacion?.FileNumber
+          };
+        })
         .ToList();
 
     try
