@@ -1461,6 +1461,30 @@ o seguimiento; debe ser lo más completo posible"*.
 > Falta definir **cómo se resuelve el conflicto** cuando los dos lados cambiaron el teléfono (¿gana SIGES
 > siempre? ¿el último que cambió, con `MAESOC_FECHAMOD`?).
 
+**✅ IMPLEMENTADO (commit `0f387f7`) — el usuario definió que SIGES GANA:**
+
+- **`LegacyPadron.ActualizarAsync`** recibe **`incluirContacto`**. El volcado desde SIRGA (guardado del empleado
+  y presentación) lo pasa en **`false`**: **no toca TELÉFONO ni DOMICILIO** (tel, celular, calle, número, piso,
+  depto, barrio, CP). Esos campos **sólo se escriben al CREAR el socio** (ahí SIRGA manda).
+- **El email sí se sigue espejando** (SIGES no lo edita).
+- **El camino inverso existe**: al presentar la DDJJ, `EmployeeService.TraerContactoDeSigesAsync` **lee del
+  padrón** el teléfono y el domicilio (`ILegacyPadronWriter.LeerContactoAsync`) y los aplica en la ficha, con
+  **bitácora origen `SIGES`**. Si el padrón no responde, se avisa en el log y la DDJJ sigue.
+  > **Así, un cambio que el sindicato haga en SIGES no se pierde nunca**: SIRGA no lo pisa y además lo adopta.
+  > La contra: si el estudio corrige el celular en SIRGA, en la próxima presentación **vuelve el de SIGES**
+  > (es exactamente lo que se pidió: "SIGES gana").
+- **Verificado contra una copia de las tablas**: el push actualiza el email pero **deja el celular del padrón
+  intacto**; y el traído aplica celular, calle y número en SIRGA con **cuatro renglones de bitácora origen
+  `SIGES`**.
+
+**El detalle de una DDJJ ya presentada, visible (commit `0f387f7`)**
+
+- Acción **"Ver detalle"** en cada fila del **historial de DDJJ** (también en las versiones reemplazadas: es
+  sólo consulta). Abre `DeclarationDetailDialog` con, por empleado: **escala propuesta, importe ingresado,
+  diferencia** (verde/rojo; "por escala" cuando no hay importe), base, aporte de ley y cuota socio, más los
+  totales al pie.
+
+
 ### 10.16. ✅ LA DDJJ GUARDA LA PROPUESTA DE LA ESCALA, LO CARGADO Y LA DIFERENCIA (2026-11-04)
 
 **Pedido del usuario**: *"que se guarde cuánto proponía de sueldo la escala y cuánto cargó el estudio y la
