@@ -170,6 +170,31 @@ else
             </div>
           </MudItem>
         </MudGrid>
+
+        @* INFORME DE PERÍODOS FALTANTES: los meses del año elegido que NO tienen ninguna DDJJ cargada (ni
+           borrador ni presentada). Es lo que el estudio necesita ver para no dejar un mes sin declarar.
+           Tocando un mes se selecciona y se carga. *@
+        @if (MesesSinDdjj() is { Count: > 0 } faltantes)
+        {
+          <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-3">
+            <div class="d-flex flex-wrap align-center" style="gap: 8px;">
+              <MudText Typo="Typo.body2" Class="mb-0">
+                <b>Sin DDJJ en @_year:</b> @faltantes.Count período(s)
+              </MudText>
+              @foreach (var mes in faltantes)
+              {
+                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined"
+                         OnClick="@(async () => await SeleccionarMes(mes))">
+                  @NombreMes(mes)
+                </MudChip>
+              }
+            </div>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary mt-1">
+              No hay ninguna declaración cargada en esos meses (ni borrador ni presentada). Tocá uno para
+              declararlo.
+            </MudText>
+          </MudAlert>
+        }
       </MudPaper>
     </MudStep>
         
@@ -670,6 +695,28 @@ else
   };
   private static string NombreMes(int mes) => mes is >= 1 and <= 12 ? NombresMes[mes - 1] : $"Mes {mes}";
 
+  /// <summary>
+  /// Meses del año elegido que **no tienen ninguna DDJJ** cargada (ni borrador ni presentada). Es el informe
+  /// de lo que falta declarar: no cuenta los meses futuros (todavía no se pueden declarar).
+  /// </summary>
+  private List<int> MesesSinDdjj()
+  {
+    if (_selectedCompanyId == 0 || _estadoPorMes.Count == 0) return new List<int>();
+
+    var hoy = DateTime.Today;
+    if (_year > hoy.Year) return new List<int>();
+
+    var ultimoMes = _year < hoy.Year ? 12 : hoy.Month;
+    return Enumerable.Range(1, ultimoMes)
+        .Where(mes => !_estadoPorMes.ContainsKey(mes))
+        .ToList();
+  }
+
+  /// <summary>Elige el mes desde el informe de faltantes y recalcula (escala, rectificativa, etc.).</summary>
+  private async Task SeleccionarMes(int mes)
+  {
+    await OnMonthChanged(mes);
+  }
   private EstadoPeriodo? EstadoDelMes(int mes) =>
       _estadoPorMes.TryGetValue(mes, out var estado) ? estado : null;
 
