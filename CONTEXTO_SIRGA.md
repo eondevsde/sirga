@@ -1282,11 +1282,14 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   puede terminar en un elemento interno y ahí el `::deep` no engancha.
   > **`wwwroot/css/app.css` NO está linkeado** en `App.razor`: los estilos propios de una página van en
   > su `.razor.css` (o en `css/sirga-alertas.css`, que sí está linkeado).
-- **Alta de empleado: más ancha y sin leyendas** (commit `348ecb8`): se quitaron dos leyendas que
-  ocupaban media fila (*"Con el CUIL se cruzan las DDJJ…"* y *"Se puede escribir a mano…"*), **CUIL +
-  Apellido + Nombre** pasaron a una sola fila (4 columnas cada uno) y el diálogo de **alta/edición** subió
-  de `MaxWidth.Medium` a **`Large`** (la ficha queda en Medium), porque con Medium se cortaban
-  *"Ingreso a la empresa"*, *"Categoría"* y *"Jornada"*.
+- **Alta de empleado: más ancha y sin leyendas** (commits `348ecb8` y `d2e6177`): se quitaron dos leyendas
+  que ocupaban media fila (*"Con el CUIL se cruzan las DDJJ…"* y *"Se puede escribir a mano…"*), **CUIL +
+  Apellido + Nombre** pasaron a una sola fila (4 columnas cada uno) y el diálogo va en **`MaxWidth.Large`**.
+  > **El ancho del diálogo lo decide QUIEN LO ABRE, no el diálogo**: `AddEmployeeDialog` se abre desde
+  > `/empresa/{id}/empleados` **y** desde la DDJJ (`NewDeclaration`), cada uno con sus `DialogOptions`.
+  > Cambiar uno solo deja la mitad del problema: con la DDJJ en `Small` los rótulos seguían cortados
+  > (*"Tipo de documen…"*, *"Ingreso a la em…"*). **Si se agrega otro lugar que abra este diálogo, pasarle
+  > `MaxWidth.Large`.**
 - **Diferencia entre la remuneración y el mínimo, dentro de la composición** (commits `0e3a039` y
   `0f3c870`): la cuenta es **remuneración − mínimo de escala**, en **verde** cuando está **igual o por
   encima** y en **rojo** cuando está **por debajo**, con el signo (`+` / `−`) siempre visible.
