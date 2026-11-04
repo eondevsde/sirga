@@ -264,7 +264,7 @@
   private async Task OpenAddDialog()
   {
     var parameters = new DialogParameters { ["CompanyId"] = CompanyId };
-    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Large, FullWidth = true };
 
     var dialog = await DialogService.ShowAsync<AddEmployeeDialog>("Nuevo Empleado", parameters, options);
     var result = await dialog.Result;
@@ -299,7 +299,7 @@
       ["CompanyId"] = CompanyId,
       ["Empleado"] = employee
     };
-    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+    var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Large, FullWidth = true };
 
     var dialog = await DialogService.ShowAsync<AddEmployeeDialog>("Editar empleado", parameters, options);
     var result = await dialog.Result;
