@@ -7,18 +7,35 @@
 @inject CompanyService CompanyService
 @inject CompanyValidationService ValidationService
 
+@* El título lo define el propio diálogo. Se arma con jerarquía (qué se hace, para qué estudio y quién
+   aprueba) en lugar de un título largo que se corta en dos renglones. *@
 <MudDialog>
-  @* El título lo define el propio diálogo (el que se pasa al abrirlo queda tapado por este
-     bloque). Si viene el nombre del estudio, se aclara para qué estudio se registra la empresa. *@
   <TitleContent>
-    <MudText Typo="Typo.h6">@Titulo</MudText>
+    <div class="d-flex align-center" style="gap: 12px;">
+      <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
+        <MudIcon Icon="@(IsEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.AddBusiness)" />
+      </MudAvatar>
+      <div>
+        <MudText Typo="Typo.h6" Class="mb-0">@Titulo</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">@Subtitulo</MudText>
+      </div>
+    </div>
   </TitleContent>
   <DialogContent>
     <MudForm @ref="_form" @bind-IsValid="@_success">
+
+      <MudText Typo="Typo.overline" Color="Color.Primary">Identificación fiscal</MudText>
+      <MudDivider Class="mt-1 mb-3" />
       <MudGrid>
         <MudItem xs="12" md="6">
           <MudTextField T="string" Label="CUIT" @bind-Value="_company.Cuit" Required="true" Variant="Variant.Outlined"
+                        Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Badge"
                         Mask="@(new PatternMask("00-00000000-0"))" Validation="@(new Func<string, string?>(ValidateCuitField))" OnBlur="HandleCuitBlur" />
+        </MudItem>
+        <MudItem xs="12" md="6" Class="d-flex align-center">
+          <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            Con este número se buscan los datos que el sindicato ya tiene de la empresa.
+          </MudText>
         </MudItem>
 
         @* El aviso sale apenas se completa el CUIT, sin esperar a cargar todo el formulario:
@@ -50,95 +67,123 @@
          poder corregirlo, y el aviso de arriba queda fuera del área atenuada (si no, se opaca y no
          se lee). El botón de guardar ya viene deshabilitado. *@
       <div @attributes="BloqueoFormulario" style="@(_blockSubmit ? "opacity: .55; pointer-events: none;" : null)">
-      <MudGrid>
-        <MudItem xs="12" md="6">
-          <MudTextField T="string" Label="Razón Social" @bind-Value="_company.BusinessName" Required="true"
-                        Variant="Variant.Outlined" />
-        </MudItem>
-        
-        <MudItem xs="12" md="6">
-          <MudTextField T="string" Label="Email de Contacto" @bind-Value="_company.ContactEmail" Required="true"
-                        Variant="Variant.Outlined" InputType="InputType.Email" />
-        </MudItem>
-        <MudItem xs="12" md="6">
-          <MudTextField T="string" Label="Teléfono" @bind-Value="_company.Phone" Variant="Variant.Outlined" />
-        </MudItem>
 
-        <MudItem xs="12">
-          <MudTextField T="string" Label="Dirección / Calle" @bind-Value="_company.Address" Required="true"
-                        Variant="Variant.Outlined" />
-        </MudItem>
-
-        <MudItem xs="12" md="6">
-          @* T="int?" para que, sin provincia elegida, muestre la etiqueta en lugar de un "0". *@
-          <MudSelect T="int?" Label="Provincia" Variant="Variant.Outlined" @bind-Value="_selectedProvinceId"
-                     Required="true" SelectedValuesChanged="OnProvinceChanged">
-            @foreach (var prov in _provinces)
-            {
-              <MudSelectItem Value="@((int?)prov.Id)">@prov.Name</MudSelectItem>
-            }
-          </MudSelect>
-        </MudItem>
-
-        <MudItem xs="12" md="6">
-          <MudSelect T="int?" Label="Localidad" Variant="Variant.Outlined" @bind-Value="_company.CityId" Required="true"
-                     Disabled="@(!_cities.Any())">
-            @foreach (var city in _cities)
-            {
-              <MudSelectItem Value="(int?)city.Id">@city.Name (@city.ZipCode)</MudSelectItem>
-            }
-          </MudSelect>
-        </MudItem>
-
-        <MudItem xs="12" md="6">
-          <MudTextField T="string" Label="Persona de Referencia" @bind-Value="_company.ReferencePerson"
-                        Variant="Variant.Outlined" />
-        </MudItem>
-        <MudItem xs="12" md="6">
-          <MudTextField T="string" Label="Celular de Referencia" @bind-Value="_company.ReferencePhone"
-                        Variant="Variant.Outlined" />
-        </MudItem>
-
-        <MudItem xs="12">
-          <MudCheckBox T="bool" Label="La empresa tiene múltiples sucursales" @bind-Value="_hasBranches"
-                       Color="Color.Primary" />
-        </MudItem>
-
-        @if (_hasBranches)
-        {
+        <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Datos de la empresa</MudText>
+        <MudDivider Class="mt-1 mb-3" />
+        <MudGrid>
           <MudItem xs="12">
-            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
-              Esta será la <b>Casa Central</b> (Sede Administrativa). Podrás añadir más puntos de venta luego.
-            </MudAlert>
+            <MudTextField T="string" Label="Razón Social" @bind-Value="_company.BusinessName" Required="true"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Business" />
           </MudItem>
-          <MudItem xs="12">
-            <MudTextField T="string" Label="Nombre de esta Sede (Ej: Administración, Planta Principal)"
-                          @bind-Value="_company.BranchName" Required="true" Variant="Variant.Outlined" />
+          <MudItem xs="12" md="6">
+            <MudTextField T="string" Label="Email de Contacto" @bind-Value="_company.ContactEmail" Required="true"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Email"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" />
           </MudItem>
-        }
-        else
-        {
-          <MudHidden Hidden="true">
-            <MudTextField T="string" @bind-Value="_company.BranchName" />
-          </MudHidden>
-        }
+          <MudItem xs="12" md="6">
+            <MudTextField T="string" Label="Teléfono" @bind-Value="_company.Phone" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" />
+          </MudItem>
+        </MudGrid>
 
-
-        @if (!IsEdit)
-        {
+        <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Ubicación</MudText>
+        <MudDivider Class="mt-1 mb-3" />
+        <MudGrid>
           <MudItem xs="12">
-            @* Los avisos del CUIT se muestran arriba, apenas se completa el campo: acá abajo
-               quedaban fuera de la vista hasta terminar de cargar todo el formulario. *@
-            <MudSelect T="int?" Label="Sindicato a Asociar" @bind-Value="_selectedUnionId" Required="true"
-                       Variant="Variant.Outlined">
-              @foreach (var u in _unions)
+            <MudTextField T="string" Label="Dirección / Calle" @bind-Value="_company.Address" Required="true"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Place" />
+          </MudItem>
+
+          <MudItem xs="12" md="6">
+            @* T="int?" para que, sin provincia elegida, muestre la etiqueta en lugar de un "0". *@
+            <MudSelect T="int?" Label="Provincia" Variant="Variant.Outlined" @bind-Value="_selectedProvinceId"
+                       Required="true" SelectedValuesChanged="OnProvinceChanged" Margin="Margin.Dense"
+                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Map">
+              @foreach (var prov in _provinces)
               {
-                <MudSelectItem Value="(int?)u.Id">@u.Name</MudSelectItem>
+                <MudSelectItem Value="@((int?)prov.Id)">@prov.Name</MudSelectItem>
               }
             </MudSelect>
           </MudItem>
+
+          <MudItem xs="12" md="6">
+            <MudSelect T="int?" Label="Localidad" Variant="Variant.Outlined" @bind-Value="_company.CityId" Required="true"
+                       Disabled="@(!_cities.Any())" Margin="Margin.Dense"
+                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.LocationCity">
+              @foreach (var city in _cities)
+              {
+                <MudSelectItem Value="(int?)city.Id">@city.Name (@city.ZipCode)</MudSelectItem>
+              }
+            </MudSelect>
+          </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Referencia en la empresa (opcional)</MudText>
+        <MudDivider Class="mt-1 mb-3" />
+        <MudGrid>
+          <MudItem xs="12" md="6">
+            <MudTextField T="string" Label="Persona de Referencia" @bind-Value="_company.ReferencePerson"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" />
+          </MudItem>
+          <MudItem xs="12" md="6">
+            <MudTextField T="string" Label="Celular de Referencia" @bind-Value="_company.ReferencePhone"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Smartphone" />
+          </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Sucursales</MudText>
+        <MudDivider Class="mt-1 mb-3" />
+        <MudGrid>
+          <MudItem xs="12">
+            <MudCheckBox T="bool" Label="La empresa tiene múltiples sucursales" @bind-Value="_hasBranches"
+                         Color="Color.Primary" />
+          </MudItem>
+
+          @if (_hasBranches)
+          {
+            <MudItem xs="12">
+              <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                Esta será la <b>Casa Central</b> (Sede Administrativa). Podrás añadir más puntos de venta luego.
+              </MudAlert>
+            </MudItem>
+            <MudItem xs="12">
+              <MudTextField T="string" Label="Nombre de esta Sede (Ej: Administración, Planta Principal)"
+                            @bind-Value="_company.BranchName" Required="true" Variant="Variant.Outlined"
+                            Margin="Margin.Dense" />
+            </MudItem>
+          }
+          else
+          {
+            <MudHidden Hidden="true">
+              <MudTextField T="string" @bind-Value="_company.BranchName" />
+            </MudHidden>
+          }
+        </MudGrid>
+
+        @if (!IsEdit)
+        {
+          <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-2">Sindicato</MudText>
+          <MudDivider Class="mt-1 mb-3" />
+          <MudGrid>
+            <MudItem xs="12" md="6">
+              @* Los avisos del CUIT se muestran arriba, apenas se completa el campo: acá abajo
+                 quedaban fuera de la vista hasta terminar de cargar todo el formulario. *@
+              <MudSelect T="int?" Label="Sindicato a Asociar" @bind-Value="_selectedUnionId" Required="true"
+                         Variant="Variant.Outlined" Margin="Margin.Dense"
+                         Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Groups"
+                         HelperText="El sindicato recibe la solicitud de vinculación y la aprueba.">
+                @foreach (var u in _unions)
+                {
+                  <MudSelectItem Value="(int?)u.Id">@u.Name</MudSelectItem>
+                }
+              </MudSelect>
+            </MudItem>
+          </MudGrid>
         }
-      </MudGrid>
       </div>
     </MudForm>
   </DialogContent>
@@ -186,11 +231,21 @@
   /// <summary>Título a medida para flujos con otro texto (por ejemplo, desde el portal del estudio).</summary>
   [Parameter] public string? TituloPersonalizado { get; set; }
 
+  /// <summary>
+  /// Título corto: el estudio para el que se registra y quién aprueba la solicitud van en el
+  /// subtítulo, así el encabezado no se corta en dos renglones.
+  /// </summary>
   private string Titulo =>
       !string.IsNullOrWhiteSpace(TituloPersonalizado) ? TituloPersonalizado!
-      : IsEdit ? "Editar Empresa"
-      : string.IsNullOrWhiteSpace(StudioName) ? "Registrar Nueva Empresa"
-      : $"Registrar Nueva Empresa para {StudioName}";
+      : IsEdit ? "Editar empresa"
+      : "Registrar nueva empresa";
+
+  /// <summary>Línea de apoyo del encabezado: aclara para qué estudio es y quién aprueba.</summary>
+  private string Subtitulo =>
+      IsEdit ? "Modificá los datos de la empresa y guardá los cambios."
+      : string.IsNullOrWhiteSpace(StudioName)
+          ? "La solicitud de vinculación la aprueba el sindicato."
+          : $"Empresa para el estudio {StudioName}. La solicitud de vinculación la aprueba el sindicato.";
 
   /// <summary>
   /// Cuando el CUIT ya pertenece a otro estudio activo (o ya es cliente de este), no tiene sentido

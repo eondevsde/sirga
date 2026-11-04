@@ -460,7 +460,7 @@
 
   private async Task OpenCreateDialog()
   {
-    var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small };
+    var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Medium };
 
     // El título lo arma el propio diálogo con el nombre del estudio (StudioName).
     // Al estudio se le pasa su id para que el alta quede pendiente de autorización y genere la
@@ -488,7 +488,7 @@
       { x => x.CompanyToEdit, company },
       { x => x.CurrentUsername, _username }
     };
-    var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Small };
+    var options = new DialogOptions { CloseOnEscapeKey = true, FullWidth = true, MaxWidth = MaxWidth.Medium };
     var dialog = await DialogService.ShowAsync<AddCompanyDialog>("Editar Empresa", parameters, options);
     var result = await dialog.Result;
 
