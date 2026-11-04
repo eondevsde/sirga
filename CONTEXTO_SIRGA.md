@@ -1273,4 +1273,13 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   importes a la derecha— en lugar de la frase corrida *"Básico X + antig. Y + NR Z"* que se partía en
   tres líneas. Se quitó el **"Debajo de escala" duplicado** (estaba como chip y como texto de error del
   campo) y las filas dejaron de ser densas.
+- **Ancho de la página y de la tabla de la DDJJ** (commit `7d53f5d`): el contenedor del layout pasó de
+  **`MaxWidth.Large` (1280 px) a `ExtraLarge` (1536 px)** — gana ~256 px en todas las pantallas— y la
+  tabla del paso 2 achica la letra de celdas y selectores a **0.78rem**, recorta paddings, limita los
+  desplegables de categoría/jornada a **185 px** y recorta el nombre de la categoría con puntos
+  suspensivos. Los estilos van en **`NewDeclaration.razor.css`** (scoped, se sirven en
+  `SIRGA.WebUI.styles.css`), colgados de un **`div` propio del componente**: la clase puesta en `MudTable`
+  puede terminar en un elemento interno y ahí el `::deep` no engancha.
+  > **`wwwroot/css/app.css` NO está linkeado** en `App.razor`: los estilos propios de una página van en
+  > su `.razor.css` (o en `css/sirga-alertas.css`, que sí está linkeado).
 
