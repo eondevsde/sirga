@@ -1282,4 +1282,10 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   puede terminar en un elemento interno y ahí el `::deep` no engancha.
   > **`wwwroot/css/app.css` NO está linkeado** en `App.razor`: los estilos propios de una página van en
   > su `.razor.css` (o en `css/sirga-alertas.css`, que sí está linkeado).
+- **Columna "Diferencia" en el paso 2 de la DDJJ** (commit `0e3a039`): **remuneración − mínimo de
+  escala**, en **verde** cuando está **igual o por encima** y en **rojo** cuando está **por debajo**,
+  con el signo (`+` / `−`) siempre visible y `—` si la categoría no tiene escala. El pie pasó a
+  `colspan="8"` (ahora son 9 columnas).
+  > **Ojo con los importes de dinero**: la resta la hace la app (C#) sobre el `MinSalary` que ya calculó
+  > `SalaryMinimumCalculator`. **No rehacer esa cuenta en SQL** (ver trampa 17).
 
