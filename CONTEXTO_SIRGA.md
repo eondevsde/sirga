@@ -1383,5 +1383,26 @@ nueva iba a sumarse a esa lista.
   > **Nunca probar esto contra `Sindicato` directamente**: `EscribirAsync` hace `COMMIT` por dentro, así
   > que no se puede revertir desde afuera. La forma segura es la copia en otra base.
 
+**Espejado de los datos que el estudio edita (commit `65f1b6c`)**
+
+Antes, si el estudio corregía el celular de un socio que ya existía, **SIGES seguía mostrando el viejo**:
+el volcado sólo creaba lo que faltaba. Ahora, al presentar, `ActualizarSocioAsync` espeja en `maesoc` los
+campos que SIRGA maneja (apellido, nombre, `APENOM`, documento, tipo de documento, nacimiento, sexo,
+teléfono, celular, email, email laboral, calle, número, piso, depto, barrio, CP, categoría, actividad y
+obra social).
+
+> **TRES REGLAS QUE NO SE ROMPEN**: (1) un valor **vacío** en SIRGA **no pisa** el del padrón (si el
+> estudio borra el celular, en `maesoc` queda el último que había); (2) los campos que SIRGA **no tiene**
+> (estado civil, nacionalidad, grupo sanguíneo, CBU, impuestos, nro. de afiliado, carnet, alta/baja,
+> estado) **no se tocan**; (3) **jubilado y carga familiar sólo se ponen en 1** — nunca se borra un "sí"
+> que haya cargado el sindicato.
+> El `WHERE` compara campo por campo, así que **no escribe ni cuenta de más** cuando no hay cambios.
+
+- Verificado contra la copia (5 casos): socio nuevo; segunda presentación **"padrón sin cambios"**; cambio
+  de celular y email **reflejado**; borrado en SIRGA que **no borra** en el padrón; y un socio preexistente
+  (CORONEL) espejado **sin tocar** estado civil, nacionalidad ni grupo sanguíneo (`USUMOD` pasa a `SIRGA`,
+  que es el rastro de quién escribió). El padrón real quedó con las mismas **27.924** filas.
+
+
 
 
