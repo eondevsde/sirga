@@ -1318,3 +1318,38 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   > queda en ~60 px (lo fija el cuerpo de la tabla), los importes se parten en dos renglones y los
   > rótulos se desalinean. En un `MudPaper` aparte con una grilla `auto-fit` se leen bien.
 
+### 10.12. ✅ LO QUE LE FALTABA AL EMPLEADO RESPECTO DEL SISTEMA ANTERIOR (2026-11-04)
+
+El usuario mostró la pantalla de **Alta de Empleado del sistema viejo** y preguntó qué datos nos faltaban
+para que el estudio no salga de lo que ya usa. Se comparó campo por campo y se agregó el **lote 1**
+(commit posterior al `5b7e1c2`), todo migrado del legado:
+
+| Campo | Dónde vive | Origen | Cobertura |
+|---|---|---|---|
+| **Actividad** (catálogo de 349) | `Assignments.ActivityCode` | `maesoc.MAESOC_CODACT` | 36.004 asignaciones |
+| **Obra social** (catálogo de 297) | `Employees.HealthInsuranceCode` | `maesoc.MAESOC_CODOSM` | 24.837 (el 0 = sin obra social va NULL) |
+| **Nro. de legajo** | `Assignments.FileNumber` | `socemp.SOCEMP_NROLEG` | 35.941 asignaciones |
+| **Es jubilado** | `Employees.IsRetired` | `maesoc.MAESOC_JUBIL` (0/1/2 → los dos últimos, sí) | 281 |
+| **Carga familiar** | `Employees.HasFamilyCharge` | `maesoc.MAESOC_CARGAFLIA` (0/1, es sí/no) | 3.844 |
+
+- Tablas nuevas **`Activities`** y **`HealthInsurances`**, cargadas en
+  `script_sirga_db_empleados_actividad_os.sql` (simulacro por defecto, idempotente, respaldo en
+  `_BackupEmployeesActividadOs` y `_BackupAssignmentsActividadLegajo`).
+  > **Ojo con los catálogos del legado**: `actividad` y `obrasocial` traen filas con la descripción
+  > **NULL**, así que el INSERT tiene que usar `ISNULL(NULLIF(…), '(sin descripción)')` y agrupar por
+  > código, o revienta por la columna NOT NULL.
+- La **actividad y el legajo van en la ASIGNACIÓN**, no en el empleado: el mismo socio tiene otro legajo
+  y otra actividad en cada empresa, igual que en el origen (`socemp`). La **obra social, jubilado y carga
+  familiar** son del empleado.
+- La pantalla muestra los **nombres**, no los códigos: `EmployeeService.ActividadesPorCodigoAsync` /
+  `ObrasSocialesPorCodigoAsync` resuelven los catálogos (chicos: 349 y 297).
+
+**Lo que sigue faltando, y no se puede inventar:**
+1. **Estado civil**: 7.550 socios tienen código (`C`, `S`, `B`, `D`, `V`, `E`) pero **no existe la tabla
+   de códigos** en el sistema viejo.
+2. **Nacionalidad**: sólo 254 cargados y sin catálogo.
+3. **Sexo "no especificado"**: el viejo lo permite, nosotros sólo M/F (es agregar la opción).
+4. **Localidad del empleado ligada a provincia/ciudad** y **causa de baja** (`socemp.SOCEMP_CAUSABAJA`).
+5. **Grupo sanguíneo** (`MAESOC_GRUPOSANG`, 100%): es dato de salud, no se migró sin preguntar.
+
+
