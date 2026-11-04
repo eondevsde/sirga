@@ -114,10 +114,13 @@ else
                        AnchorOrigin="Origin.BottomCenter">
               @for (var mes = 1; mes <= 12; mes++)
               {
-                <MudSelectItem Value="@mes">
+                @* La copia es OBLIGATORIA: el contenido del ítem se evalúa al final del bucle y, sin
+                   esto, los doce meses leían la misma variable y salían todos como "Mes 13". *@
+                var mesActual = mes;
+                <MudSelectItem Value="@mesActual">
                   <div class="d-flex align-center justify-space-between" style="gap: 8px; width: 100%;">
-                    <span>@NombreMes(mes)</span>
-                    @if (EstadoDelMes(mes) is { } estadoMes)
+                    <span>@NombreMes(mesActual)</span>
+                    @if (EstadoDelMes(mesActual) is { } estadoMes)
                     {
                       <MudChip T="string" Size="Size.Small" Color="@estadoMes.Color" Variant="Variant.Text">
                         @estadoMes.Texto
