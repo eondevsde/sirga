@@ -1223,3 +1223,20 @@ separados**. Medido: `Sindicato.fotos_.maesoc` tiene **49 columnas** y `Employee
   > empresa (`Assignments.CreatedAt`) **no tiene centinelas** (mínimo 1961), así que esa columna sí es
   > confiable.
 
+**Categoría y jornada (commit `f03908c`, pedido del usuario: *"¿por qué aparece eso en categoría?"* y
+*"¿por qué no aparecen para cargar la jornada?"*)**
+
+- **La pantalla mostraba `Código 7` porque leía `Assignments.CategoryCode` y nunca resolvía el
+  nombre.** La categoría cuelga de la **rama** del sindicato (`EmployeeCategories.Code` + `Name`):
+  `EmployeeService.CategoriasPorCodigoAsync` arma el mapa y el DTO lleva `CategoryName`. El **7** es
+  **"AUXILIAR ESPECIALIZADO A"**, el 2 "ADMINISTRATIVO B" y el 13 "MAESTRANZA B". Si el código no
+  existe en la rama se muestra el código, nunca un nombre inventado.
+- **La categoría y la jornada ahora se cargan** en el alta y en la **edición** (el botón "Editar
+  empleado" era un aviso de *"no implementada"* y ahora abre el diálogo): van en la **asignación**
+  (`Assignments.CategoryCode` / `Jornada`), porque el mismo empleado puede tener otra jornada en otra
+  empresa. Sin categoría la DDJJ no puede calcular el mínimo de escala.
+- **Verificado con transacción revertida** (`.dsh-tools/verif-empleado`, no versionado): guarda por el
+  servicio real, **relee de SQL con el `ChangeTracker` limpio** y comprueba nombre, categoría, jornada,
+  socio y contacto; después `ROLLBACK` y confirma que volvió al estado original. **Un `SaveChanges`
+  que compila no prueba que guarde**: esto sí.
+
