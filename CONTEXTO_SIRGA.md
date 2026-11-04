@@ -1461,6 +1461,26 @@ o seguimiento; debe ser lo más completo posible"*.
 > Falta definir **cómo se resuelve el conflicto** cuando los dos lados cambiaron el teléfono (¿gana SIGES
 > siempre? ¿el último que cambió, con `MAESOC_FECHAMOD`?).
 
+### 10.16. ✅ LA DDJJ GUARDA LA PROPUESTA DE LA ESCALA, LO CARGADO Y LA DIFERENCIA (2026-11-04)
+
+**Pedido del usuario**: *"que se guarde cuánto proponía de sueldo la escala y cuánto cargó el estudio y la
+diferencia; eso sí o sí quiero que se cargue"*.
+
+- Tres columnas nuevas en **`DeclarationDetails`** (migración `AgregarPropuestaEscalaAlDetalle`):
+  - **`ScaleSalary`**: básico + antigüedad + NR, prorrateado por jornada (`SalaryMinimumCalculator.Minimo`,
+    el mismo número que muestra la pantalla en "Mínimo Escala").
+  - **`EnteredSalary`**: lo que cargó el estudio. **0** si se liquidó por escala.
+  - **`Difference`**: ingresado − escala. **NULL si se liquidó por escala**, para no hacer parecer que se
+    declaró de menos (comparar contra un 0 cargado da −1,6 millones y no significa nada).
+  > **POR QUÉ SE GUARDA Y NO SE CALCULA AL MOSTRAR**: la escala cambia con el tiempo (se cargan paritarias
+  > nuevas). Sin el importe congelado en la DDJJ **no se puede reconstruir qué mínimo regía cuando se
+  > presentó**, que es justo lo que hace falta para auditar.
+- **Verificado presentando una DDJJ REAL dentro de una transacción revertida** (legado apuntando a una copia,
+  `.dsh-tools/verif-ddjj-detalle`, no versionado): 4 empleados de OCHOA FELIX LIVER, período 2026-09 —
+  propuesta de escala en **4/4**, diferencia correcta en los **2 con importe a mano** (+3.016.850,66 y
+  −1.773.152,06) y **NULL en los 2 liquidados por escala**; el `ROLLBACK` dejó la base sin la DDJJ.
+
+
 
 
 
