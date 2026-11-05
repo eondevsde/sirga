@@ -1589,3 +1589,43 @@ framework-dependent net10.0). Se generaron en carpetas propias, **fuera de los r
 - Antes de esto, el push se colgaba **sin mensaje** (Git Credential Manager no puede mostrar su ventana en
   una sesión no interactiva). Para diagnosticar rápido: `GIT_TERMINAL_PROMPT=0` + `GCM_INTERACTIVE=never`
   hacen que falle en el acto en lugar de colgarse.
+
+### 10.18. ⚠️ EL ESQUEMA DE SIRGA NO SE PUEDE CREAR DESDE CERO (2026-11-04)
+
+**Contexto**: se armó el paquete para desplegar producción:
+`script_sirga_db_produccion_01_crear_base.sql` (crea la base, SIMPLE, tamaños explícitos),
+`script_sirga_db_produccion_esquema.sql` (las 55 migraciones de EF) y
+`script_sirga_db_produccion_03_verificar.sql` (comprueba tablas y columnas).
+
+**El hallazgo, medido**: aplicado sobre una base **vacía**, el script de esquema **falla**:
+
+1. `Msg 2705: 'AdminEmail' de la tabla 'Unions' se especifica más de una vez.`
+   → **7 migraciones** agregan la misma columna: `AddAdminEmailToUnion`, `FixedPendingChanges`,
+   `SyncModelV3`, `SyncModelV4`, `SyncModelV5`, `ConsolidateAllChanges`, `AddSubscriptionsStructure`.
+2. Protegidos los `ALTER TABLE ... ADD` con `IF COL_LENGTH(...) IS NULL`, aparece el siguiente:
+   `Msg 207: El nombre de columna 'RamaId' no es válido.`
+   → vino de `MoveScalesAndCategoriesToRama`, que es **escrita a mano** y asume el estado que dejó
+   la base de desarrollo (que se creó con un script, no con la cadena de migraciones).
+
+**Duplicados detectados** (AddColumn sin DropColumn entre medio): **8**
+`Unions.AdminEmail` (6), `SalaryScales.CategoryCode` (1), `SalaryScales.UnionId` (1).
+
+**Conclusión**: la cadena de migraciones de SIRGA **no es reproducible desde cero**. Sirve para
+**poner al día una base que ya existe** (EF saltea lo que está en `__EFMigrationsHistory`, y por
+eso la base de desarrollo y las copias funcionan), pero no para crear una base nueva.
+
+**Para una base NUEVA** (producción nueva o demo), las opciones son:
+1. **(Recomendada, barata)** Partir de una **copia sólo-esquema de `SIRGA_DB`**: respaldar,
+   restaurar y vaciar las tablas. El esquema queda idéntico al modelo y `__EFMigrationsHistory`
+   queda con las 55 filas correctas.
+2. **(Cara, correcta a largo plazo)** Reparar la cadena: quitar los 8 `AddColumn` duplicados y
+   reescribir `MoveScalesAndCategoriesToRama` para que funcione desde cero. Hay que hacerlo con
+   tiempo y volver a probar el script contra una base vacía.
+
+**Trampa de sqlcmd**: el esquema tiene **índices filtrados**, que exigen `QUOTED_IDENTIFIER ON`.
+Con `sqlcmd` hay que pasar **`-I`**; si no, falla con
+`CREATE INDEX ... 'QUOTED_IDENTIFIER'`. En SSMS no hace falta (viene en ON).
+
+**Probado**: `01` crea la base correctamente (ONLINE, SIMPLE, archivos con tamaño y crecimiento
+explícitos). `03` informa tablas/columnas/migraciones. `02` funciona sobre una base existente;
+sobre una vacía falla por lo de arriba.
