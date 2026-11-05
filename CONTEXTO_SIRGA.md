@@ -1549,3 +1549,43 @@ diferencia; eso sí o sí quiero que se cargue"*.
 
 
 
+
+### 10.17. ✅ ENTORNO DE DEMO PREPARADO Y ACCESO AL REPO POR SSH (2026-11-04)
+
+**Tres publicaciones de DEMO listas para copiar al servidor** (compiladas desde `48cc4b4`, Release,
+framework-dependent net10.0). Se generaron en carpetas propias, **fuera de los repos**, y cada una con su
+`LEEME_DEMO.txt` (pasos de IIS + verificación) y su `version.txt`:
+
+| Carpeta local | Sitio IIS | Dominio (HTTPS) | Base |
+|---|---|---|---|
+| `C:\Proyectos\SIRGA_DEMO` | `SIRGA_DEMO` | `sirga-demo.secsantiago.com.ar` | `SIRGA_DB_DEMO` + `SINDICATO_DEMO` |
+| `C:\Proyectos\SIGESWEB_DEMO` | `SIGESWEB_DEMO` | `sigesweb-demo.secsantiago.com.ar` | `SINDICATO_DEMO` |
+| `C:\Proyectos\SIGESWEB_DEMO_CARNET` | `SIGESWEB_DEMO_CARNET` | `carnet-demo.secsantiago.com.ar` | `SINDICATO_DEMO` |
+
+- **Los subdominios van con guión, no con guión bajo**: `sirga_demo...` **no es un nombre de host válido**
+  (RFC 1123) y **ninguna CA emite certificado para él**; el usuario había pedido guión bajo y se corrigió.
+- **Defensa en profundidad**: las cadenas DEMO están en `appsettings.json` **y** en `Production.json`, y se
+  **borró** `appsettings.Development.json` de las tres. Verificado con un barrido: **0 referencias** a
+  `SIRGA_DB`, `Sindicato` o `SindicatoProd` en las tres carpetas.
+- El correo de SIGESWEB y del Carnet queda **simulado** (`Email:CarpetaSimulada`), para no mandar mails
+  reales desde la demo. El `Carnet:AdminKey` viene con el valor de ejemplo: **cambiarlo**.
+- **Falta del lado del servidor** (lo hace el usuario, no hay acceso remoto): crear `SIRGA_DB_DEMO` y
+  `SINDICATO_DEMO`, copiar las carpetas a `C:\Sitios\...`, crear los tres sitios y App Pools
+  ("No Managed Code"), binding HTTPS/SNI y el **Hosting Bundle de .NET 10**.
+
+**Acceso al repositorio por SSH (resuelto; los commits ya se pueden subir sin intervención del usuario)**
+
+- El remoto pasó de HTTPS a **`git@github.com:eondevsde/sirga.git`** (cuenta **`eondevsde`**, clave
+  *Read/write* "C desarrollo SIRGA").
+- Clave dedicada en **`C:\Users\drop1\.ssh\id_ed25519`** (con `~/.ssh/config` apuntando ahí), **sin frase
+  de paso** para que funcione en modo no interactivo. Verificado: `ssh -T` responde
+  *"Hi eondevsde! You've successfully authenticated"*, `git fetch` y `push --dry-run` OK.
+- 🪤 **TRAMPA (costó una hora)**: en PowerShell, `ssh-keygen -N '""'` **no** deja la clave sin frase de paso:
+  la frase queda siendo los dos caracteres `""`. Como `git` corre sin terminal, GitHub recibía la clave
+  ("Server accepts key") y después **denegaba** (`Permission denied (publickey)`), y GitHub mostraba la clave
+  como *"Never used"*. **Cómo detectarlo**: `ssh-keygen -y -f <clave> -P ''` ⇒ *"incorrect passphrase"*;
+  con `-P '""'` ⇒ devuelve la pública. **Cómo se arregla sin cambiar la clave** (así no hay que volver a
+  registrarla): `ssh-keygen -p -P '""' -N '' -f <clave>`. **Para generar una nueva sin frase**: usar `-N ''`.
+- Antes de esto, el push se colgaba **sin mensaje** (Git Credential Manager no puede mostrar su ventana en
+  una sesión no interactiva). Para diagnosticar rápido: `GIT_TERMINAL_PROMPT=0` + `GCM_INTERACTIVE=never`
+  hacen que falle en el acto en lugar de colgarse.
