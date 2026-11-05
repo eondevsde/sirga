@@ -68,10 +68,15 @@ dotnet run --project SIRGA.Migration -- align --origen Sindicato --destino SIRGA
 dotnet run --project SIRGA.Migration -- sync --origen Sindicato --destino SIRGA_DB
 ```
 
-> **`align` se corre UNA sola vez**, en la carga inicial, porque ahí el sistema viejo es la fuente.
-> Después de salir a producción, **SIRGA es el dueño del ciclo de vida** (crea empleados y los da de
-> baja) y es él quien empuja los cambios al padrón al guardar la ficha. Volver a correr `align` en ese
-> momento revertiría las altas y bajas hechas en SIRGA.
+> **¿Se puede repetir? Sí, todas las veces que haga falta.** Mientras el sistema viejo siga siendo el
+> operativo (hasta el corte), **los datos cambian todos los días**: se presentan DDJJ, se pagan, se
+> rectifican, entran socios y se dan de baja. Todo el proceso es **incremental e idempotente**: se puede
+> volver a correr entero y sólo trae lo nuevo, repara lo incompleto y refresca los estados.
+>
+> **La regla del `align`**: se corre en **cada** sincronización **mientras el sistema viejo sea el
+> operativo**, porque en esa etapa el legado es la fuente de verdad. **Después del corte ya no se corre**:
+> desde ahí SIRGA es el dueño del ciclo de vida (crea empleados, los da de baja y empuja los cambios al
+> padrón al guardar la ficha). Correrlo después revertiría las altas y bajas hechas en SIRGA.
 
 **Nota**: el `sync` puede necesitarse **dos veces** seguidas: la primera crea empresas que sólo están
 en las DDJJ y la segunda carga sus declaraciones.
