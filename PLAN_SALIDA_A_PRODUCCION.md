@@ -39,12 +39,17 @@ sqlcmd -S <servidor> -E -b -I -d Sindicato -i SIGESWEB_migraciones_idempotente.s
 ## 2. Base de SIRGA (`SIRGA_DB`): crear y poblar el esquema
 
 > ⚠️ **La cadena de migraciones de SIRGA no sirve para crear una base desde cero** (hay 8 columnas
-> agregadas dos veces y migraciones escritas a mano). Para una base nueva se parte de una **copia
-> sólo-esquema** de la base de desarrollo.
+> agregadas dos veces y migraciones escritas a mano). Por eso se parte de una **copia sólo-esquema**:
+> `SIRGA_DB_ESQUEMA_VACIA.bak` (2,7 MB), con las **59 tablas**, el **historial de migraciones completo
+> (57)** y **todas las tablas vacías**.
 
-1. `script_sirga_db_produccion_01_crear_base.sql` → crea la base (SIMPLE, tamaños explícitos).
-2. Copia sólo-esquema → restaura el esquema completo con el historial de migraciones correcto.
-3. `script_sirga_db_produccion_03_verificar.sql` → comprueba tablas y columnas.
+1. Copiar `SIRGA_DB_ESQUEMA_VACIA.bak` al servidor (por ejemplo `C:\Demo\bak\`).
+2. `script_sirga_db_produccion_02_restaurar_esquema.sql` → restaura el esquema en una base nueva.
+   - `@Simulacro = 1` para ver qué haría (por defecto).
+   - `@ArchivoBak` = ruta del respaldo en el servidor; `@Destino` = `SIRGA_DB`.
+   - **Esperado**: `59 tablas · 57 migraciones · 0 filas de datos`.
+3. `script_sirga_db_produccion_03_verificar.sql` (correr con `-d SIRGA_DB`) → comprueba tablas y columnas.
+4. Después, el **ETL** (sección 3) carga los datos: primero `all`, y después el ciclo de puesta al día.
 
 ---
 

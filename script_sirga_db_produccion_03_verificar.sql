@@ -51,17 +51,17 @@ END CATCH
 DECLARE @esperadas TABLE (Nombre sysname);
 INSERT INTO @esperadas (Nombre) VALUES
   (N'Companies'), (N'Employees'), (N'Assignments'), (N'Declarations'), (N'DeclarationDetails'),
-  (N'DeclarationRegistries'), (N'Unions'), (N'Ramas'), (N'EmployeeCategories'), (N'SalaryScales'),
+  (N'Declarations'), (N'Unions'), (N'Ramas'), (N'EmployeeCategories'), (N'SalaryScales'),
   (N'InterestRates'), (N'Banks'), (N'Activities'), (N'HealthInsurances'), (N'EmployeeChangeLogs'),
-  (N'AspNetUsers'), (N'AspNetRoles'), (N'Payments'), (N'AuditLogs');
+  (N'AspNetUsers'), (N'AspNetRoles'), (N'PaymentTransactions'), (N'AuditLogs');
 
 SELECT CAST(e.Nombre AS varchar(30)) AS tabla_esperada,
        CASE WHEN t.object_id IS NULL THEN 'FALTA' ELSE 'OK' END AS estado
 FROM @esperadas e
-LEFT JOIN (SELECT name, object_id FROM SIRGA_DB.sys.tables) t ON t.name = e.Nombre
+LEFT JOIN (SELECT name, object_id FROM sys.tables) t ON t.name = e.Nombre
 ORDER BY CASE WHEN t.object_id IS NULL THEN 0 ELSE 1 END, e.Nombre;
 
--- (El bloque de arriba usa SIRGA_DB literal; si cambiás @Base, ajustá esa línea.)
+-- (Sin prefijo de base: ejecutar con -d <base>, o en SSMS seleccionándola.)
 
 /* ---------------------------- 4) columnas de las últimas versiones --------------------- */
 DECLARE @columnas TABLE (Tabla sysname, Columna sysname);
@@ -69,8 +69,8 @@ INSERT INTO @columnas (Tabla, Columna) VALUES
   (N'Employees',           N'LastName'),
   (N'Employees',           N'FirstName'),
   (N'Employees',           N'Mobile'),
-  (N'Employees',           N'HealthInsuranceId'),
-  (N'Assignments',         N'ActivityId'),
+  (N'Employees',           N'HealthInsuranceCode'),
+  (N'Assignments',         N'ActivityCode'),
   (N'Assignments',         N'FileNumber'),
   (N'DeclarationDetails',  N'UsaEscala'),
   (N'DeclarationDetails',  N'ScaleSalary'),
@@ -82,8 +82,8 @@ INSERT INTO @columnas (Tabla, Columna) VALUES
 SELECT CAST(c.Tabla AS varchar(28)) AS tabla, CAST(c.Columna AS varchar(28)) AS columna,
        CASE WHEN col.object_id IS NULL THEN 'FALTA' ELSE 'OK' END AS estado
 FROM @columnas c
-LEFT JOIN SIRGA_DB.sys.columns col
-       ON col.object_id = OBJECT_ID('SIRGA_DB.dbo.' + c.Tabla)
+LEFT JOIN sys.columns col
+       ON col.object_id = OBJECT_ID('dbo.' + c.Tabla)
       AND col.name = c.Columna
 ORDER BY CASE WHEN col.object_id IS NULL THEN 0 ELSE 1 END, c.Tabla, c.Columna;
 
