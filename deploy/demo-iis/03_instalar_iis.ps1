@@ -4,6 +4,11 @@
 #  Deja la demo "como si fuera producción": sitios en IIS, HTTPS, dominios propios y las bases
 #  DEMO. No toca los sitios de producción.
 #
+#  LOS TRES SITIOS (los nombres se pueden cambiar por parámetro)
+#    SIRGA_DEMO              -> https://sirga-demo.secsantiago.com.ar
+#    SIGESWEB_DEMO           -> https://sigesweb-demo.secsantiago.com.ar
+#    SIGESWEB_DEMO_CARNET    -> https://carnet-demo.secsantiago.com.ar   (o el dominio que uses)
+#
 #  QUÉ HACE
 #    1. Copia las tres publicaciones a la carpeta de sitios (robocopy).
 #    2. Escribe la configuración de cada sitio (cadenas a las bases DEMO + ApiBaseUrl).
@@ -14,7 +19,11 @@
 #  USO (siempre primero en simulacro)
 #    .\03_instalar_iis.ps1
 #    .\03_instalar_iis.ps1 -Aplicar
-#    .\03_instalar_iis.ps1 -Aplicar -InstanciaSQL ".\SQLEXPRESS" -Autenticacion SQL -UsuarioSQL sqladmin -ClaveSQL "..."
+#
+#  SI LOS SITIOS YA LOS CREASTE CON OTROS NOMBRES, se los indicás:
+#    .\03_instalar_iis.ps1 -Aplicar `
+#        -SitioSirga "SIRGA_DEMO" -SitioSiges "SIGESWEB_DEMO" -SitioCarnet "sigesweb-demo-carnet" `
+#        -DominioCarnet "sigesweb-demo-carnet.secsantiago.com.ar"
 #
 #  SE PUEDE CORRER DOS VECES: si el sitio ya existe, lo actualiza (no lo duplica).
 # ==========================================================================================
@@ -28,10 +37,24 @@ param(
     [ValidateSet("Windows", "SQL")][string]$Autenticacion = "Windows",
     [string]$UsuarioSQL = "",
     [string]$ClaveSQL = "",
+
+    # Nombres de los sitios en IIS
+    [string]$SitioSirga = "SIRGA_DEMO",
+    [string]$SitioSiges = "SIGESWEB_DEMO",
+    [string]$SitioCarnet = "SIGESWEB_DEMO_CARNET",
+
+    # Carpetas de las publicaciones (si difieren del nombre del sitio)
+    [string]$CarpetaSirga = "SIRGA_DEMO",
+    [string]$CarpetaSiges = "SIGESWEB_DEMO",
+    [string]$CarpetaCarnet = "SIGESWEB_DEMO_CARNET",
+
+    # Dominios
     [string]$DominioSirga = "sirga-demo.secsantiago.com.ar",
     [string]$DominioSiges = "sigesweb-demo.secsantiago.com.ar",
     [string]$DominioCarnet = "carnet-demo.secsantiago.com.ar",
-    [string]$CertificadoSirga = "",               # thumbprint; si está vacío se busca por dominio
+
+    # Certificados (vacío = se busca por dominio en el almacén)
+    [string]$CertificadoSirga = "",
     [string]$CertificadoSiges = "",
     [string]$CertificadoCarnet = "",
     [switch]$SinHttps
@@ -47,37 +70,38 @@ function Hacer($descripcion, [scriptblock]$accion) {
 }
 
 $sitios = @(
-    @{ Nombre = "SIRGA_DEMO";              App = "SIRGA_DEMO";              Dominio = $DominioSirga;  Cert = $CertificadoSirga;  Dll = "SIRGA.WebUI.dll" },
-    @{ Nombre = "SIGESWEB_DEMO";           App = "SIGESWEB_DEMO";           Dominio = $DominioSiges;  Cert = $CertificadoSiges;  Dll = "SIGESWEB.Web.dll" },
-    @{ Nombre = "SIGESWEB_DEMO_CARNET";    App = "SIGESWEB_DEMO_CARNET";    Dominio = $DominioCarnet; Cert = $CertificadoCarnet; Dll = "SIGESWEB.Carnet.Api.dll" }
+    @{ Sitio = $SitioSirga;  Carpeta = $CarpetaSirga;  Dominio = $DominioSirga;  Cert = $CertificadoSirga;  Dll = "SIRGA.WebUI.dll" },
+    @{ Sitio = $SitioSiges;  Carpeta = $CarpetaSiges;  Dominio = $DominioSiges;  Cert = $CertificadoSiges;  Dll = "SIGESWEB.Web.dll" },
+    @{ Sitio = $SitioCarnet; Carpeta = $CarpetaCarnet; Dominio = $DominioCarnet; Cert = $CertificadoCarnet; Dll = "SIGESWEB.Carnet.Api.dll" }
 )
 
 # ============================== GUARDA: SOLO DEMO =========================================
-# Este paquete es SÓLO para la demo. Se niega a tocar nada que no sea *_DEMO:
-#   - los tres nombres de sitio terminan en _DEMO (por construcción)
+# Este paquete es SÓLO para la demo. Se niega a tocar nada que no sea de demo:
+#   - el nombre de cada sitio tiene que contener "demo"
+#   - el dominio tiene que contener "demo"
 #   - se aborta si alguna carpeta destino ya es la ruta física de un sitio que NO es demo
-#   - se aborta si la carpeta de sitios es la raíz de producción
+#     (el robocopy /MIR borra lo que sobra en el destino: así no puede pisar producción)
 foreach ($s in $sitios) {
-    if ($s.Nombre -notmatch "_DEMO$") { throw "El sitio $($s.Nombre) no termina en _DEMO: este paquete es sólo para la demo." }
-    if (-not $DominioSirga -or $DominioSirga -notmatch "demo") { throw "El dominio '$DominioSirga' no parece de demo." }
+    if ($s.Sitio -notmatch "(?i)demo") { throw "El sitio '$($s.Sitio)' no contiene 'demo': este paquete es sólo para la demo." }
+    if ($s.Dominio -notmatch "(?i)demo") { throw "El dominio '$($s.Dominio)' no contiene 'demo': este paquete es sólo para la demo." }
 }
 
 foreach ($s in $sitios) {
-    $destino = Join-Path $Raiz $s.Nombre
+    $destino = Join-Path $Raiz $s.Sitio
     $sitioExistente = Get-ChildItem IIS:\Sites -ErrorAction SilentlyContinue |
                       Where-Object { $_.physicalPath -and ($_.physicalPath.TrimEnd('\') -eq $destino.TrimEnd('\')) }
     foreach ($se in $sitioExistente) {
-        if ($se.Name -notmatch "_DEMO$") {
+        if ($se.Name -notmatch "(?i)demo") {
             throw "La carpeta $destino es la ruta del sitio '$($se.Name)', que NO es demo. Se aborta para no tocar producción."
         }
     }
 }
-Write-Host "  guarda: sólo sitios y bases *_DEMO" -ForegroundColor Green
-# ==========================================================================================
+
 Titulo "MODO $(if ($Aplicar) { 'REAL' } else { 'SIMULACRO' })"
 Write-Host "  carpeta de sitios : $Raiz"
 Write-Host "  instancia SQL     : $InstanciaSQL  ($Autenticacion)"
-Write-Host "  dominios          : $DominioSirga | $DominioSiges | $DominioCarnet"
+foreach ($s in $sitios) { Write-Host ("  {0,-24} -> https://{1}" -f $s.Sitio, $s.Dominio) }
+Write-Host "  guarda: sólo sitios y bases de demo" -ForegroundColor Green
 
 if ($Autenticacion -eq "SQL" -and ([string]::IsNullOrWhiteSpace($UsuarioSQL) -or [string]::IsNullOrWhiteSpace($ClaveSQL))) {
     throw "Con -Autenticacion SQL hay que pasar -UsuarioSQL y -ClaveSQL."
@@ -93,10 +117,9 @@ function BuscarCertificado([string]$dominio, [string]$thumbprint) {
     # *.dominio.com.ar cubre los subdominios con guion
     $partes = $dominio.Split('.')
     $comodin = "*." + ($partes[1..($partes.Count - 1)] -join '.')
-    $c = Get-ChildItem Cert:\LocalMachine\My |
-         Where-Object { $_.Subject -match [regex]::Escape($dominio) -or $_.Subject -match [regex]::Escape($comodin) } |
-         Sort-Object NotAfter -Descending | Select-Object -First 1
-    return $c
+    return Get-ChildItem Cert:\LocalMachine\My |
+           Where-Object { $_.Subject -match [regex]::Escape($dominio) -or $_.Subject -match [regex]::Escape($comodin) } |
+           Sort-Object NotAfter -Descending | Select-Object -First 1
 }
 
 # ------------------------------------------------------------------ cadenas
@@ -110,9 +133,9 @@ function Cadena([string]$base) {
 # ------------------------------------------------------------------ copia y configuración
 Titulo "ARCHIVOS Y CONFIGURACIÓN"
 foreach ($s in $sitios) {
-    $destino = Join-Path $Raiz $s.Nombre
+    $destino = Join-Path $Raiz $s.Sitio
     if ($OrigenPublicaciones) {
-        $origen = Join-Path $OrigenPublicaciones $s.Nombre
+        $origen = Join-Path $OrigenPublicaciones $s.Carpeta
         if (-not (Test-Path $origen)) { throw "No existe la publicación de origen: $origen" }
         Hacer "copiar $origen -> $destino" {
             robocopy $origen $destino /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
@@ -122,8 +145,8 @@ foreach ($s in $sitios) {
         throw "No encuentro $($s.Dll) en $destino. Copiá la publicación o pasá -OrigenPublicaciones."
     }
 
-    # Configuración según el sitio
-    $config = if ($s.Nombre -eq "SIRGA_DEMO") {
+    $esSirga = ($s.Sitio -eq $SitioSirga)
+    $config = if ($esSirga) {
         [ordered]@{
             ConnectionStrings = [ordered]@{
                 DefaultConnection = (Cadena "SIRGA_DB_DEMO")
@@ -142,12 +165,12 @@ foreach ($s in $sitios) {
         }
     }
 
-    Hacer "escribir appsettings.Production.json de $($s.Nombre) (bases DEMO)" {
+    Hacer "escribir appsettings.Production.json de $($s.Sitio) (bases DEMO)" {
         $json = $config | ConvertTo-Json -Depth 10
         Set-Content (Join-Path $destino "appsettings.Production.json") -Value $json -Encoding utf8
         Set-Content (Join-Path $destino "appsettings.json") -Value $json -Encoding utf8
 
-        # Un web.config con entorno explícito y log de arranque: si algo falla, se ve el motivo.
+        # web.config con entorno explícito y log de arranque: si algo falla, se ve el motivo.
         $dll = $s.Dll
         $webConfig = @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -174,38 +197,37 @@ foreach ($s in $sitios) {
 # ------------------------------------------------------------------ app pools
 Titulo "APP POOLS"
 foreach ($s in $sitios) {
-    $existe = (Get-ChildItem IIS:\AppPools -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $s.App })
+    $pool = $s.Sitio
+    $existe = (Get-ChildItem IIS:\AppPools -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $pool })
     if (-not $existe) {
-        Hacer "crear App Pool $($s.App) (sin código administrado, siempre iniciado)" {
-            New-WebAppPool -Name $s.App | Out-Null
-        }
+        Hacer "crear App Pool $pool (sin código administrado, siempre iniciado)" { New-WebAppPool -Name $pool | Out-Null }
     } else {
-        Write-Host "   ya existe: $($s.App)"
+        Write-Host "   ya existe: $pool"
     }
-    Hacer "configurar App Pool $($s.App)" {
-        Set-ItemProperty "IIS:\AppPools\$($s.App)" managedRuntimeVersion ""
-        Set-ItemProperty "IIS:\AppPools\$($s.App)" startMode "AlwaysRunning"
-        Set-ItemProperty "IIS:\AppPools\$($s.App)" processModel.idleTimeout "00:00:00"
-        Set-ItemProperty "IIS:\AppPools\$($s.App)" recycling.periodicRestart.time "00:00:00"
+    Hacer "configurar App Pool $pool" {
+        Set-ItemProperty "IIS:\AppPools\$pool" managedRuntimeVersion ""
+        Set-ItemProperty "IIS:\AppPools\$pool" startMode "AlwaysRunning"
+        Set-ItemProperty "IIS:\AppPools\$pool" processModel.idleTimeout "00:00:00"
+        Set-ItemProperty "IIS:\AppPools\$pool" recycling.periodicRestart.time "00:00:00"
     }
 }
 
 # ------------------------------------------------------------------ sitios y bindings
 Titulo "SITIOS Y BINDINGS"
 foreach ($s in $sitios) {
-    $camino = Join-Path $Raiz $s.Nombre
-    $existe = (Get-ChildItem IIS:\Sites -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $s.Nombre })
+    $camino = Join-Path $Raiz $s.Sitio
+    $existe = (Get-ChildItem IIS:\Sites -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $s.Sitio })
     if (-not $existe) {
-        Hacer "crear sitio $($s.Nombre) -> $camino (App Pool $($s.App), puerto 80)" {
-            New-Website -Name $s.Nombre -PhysicalPath $camino -ApplicationPool $s.App -Port 80 -HostHeader $s.Dominio | Out-Null
+        Hacer "crear sitio $($s.Sitio) -> $camino (App Pool $($s.Sitio), puerto 80)" {
+            New-Website -Name $s.Sitio -PhysicalPath $camino -ApplicationPool $s.Sitio -Port 80 -HostHeader $s.Dominio | Out-Null
         }
     } else {
-        Write-Host "   ya existe: $($s.Nombre)"
-        Hacer "actualizar $($s.Nombre) (ruta, App Pool, binding HTTP)" {
-            Set-ItemProperty "IIS:\Sites\$($s.Nombre)" physicalPath $camino
-            Set-ItemProperty "IIS:\Sites\$($s.Nombre)" applicationPool $s.App
-            $b = Get-WebBinding -Name $s.Nombre -Protocol http -ErrorAction SilentlyContinue
-            if (-not $b) { New-WebBinding -Name $s.Nombre -Protocol http -Port 80 -HostHeader $s.Dominio | Out-Null }
+        Write-Host "   ya existe: $($s.Sitio)"
+        Hacer "actualizar $($s.Sitio) (ruta, App Pool, binding HTTP)" {
+            Set-ItemProperty "IIS:\Sites\$($s.Sitio)" physicalPath $camino
+            Set-ItemProperty "IIS:\Sites\$($s.Sitio)" applicationPool $s.Sitio
+            $b = Get-WebBinding -Name $s.Sitio -Protocol http -ErrorAction SilentlyContinue
+            if (-not $b) { New-WebBinding -Name $s.Sitio -Protocol http -Port 80 -HostHeader $s.Dominio | Out-Null }
             else { $b.bindings.Collection[0].bindingInformation = "*:80:$($s.Dominio)" }
         }
     }
@@ -217,11 +239,11 @@ foreach ($s in $sitios) {
             Write-Host "   AVISO: no encontré certificado para $($s.Dominio): queda sólo HTTP." -ForegroundColor Yellow
         } else {
             Write-Host "   certificado: $($cert.Subject) (vence $($cert.NotAfter.ToString('yyyy-MM-dd')))"
-            Hacer "binding HTTPS de $($s.Nombre) en 443" {
-                $b = Get-WebBinding -Name $s.Nombre -Protocol https -ErrorAction SilentlyContinue
-                if (-not $b) { New-WebBinding -Name $s.Nombre -Protocol https -Port 443 -HostHeader $s.Dominio -SslFlags 1 | Out-Null }
+            Hacer "binding HTTPS de $($s.Sitio) en 443" {
+                $b = Get-WebBinding -Name $s.Sitio -Protocol https -ErrorAction SilentlyContinue
+                if (-not $b) { New-WebBinding -Name $s.Sitio -Protocol https -Port 443 -HostHeader $s.Dominio -SslFlags 1 | Out-Null }
                 else { $b.bindings.Collection[0].bindingInformation = "*:443:$($s.Dominio)"; $b.bindings.Collection[0].sslFlags = 1 }
-                $b = Get-WebBinding -Name $s.Nombre -Protocol https
+                $b = Get-WebBinding -Name $s.Sitio -Protocol https
                 $b.AddSslCertificate($cert.Thumbprint, "my")
             }
         }
@@ -231,8 +253,8 @@ foreach ($s in $sitios) {
 # ------------------------------------------------------------------ permisos de carpeta
 Titulo "PERMISOS DE CARPETA"
 foreach ($s in $sitios) {
-    $camino = Join-Path $Raiz $s.Nombre
-    $identidad = "IIS APPPOOL\$($s.App)"
+    $camino = Join-Path $Raiz $s.Sitio
+    $identidad = "IIS APPPOOL\$($s.Sitio)"
     Hacer "dar control total a $identidad en $camino" {
         $acl = Get-Acl $camino
         $regla = New-Object System.Security.AccessControl.FileSystemAccessRule($identidad, "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
@@ -248,17 +270,15 @@ if (-not $Aplicar) {
     exit 0
 }
 
-Write-Host "  Sitios:" -ForegroundColor Cyan
-Get-ChildItem IIS:\Sites | Where-Object { $_.Name -like "*DEMO*" } | ForEach-Object {
+Write-Host "  Sitios de demo:" -ForegroundColor Cyan
+Get-ChildItem IIS:\Sites | Where-Object { $_.Name -match "(?i)demo" } | ForEach-Object {
     $bindings = ($_.Bindings.Collection | ForEach-Object { $_.bindingInformation }) -join "  "
     Write-Host ("   {0,-24} {1}" -f $_.Name, $bindings)
 }
 
 Write-Host ""
 Write-Host "  Probá en el servidor:" -ForegroundColor Cyan
-Write-Host "   https://$DominioSirga"
-Write-Host "   https://$DominioSiges"
-Write-Host "   https://$DominioCarnet"
+foreach ($s in $sitios) { Write-Host "   https://$($s.Dominio)" }
 Write-Host ""
 Write-Host "  Si no responde, el log de arranque está en: $Raiz\<sitio>\logs\stdout_*.log" -ForegroundColor Cyan
 Write-Host "  Siguiente paso: 04_verificar.ps1"

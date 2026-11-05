@@ -33,6 +33,7 @@ PRINT CASE WHEN @Simulacro = 1 THEN '  MODO SIMULACRO: no se cambia ningún perm
 PRINT '==============================================================';
 
 /* --------------------------- identidades de los App Pools ------------------------------ */
+-- EDITAR SI LOS APP POOLS SE LLAMAN DISTINTO EN IIS ("IIS APPPOOL\" + nombre del App Pool).
 DECLARE @logins TABLE (Orden int, Nombre nvarchar(128));
 INSERT INTO @logins VALUES
     (1, N'IIS APPPOOL\SIRGA_DEMO'),

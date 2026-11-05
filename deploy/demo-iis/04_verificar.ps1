@@ -12,6 +12,12 @@
 [CmdletBinding()]
 param(
     [string]$Raiz = "C:\Sitios\Demo",
+    [string]$SitioSirga = "SIRGA_DEMO",
+    [string]$SitioSiges = "SIGESWEB_DEMO",
+    [string]$SitioCarnet = "SIGESWEB_DEMO_CARNET",
+    [string]$CarpetaSirga = "SIRGA_DEMO",
+    [string]$CarpetaSiges = "SIGESWEB_DEMO",
+    [string]$CarpetaCarnet = "SIGESWEB_DEMO_CARNET",
     [string]$DominioSirga = "sirga-demo.secsantiago.com.ar",
     [string]$DominioSiges = "sigesweb-demo.secsantiago.com.ar",
     [string]$DominioCarnet = "carnet-demo.secsantiago.com.ar",
@@ -29,7 +35,7 @@ Import-Module WebAdministration -ErrorAction SilentlyContinue
 
 # ---------------------------------------------------------------- IIS
 Titulo "IIS"
-foreach ($nombre in @("SIRGA_DEMO", "SIGESWEB_DEMO", "SIGESWEB_DEMO_CARNET")) {
+foreach ($nombre in @($SitioSirga, $SitioSiges, $SitioCarnet)) {
     $sitio = Get-ChildItem IIS:\Sites -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $nombre }
     if (-not $sitio) { $errores.Add("No existe el sitio $nombre en IIS."); continue }
     $bien.Add("Sitio $nombre existe")
@@ -43,7 +49,7 @@ foreach ($nombre in @("SIRGA_DEMO", "SIGESWEB_DEMO", "SIGESWEB_DEMO_CARNET")) {
 # ---------------------------------------------------------------- certificados y HTTPS
 if (-not $SinHttps) {
     Titulo "HTTPS"
-    foreach ($par in @(@{n = "SIRGA_DEMO"; d = $DominioSirga }, @{n = "SIGESWEB_DEMO"; d = $DominioSiges }, @{n = "SIGESWEB_DEMO_CARNET"; d = $DominioCarnet })) {
+    foreach ($par in @(@{n = $SitioSirga; d = $DominioSirga }, @{n = $SitioSiges; d = $DominioSiges }, @{n = $SitioCarnet; d = $DominioCarnet })) {
         $https = Get-WebBinding -Name $par.n -Protocol https -ErrorAction SilentlyContinue
         if (-not $https) { $errores.Add("El sitio $($par.n) no tiene binding HTTPS para $($par.d).") }
         else {
@@ -62,7 +68,7 @@ if (-not $SinHttps) {
 # ---------------------------------------------------------------- configuración
 Titulo "CONFIGURACIÓN DE CADA SITIO"
 $cadenas = @{}
-foreach ($nombre in @("SIRGA_DEMO", "SIGESWEB_DEMO", "SIGESWEB_DEMO_CARNET")) {
+foreach ($nombre in @($SitioSirga, $SitioSiges, $SitioCarnet)) {
     $carpeta = Join-Path $Raiz $nombre
     $cfgPath = Join-Path $carpeta "appsettings.Production.json"
     if (-not (Test-Path $cfgPath)) { $errores.Add("Falta $cfgPath"); continue }
@@ -102,7 +108,7 @@ foreach ($clave in $cadenas.Keys) {
 }
 
 # contar tablas y migraciones en SIRGA_DB_DEMO
-$cadenaSirga = ($cadenas.GetEnumerator() | Where-Object { $_.Key -like "SIRGA_DEMO/*" } | Select-Object -First 1).Value
+$cadenaSirga = ($cadenas.GetEnumerator() | Where-Object { $_.Key -like "$SitioSirga/*" } | Select-Object -First 1).Value
 if ($cadenaSirga) {
     try {
         $conn = New-Object System.Data.SqlClient.SqlConnection($cadenaSirga)

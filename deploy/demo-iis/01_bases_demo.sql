@@ -199,6 +199,8 @@ BEGIN
     PRINT '';
     PRINT '--- 3. PERMISOS PARA IIS (identidades de App Pool)';
 
+    -- EDITAR SI LOS APP POOLS SE LLAMAN DISTINTO EN IIS.
+    -- El nombre tiene que ser exactamente "IIS APPPOOL\" + el nombre del App Pool.
     DECLARE @pools TABLE (Nombre nvarchar(128));
     INSERT INTO @pools VALUES
         (N'IIS APPPOOL\SIRGA_DEMO'),

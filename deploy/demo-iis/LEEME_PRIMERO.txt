@@ -88,6 +88,21 @@
 
     .\03_instalar_iis.ps1 -Aplicar -OrigenPublicaciones "C:\Publicaciones" -Raiz "C:\Sitios\Demo"
 
+ LOS TRES SITIOS (por defecto):
+    SIRGA_DEMO              -> https://sirga-demo.secsantiago.com.ar
+    SIGESWEB_DEMO           -> https://sigesweb-demo.secsantiago.com.ar
+    SIGESWEB_DEMO_CARNET    -> https://carnet-demo.secsantiago.com.ar
+
+ Si ya los creaste con otros nombres, se los pasás igual:
+    .\03_instalar_iis.ps1 -Aplicar `
+        -SitioSirga "SIRGA_DEMO" -SitioSiges "SIGESWEB_DEMO" -SitioCarnet "sigesweb-demo-carnet" `
+        -CarpetaCarnet "SIGESWEB_DEMO_CARNET" `
+        -DominioCarnet "sigesweb-demo-carnet.secsantiago.com.ar"
+
+ El App Pool de cada sitio se llama IGUAL que el sitio. Por eso, si cambiaste el
+ nombre del sitio del carnet, en 01 y 02 hay que ajustar la línea marcada EDITAR:
+    (N'IIS APPPOOL\sigesweb-demo-carnet')
+
  Qué hace: copia las publicaciones a C:\Sitios\Demo, escribe la configuración
  (bases DEMO), crea los App Pools y los sitios con HTTP y HTTPS, activa el log de
  arranque y da permisos de carpeta.
