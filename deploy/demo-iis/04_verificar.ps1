@@ -12,15 +12,15 @@
 [CmdletBinding()]
 param(
     [string]$Raiz = "C:\Sitios\Demo",
-    [string]$SitioSirga = "SIRGA_DEMO",
-    [string]$SitioSiges = "SIGESWEB_DEMO",
-    [string]$SitioCarnet = "SIGESWEB_DEMO_CARNET",
+    [string]$SitioSirga = "sirga-demo",
+    [string]$SitioSiges = "sigesweb-demo",
+    [string]$SitioCarnet = "sigesweb-demo-carnet",
     [string]$CarpetaSirga = "SIRGA_DEMO",
     [string]$CarpetaSiges = "SIGESWEB_DEMO",
     [string]$CarpetaCarnet = "SIGESWEB_DEMO_CARNET",
     [string]$DominioSirga = "sirga-demo.secsantiago.com.ar",
     [string]$DominioSiges = "sigesweb-demo.secsantiago.com.ar",
-    [string]$DominioCarnet = "carnet-demo.secsantiago.com.ar",
+    [string]$DominioCarnet = "sigesweb-demo-carnet.secsantiago.com.ar",
     [switch]$SinHttps
 )
 

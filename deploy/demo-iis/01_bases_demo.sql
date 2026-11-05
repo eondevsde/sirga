@@ -203,9 +203,9 @@ BEGIN
     -- El nombre tiene que ser exactamente "IIS APPPOOL\" + el nombre del App Pool.
     DECLARE @pools TABLE (Nombre nvarchar(128));
     INSERT INTO @pools VALUES
-        (N'IIS APPPOOL\SIRGA_DEMO'),
-        (N'IIS APPPOOL\SIGESWEB_DEMO'),
-        (N'IIS APPPOOL\SIGESWEB_DEMO_CARNET');
+        (N'IIS APPPOOL\sirga-demo'),
+        (N'IIS APPPOOL\sigesweb-demo'),
+        (N'IIS APPPOOL\sigesweb-demo-carnet');
 
     DECLARE @pool nvarchar(128), @base sysname, @n int;
 

@@ -39,9 +39,9 @@ param(
     [string]$ClaveSQL = "",
 
     # Nombres de los sitios en IIS
-    [string]$SitioSirga = "SIRGA_DEMO",
-    [string]$SitioSiges = "SIGESWEB_DEMO",
-    [string]$SitioCarnet = "SIGESWEB_DEMO_CARNET",
+    [string]$SitioSirga = "sirga-demo",
+    [string]$SitioSiges = "sigesweb-demo",
+    [string]$SitioCarnet = "sigesweb-demo-carnet",
 
     # Carpetas de las publicaciones (si difieren del nombre del sitio)
     [string]$CarpetaSirga = "SIRGA_DEMO",
@@ -51,7 +51,7 @@ param(
     # Dominios
     [string]$DominioSirga = "sirga-demo.secsantiago.com.ar",
     [string]$DominioSiges = "sigesweb-demo.secsantiago.com.ar",
-    [string]$DominioCarnet = "carnet-demo.secsantiago.com.ar",
+    [string]$DominioCarnet = "sigesweb-demo-carnet.secsantiago.com.ar",
 
     # Certificados (vacío = se busca por dominio en el almacén)
     [string]$CertificadoSirga = "",
@@ -131,9 +131,20 @@ function Cadena([string]$base) {
 }
 
 # ------------------------------------------------------------------ copia y configuración
+# Si los sitios YA existen y no se pasó -Raiz, se respeta la carpeta que ya tienen.
+$raizExplicita = $PSBoundParameters.ContainsKey("Raiz")
+function CaminoDelSitio($s) {
+    if (-not $raizExplicita) {
+        $existente = Get-ChildItem IIS:\Sites -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $s.Sitio }
+        if ($existente -and $existente.physicalPath) { return $existente.physicalPath }
+    }
+    return (Join-Path $Raiz $s.Sitio)
+}
+
 Titulo "ARCHIVOS Y CONFIGURACIÓN"
 foreach ($s in $sitios) {
-    $destino = Join-Path $Raiz $s.Sitio
+    $destino = CaminoDelSitio $s
+    Write-Host "   $($s.Sitio) -> $destino"
     if ($OrigenPublicaciones) {
         $origen = Join-Path $OrigenPublicaciones $s.Carpeta
         if (-not (Test-Path $origen)) { throw "No existe la publicación de origen: $origen" }
@@ -215,7 +226,7 @@ foreach ($s in $sitios) {
 # ------------------------------------------------------------------ sitios y bindings
 Titulo "SITIOS Y BINDINGS"
 foreach ($s in $sitios) {
-    $camino = Join-Path $Raiz $s.Sitio
+    $camino = CaminoDelSitio $s
     $existe = (Get-ChildItem IIS:\Sites -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $s.Sitio })
     if (-not $existe) {
         Hacer "crear sitio $($s.Sitio) -> $camino (App Pool $($s.Sitio), puerto 80)" {
@@ -253,7 +264,7 @@ foreach ($s in $sitios) {
 # ------------------------------------------------------------------ permisos de carpeta
 Titulo "PERMISOS DE CARPETA"
 foreach ($s in $sitios) {
-    $camino = Join-Path $Raiz $s.Sitio
+    $camino = CaminoDelSitio $s
     $identidad = "IIS APPPOOL\$($s.Sitio)"
     Hacer "dar control total a $identidad en $camino" {
         $acl = Get-Acl $camino
