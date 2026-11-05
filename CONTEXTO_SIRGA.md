@@ -1629,3 +1629,28 @@ Con `sqlcmd` hay que pasar **`-I`**; si no, falla con
 **Probado**: `01` crea la base correctamente (ONLINE, SIMPLE, archivos con tamaño y crecimiento
 explícitos). `03` informa tablas/columnas/migraciones. `02` funciona sobre una base existente;
 sobre una vacía falla por lo de arriba.
+
+### 10.19. ✅ BASES DE DEMO CREADAS EN LOCAL Y SCRIPT DE RESTAURO PARA EL SERVIDOR (2026-11-04)
+
+- **Se crearon en local `SIRGA_DB_DEMO` y `SINDICATO_DEMO`** con `script_sirga_db_demo_crear.sql`
+  (respaldo + restore + `SIMPLE` + compactado de datos). Resultado: **SIRGA_DB_DEMO 266 MB**,
+  **SINDICATO_DEMO 1.032 MB** (el archivo real de `Sindicato` era 9.224 MB, estaba 83% vacío).
+  Datos completos: 4.507 empresas · 27.934 empleados · 248.163 DDJJ · 27.924 socios · 261.976 `ddjjt`.
+- Los `.bak` quedaron **comprimidos** en `C:\Proyectos\_RESPALDOS\demo`: `SIRGA_DB.bak` 57 MB,
+  `Sindicato.bak` 457 MB.
+- **`script_sirga_db_demo_restaurar_en_servidor.sql`**: restaura esos `.bak` en el servidor como
+  `SIRGA_DB_DEMO` / `SINDICATO_DEMO` (sin respaldar nada allá). Verifica el archivo con
+  `xp_fileexist`, muestra `RESTORE FILELISTONLY`, restaura con `MOVE`, deja `SIMPLE` y compacta.
+  **Probado de punta a punta** con nombres `*_DEMO_T` desde los `.bak` reales: restauró las dos,
+  compactó (1.019,8 MB y 253,7 MB) y los conteos dieron exactos; después se borraron las de prueba.
+- **El publish de demo se probó localmente**: `C:\Proyectos\SIRGA_DEMO` corriendo en el puerto
+  **5200** en **Production** → raíz 200, CSS 200, login 200, rutas 302, y **conexión EF real a
+  `SIRGA_DB_DEMO`** (verificado en `sys.dm_exec_sessions`, no en la configuración).
+- **Credenciales de demo**: `admin@sirga.com` / `12345` (documentadas en `DOCUMENTACION_SIRGA.md`
+  §7.4). Verificado contra el hash con `PasswordHasher` → `Success`.
+  > ⚠️ La copia trae **los mismos usuarios y claves que producción**: si la demo se comparte con la
+  > comisión directiva, conviene crear un usuario propio de la demo en lugar de usar el admin real.
+- 🪤 **Trampa**: `INSERT ... EXEC ('RESTORE HEADERONLY/FILELISTONLY ...')` **no mapea** (el resultado
+  tiene 56 columnas y cambia entre versiones). Para mostrar el contenido de un `.bak` hay que ejecutar
+  el `RESTORE ...LISTONLY` directo (result set a la pantalla) y para comprobar que el archivo existe,
+  `master.dbo.xp_fileexist`.
