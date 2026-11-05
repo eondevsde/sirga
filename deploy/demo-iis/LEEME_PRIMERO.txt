@@ -47,12 +47,43 @@
  PASO 1 — CREAR LAS BASES DEMO (en el servidor)
 --------------------------------------------------------------------------------
 
- Abrir PowerShell en C:\Demo\instalador y editar la cabecera de 01_bases_demo.sql:
-    - @CarpetaBak         = 'C:\Demo\bak'
-    - @Simulacro          = 0     (primero probar con 1)
-    - @ConcederAppPools   = 1     (deja los permisos de IIS listos)
+ ANTES: los dos respaldos tienen que estar en C:\Demo\bak
+        SIRGA_DB_DEMO.bak   (61 MB)
+        SINDICATO_DEMO.bak  (655 MB)
 
-    sqlcmd -S localhost -E -b -I -i 01_bases_demo.sql
+ ELEGÍ UNO DE LOS TRES CAMINOS (hacen exactamente lo mismo):
+
+   A) SSMS (el más simple, sin comandos)
+      Abrir 01_bases_demo_SSMS.sql  ->  mirar la instancia arriba a la izquierda  ->  F5
+      Ya viene con todo configurado: no hay que editar nada.
+
+   B) PowerShell, un comando (tampoco hay que editar nada)
+      cd C:\Demo\instalador
+      .\crear-bases-demo.ps1              (simulacro: muestra qué haría)
+      .\crear-bases-demo.ps1 -Aplicar     (crea las bases)
+
+   C) sqlcmd a mano (lo que dice el cartel de abajo)
+      Editar la cabecera de 01_bases_demo.sql:
+         @CarpetaBak = 'C:\Demo\bak'      dónde están los .bak
+         @Simulacro  = 0                  crea de verdad (1 = sólo informa)
+         @ConcederAppPools = 1            deja los permisos de IIS listos
+      y ejecutar:
+         sqlcmd -S localhost -E -b -I -i 01_bases_demo.sql
+
+      Qué significa cada cosa:
+         -S localhost   a qué instancia conectarse (si es otra, cambiarlo)
+         -E             autenticación de Windows (con tu usuario)
+         -b             si hay un error, corta (no sigue a ciegas)
+         -I             QUOTED_IDENTIFIER ON (obligatorio: hay índices filtrados)
+         -i archivo     el archivo a ejecutar
+
+ QUÉ HACE CUALQUIERA DE LOS TRES
+    1. Controla que estén los dos respaldos y que haya espacio.
+    2. RESTAURA los dos respaldos: crea SIRGA_DB_DEMO y SINDICATO_DEMO
+       CON TODOS LOS DATOS (no crea bases vacías).
+    3. Las deja sanas: SIMPLE, sin auto-close ni auto-shrink.
+    4. Crea los usuarios de los tres App Pools de IIS (db_owner).
+    5. Verifica y muestra los conteos.
 
  Tiene que mostrar al final:
     SIRGA_DB_DEMO     252165   4543   28160
@@ -184,7 +215,9 @@
  ORDEN RÁPIDO (resumen)
 --------------------------------------------------------------------------------
 
-   01_bases_demo.sql      -> crea las bases DEMO y los permisos
+   01_bases_demo_SSMS.sql -> SSMS: abrir y F5 (crea las bases y los permisos)
+   crear-bases-demo.ps1   -> PowerShell: .\crear-bases-demo.ps1 -Aplicar
+   01_bases_demo.sql      -> el SQL de arriba, para editar la cabecera
    02_permisos.sql        -> sólo si hay que rehacer los permisos
    03_instalar_iis.ps1    -> sitios, HTTPS, configuración
    04_verificar.ps1       -> control final
