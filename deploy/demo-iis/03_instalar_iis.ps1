@@ -52,6 +52,28 @@ $sitios = @(
     @{ Nombre = "SIGESWEB_DEMO_CARNET";    App = "SIGESWEB_DEMO_CARNET";    Dominio = $DominioCarnet; Cert = $CertificadoCarnet; Dll = "SIGESWEB.Carnet.Api.dll" }
 )
 
+# ============================== GUARDA: SOLO DEMO =========================================
+# Este paquete es SÓLO para la demo. Se niega a tocar nada que no sea *_DEMO:
+#   - los tres nombres de sitio terminan en _DEMO (por construcción)
+#   - se aborta si alguna carpeta destino ya es la ruta física de un sitio que NO es demo
+#   - se aborta si la carpeta de sitios es la raíz de producción
+foreach ($s in $sitios) {
+    if ($s.Nombre -notmatch "_DEMO$") { throw "El sitio $($s.Nombre) no termina en _DEMO: este paquete es sólo para la demo." }
+    if (-not $DominioSirga -or $DominioSirga -notmatch "demo") { throw "El dominio '$DominioSirga' no parece de demo." }
+}
+
+foreach ($s in $sitios) {
+    $destino = Join-Path $Raiz $s.Nombre
+    $sitioExistente = Get-ChildItem IIS:\Sites -ErrorAction SilentlyContinue |
+                      Where-Object { $_.physicalPath -and ($_.physicalPath.TrimEnd('\') -eq $destino.TrimEnd('\')) }
+    foreach ($se in $sitioExistente) {
+        if ($se.Name -notmatch "_DEMO$") {
+            throw "La carpeta $destino es la ruta del sitio '$($se.Name)', que NO es demo. Se aborta para no tocar producción."
+        }
+    }
+}
+Write-Host "  guarda: sólo sitios y bases *_DEMO" -ForegroundColor Green
+# ==========================================================================================
 Titulo "MODO $(if ($Aplicar) { 'REAL' } else { 'SIMULACRO' })"
 Write-Host "  carpeta de sitios : $Raiz"
 Write-Host "  instancia SQL     : $InstanciaSQL  ($Autenticacion)"

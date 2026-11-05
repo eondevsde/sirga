@@ -62,10 +62,21 @@ IF @CarpetaDatos IS NULL
 IF RIGHT(@CarpetaDatos, 1) <> '\' SET @CarpetaDatos = @CarpetaDatos + '\';
 PRINT '  carpeta de datos: ' + @CarpetaDatos;
 
+-- Columna 3 = la base que se CREA (siempre _DEMO).
+-- Columnas 4 y 5 = los nombres lógicos que tienen los archivos ADENTRO del .bak: son los que pide
+--                   el MOVE. No son bases que se toquen; es sólo cómo se llaman los archivos
+--                   dentro del respaldo (el .bak de la demo se copió de una base que se llamaba así).
 DECLARE @trabajos TABLE (Orden int, Archivo nvarchar(200), Destino sysname, LogicoDatos sysname, LogicoLog sysname, MbAprox int);
 INSERT INTO @trabajos VALUES
     (1, N'SIRGA_DB_DEMO.bak',  N'SIRGA_DB_DEMO',  N'SIRGA_DB',  N'SIRGA_DB_log', 400),
     (2, N'SINDICATO_DEMO.bak', N'SINDICATO_DEMO', N'sindicato', N'sindicato_log', 2600);
+
+-- GUARDA: este script es SÓLO para la demo. Si algún nombre de destino no termina en _DEMO, se corta.
+IF EXISTS (SELECT 1 FROM @trabajos WHERE Destino NOT LIKE '%[_]DEMO')
+BEGIN
+    PRINT '  ERROR: hay un destino que no es _DEMO. Este script es sólo para la demo.';
+    RETURN;
+END
 
 DECLARE @archivo nvarchar(200), @destino sysname, @logicoDatos sysname, @logicoLog sysname, @mbAprox int;
 DECLARE @ruta nvarchar(500), @existe int, @sql nvarchar(max), @faltan bit = 0;
