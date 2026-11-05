@@ -13,7 +13,7 @@
 | # | Qué | Cómo se verifica |
 |---|---|---|
 | 1 | **.NET 10 ASP.NET Core Hosting Bundle** en el servidor | `dotnet --list-runtimes` muestra `Microsoft.AspNetCore.App 10.x` |
-| 2 | **SQL Server**: producción corre en **Express**, con el archivo en **9,0 GB** de un límite de **10 GB** | `SELECT name, size*8/1024 FROM sys.master_files` — si está cerca del techo, archivar antes |
+| 2 | **SQL Express**: el límite es **10 GB por base** (sólo datos, el log no cuenta). El archivo de producción ocupa 9,0 GB pero los datos reales son 1,9 GB (**83% espacio vacío**) | `script_sirga_db_compactar.sql` (simulacro primero) recupera ~7 GB. Ver `SELECT size*8/1024 FROM sys.master_files` |
 | 3 | **Cadenas de conexión de SIRGA en `appsettings.Production.json`**: `DefaultConnection`, `LegacyConnection` **y** `Legacy` (las tres) | Sin las tres, la app no arranca o escribe en la base equivocada |
 | 4 | **`ApiBaseUrl`** con la URL pública | `appsettings.json` |
 | 5 | **Respaldo completo** de las bases de producción | `BACKUP ... WITH COPY_ONLY` y verificar el archivo |
@@ -125,6 +125,16 @@ Los ítems informativos (no son problemas) que puede listar:
 ---
 
 ## 6. Aplicación: publicación y prueba
+
+Antes de publicar, correr el **chequeo pre-vuelo** (valida la carpeta publicada y las bases):
+
+```
+.\tools\pre-vuelo.ps1 -Publicacion "C:\Sitios\SIRGA" -Base SIRGA_DB -Legado Sindicato -EsProduccion
+```
+
+Detecta: `appsettings.Development.json` en la publicación, cadenas faltantes o que apuntan a la base
+de desarrollo, esquema incompleto (tablas/migraciones) y legado sin las tablas del carnet.
+**Sale con error si algo no está bien.**
 
 1. Publicar SIRGA (`dotnet publish -c Release`) a la carpeta del sitio.
 2. **Borrar `appsettings.Development.json`** de la carpeta publicada (apunta a la base de desarrollo).
