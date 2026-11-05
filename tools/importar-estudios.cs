@@ -19,6 +19,7 @@
 //   Sin --aplicar: corre TODO dentro de una transacción y la REVIERTE (simulacro real, se ve el
 //   informe con los mismos números que aplicaría).
 //   Con --aplicar: confirma los cambios.
+//   --empresas: además actualiza qué estudio maneja cada empresa y reconstruye su historial.
 //   --bloquear: además marca bloqueados los estudios que no figuran en el archivo (por defecto NO,
 //               para poder revisar primero el listado).
 // ==========================================================================================
@@ -36,6 +37,7 @@ var rutaCsv = args.Length > 0 ? args[0] : @"C:\Users\drop1\Downloads\Usuario est
 var baseDatos = args.Length > 1 ? args[1] : "SIRGA_DB_DEMO";
 var aplicar = args.Contains("--aplicar");
 var bloquear = args.Contains("--bloquear");
+var empresas = args.Contains("--empresas");
 const string ClaveNueva = "12345";
 
 if (!File.Exists(rutaCsv)) { Console.WriteLine($"ERROR: no existe el archivo {rutaCsv}"); return 2; }
@@ -185,6 +187,110 @@ if (bloquear)
     }
 }
 
+// ---------------------------------------------------------------- fase 2: empresas y traspasos
+var empresasActualizadas = 0;
+var empresasReasignadas = 0;
+var empresasSinMatch = 0;
+var historialInsertado = 0;
+var empresasConTraspasos = 0;
+
+if (empresas)
+{
+    const string Marca = "Importado del listado de empresas del sindicato";
+
+    // Mapa: nombre normalizado del estudio -> Id (ya creados/actualizados arriba)
+    var mapa = new Dictionary<string, int>(StringComparer.Ordinal);
+    using (var cmd = new SqlCommand("SELECT Id, Name FROM AccountingStudios", conn, tx))
+    using (var r = cmd.ExecuteReader())
+        while (r.Read()) mapa[Normalizar(r.GetString(1))] = r.GetInt32(0);
+
+    // Por CUIT: la secuencia de estudios con su fecha (la más reciente es la actual)
+    foreach (var grupo in filas.Where(f => f.Estudio.Length > 0 && !EsCuit(f.Estudio) && f.Fecha is not null)
+                               .GroupBy(f => f.Cuit))
+    {
+        var pasos = grupo
+            .GroupBy(f => Normalizar(f.Estudio))
+            .Select(s => (Clave: s.Key, Fecha: s.Max(x => x.Fecha!.Value)))
+            .Where(s => mapa.ContainsKey(s.Clave))
+            .OrderBy(s => s.Fecha)
+            .ToList();
+        if (pasos.Count == 0) continue;
+
+        var empresaId = BuscarEmpresa(conn, tx, grupo.Key);
+        if (empresaId is null) { empresasSinMatch++; continue; }
+
+        var actual = mapa[pasos[^1].Clave];
+        var anterior = StudioActual(conn, tx, empresaId.Value);
+
+        using (var upd = new SqlCommand("UPDATE Companies SET AccountingStudioId = @e WHERE Id = @id", conn, tx))
+        {
+            upd.Parameters.AddWithValue("@e", actual);
+            upd.Parameters.AddWithValue("@id", empresaId.Value);
+            upd.ExecuteNonQuery();
+        }
+        empresasActualizadas++;
+        if (anterior != actual) empresasReasignadas++;
+        if (pasos.Count > 1) empresasConTraspasos++;
+
+        // Historial: se rehace el tramo de este importador (idempotente por la marca).
+        // El índice único es FILTRADO ([To] IS NULL): sólo puede haber UNA fila abierta por empresa.
+        using (var del = new SqlCommand("DELETE FROM CompanyStudioHistories WHERE CompanyId = @id AND Reason = @m", conn, tx))
+        {
+            del.Parameters.AddWithValue("@id", empresaId.Value);
+            del.Parameters.AddWithValue("@m", Marca);
+            del.ExecuteNonQuery();
+        }
+
+        var ultimaFecha = pasos[^1].Fecha;
+        var abierta = FilaAbierta(conn, tx, empresaId.Value);
+        var insertarUltimo = true;
+
+        if (abierta is { } a)
+        {
+            if (a.Estudio == actual)
+            {
+                // Ya hay una fila abierta para el estudio actual: se corrige la fecha y no se duplica.
+                using var upd = new SqlCommand("UPDATE CompanyStudioHistories SET [From] = @f WHERE Id = @id", conn, tx);
+                upd.Parameters.AddWithValue("@f", ultimaFecha);
+                upd.Parameters.AddWithValue("@id", a.Id);
+                upd.ExecuteNonQuery();
+                insertarUltimo = false;
+            }
+            else
+            {
+                // Se cierra la anterior justo cuando empieza la nueva.
+                using var upd = new SqlCommand("UPDATE CompanyStudioHistories SET [To] = @f WHERE Id = @id", conn, tx);
+                upd.Parameters.AddWithValue("@f", ultimaFecha);
+                upd.Parameters.AddWithValue("@id", a.Id);
+                upd.ExecuteNonQuery();
+            }
+        }
+
+        for (var i = 0; i < pasos.Count; i++)
+        {
+            if (i == pasos.Count - 1 && !insertarUltimo) break;
+            using var ins = new SqlCommand(@"
+                INSERT INTO CompanyStudioHistories (CompanyId, AccountingStudioId, [From], [To], AuthorizedByUsername, Reason)
+                VALUES (@id, @estudio, @desde, @hasta, @quien, @m)", conn, tx);
+            ins.Parameters.AddWithValue("@id", empresaId.Value);
+            ins.Parameters.AddWithValue("@estudio", mapa[pasos[i].Clave]);
+            ins.Parameters.AddWithValue("@desde", pasos[i].Fecha);
+            ins.Parameters.AddWithValue("@hasta", (object?) (i + 1 < pasos.Count ? pasos[i + 1].Fecha : null) ?? DBNull.Value);
+            ins.Parameters.AddWithValue("@quien", "IMPORTACION");
+            ins.Parameters.AddWithValue("@m", Marca);
+            ins.ExecuteNonQuery();
+            historialInsertado++;
+        }
+    }
+
+    Console.WriteLine();
+    Console.WriteLine("=== EMPRESAS ===");
+    Console.WriteLine($"Empresas actualizadas   : {empresasActualizadas}");
+    Console.WriteLine($"  cambiaron de estudio  : {empresasReasignadas}");
+    Console.WriteLine($"  con traspasos         : {empresasConTraspasos}");
+    Console.WriteLine($"CUIT del archivo que no están en SIRGA: {empresasSinMatch}");
+    Console.WriteLine($"Renglones de historial  : {historialInsertado}");
+}
 // ---------------------------------------------------------------- cierre
 if (aplicar)
 {
@@ -403,6 +509,32 @@ static void AsegurarUsuario(SqlConnection conn, SqlTransaction tx, PasswordHashe
     rol.Parameters.AddWithValue("@u", id);
     rol.Parameters.AddWithValue("@r", rolId);
     rol.ExecuteNonQuery();
+}
+
+static int? BuscarEmpresa(SqlConnection conn, SqlTransaction tx, string cuit)
+{
+    using var cmd = new SqlCommand(
+        "SELECT TOP 1 Id FROM Companies WHERE NormalizedCuit = @c OR REPLACE(REPLACE(Cuit,'-',''),' ','') = @c ORDER BY Id", conn, tx);
+    cmd.Parameters.AddWithValue("@c", cuit);
+    var valor = cmd.ExecuteScalar();
+    return valor is null || valor == DBNull.Value ? null : Convert.ToInt32(valor);
+}
+
+static (int Id, int Estudio)? FilaAbierta(SqlConnection conn, SqlTransaction tx, int empresaId)
+{
+    using var cmd = new SqlCommand(
+        "SELECT TOP 1 Id, AccountingStudioId FROM CompanyStudioHistories WHERE CompanyId = @id AND [To] IS NULL", conn, tx);
+    cmd.Parameters.AddWithValue("@id", empresaId);
+    using var r = cmd.ExecuteReader();
+    return r.Read() ? (r.GetInt32(0), r.GetInt32(1)) : null;
+}
+
+static int? StudioActual(SqlConnection conn, SqlTransaction tx, int empresaId)
+{
+    using var cmd = new SqlCommand("SELECT AccountingStudioId FROM Companies WHERE Id = @id", conn, tx);
+    cmd.Parameters.AddWithValue("@id", empresaId);
+    var valor = cmd.ExecuteScalar();
+    return valor is null || valor == DBNull.Value ? null : Convert.ToInt32(valor);
 }
 
 static string? Recortar(string? valor, int largo)
