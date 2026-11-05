@@ -94,11 +94,25 @@ public class LegacyDeclarationWriter : ILegacyDeclarationWriter
           "SIGES calcula el aporte desde ddjj y leeria otro numero.";
   }
 
+  /// <summary>
+  /// Indica si la columna Id de esa tabla es IDENTITY. En PRODUCCIÓN `ddjj` y `ddjjt` la tienen como
+  /// IDENTITY (las numera SQL solo), pero la copia de desarrollo no. Si es IDENTITY no se puede insertar
+  /// el Id a mano: SQL responde error 544. Por eso la sentencia se arma según el caso.
+  /// </summary>
+  private static async Task<bool> IdEsIdentidadAsync(
+      SqlConnection conexion, SqlTransaction? transaccion, string tabla, CancellationToken ct)
+  {
+    var sql = $"SELECT COLUMNPROPERTY(OBJECT_ID(N'dbo.{tabla}'), N'Id', 'IsIdentity');";
+    await using var comando = new SqlCommand(sql, conexion, transaccion);
+    var valor = await comando.ExecuteScalarAsync(ct);
+    return valor is not null && valor != DBNull.Value && Convert.ToInt32(valor) == 1;
+  }
+
   private static async Task<string> EscribirCabeceraAsync(
       SqlConnection conexion, SqlTransaction transaccion, DeclaracionLegado declaracion, DateTime fecha, CancellationToken ct)
   {
     // Idempotente: si ya existe la fila de ese (CUIT, periodo, rect) se actualiza, no se duplica.
-    const string sql = """
+    var sql = """
         IF EXISTS (SELECT 1 FROM ddjjt WHERE CUIT_STR = @cuit AND periodo = @periodo AND rect = @rect)
         BEGIN
             UPDATE ddjjt
@@ -114,6 +128,14 @@ public class LegacyDeclarationWriter : ILegacyDeclarationWriter
             SELECT 'creada';
         END
         """;
+
+    // En producción Id es IDENTITY: no se puede insertar a mano (error 544).
+    if (await IdEsIdentidadAsync(conexion, transaccion, "ddjjt", ct))
+    {
+      sql = sql
+          .Replace("INSERT INTO ddjjt (Id, periodo", "INSERT INTO ddjjt (periodo")
+          .Replace("VALUES ((SELECT ISNULL(MAX(Id), 0) + 1 FROM ddjjt WITH (UPDLOCK, HOLDLOCK)), @periodo", "VALUES (@periodo");
+    }
 
     await using var comando = new SqlCommand(sql, conexion, transaccion);
     comando.Parameters.AddWithValue("@cuit", declaracion.Cuit);
@@ -132,7 +154,7 @@ public class LegacyDeclarationWriter : ILegacyDeclarationWriter
   {
     // `ddjj` exige las siete banderas de bit (no tienen default). `item1` = 1 (aporte de ley aplica) y
     // `item2` = 1 si es socio, que es lo que SIGES usa para separar empleados de socios.
-    const string sql = """
+    var sql = """
         IF EXISTS (SELECT 1 FROM ddjj WHERE CUIT_STR = @cuit AND CUIL_STR = @cuil AND periodo = @periodo AND rect = @rect)
         BEGIN
             UPDATE ddjj SET impo = @impo, impoaux = 0, item1 = 1, item2 = @esSocio
@@ -146,6 +168,14 @@ public class LegacyDeclarationWriter : ILegacyDeclarationWriter
                     1, @esSocio, 0, 0, 0, 0, 0);
         END
         """;
+
+    // En producción Id es IDENTITY: no se puede insertar a mano (error 544).
+    if (await IdEsIdentidadAsync(conexion, transaccion, "ddjj", ct))
+    {
+      sql = sql
+          .Replace("INSERT INTO ddjj (Id, periodo", "INSERT INTO ddjj (periodo")
+          .Replace("VALUES ((SELECT ISNULL(MAX(Id), 0) + 1 FROM ddjj WITH (UPDLOCK, HOLDLOCK)), @periodo", "VALUES (@periodo");
+    }
 
     var escritos = 0;
     foreach (var detalle in declaracion.Detalles)
