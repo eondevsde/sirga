@@ -936,7 +936,7 @@ public static class Program
         // Empresas de ddjj no presentes
         using var src = Db.Open(Db.LegacyCs);
         using (var cmd = new SqlCommand(
-            "SELECT DISTINCT CUIT_STR FROM ddjj WHERE CUIT_STR NOT IN (SELECT MEEMP_CUIT_STR FROM fotos_.maeemp)", src) { CommandTimeout = 600 })
+            "SELECT DISTINCT CUIT_STR FROM ddjj WHERE CUIT_STR NOT IN (SELECT MEEMP_CUIT_STR FROM fotos_.maeemp) UNION SELECT DISTINCT CUIT_STR FROM ddjjt WHERE CUIT_STR NOT IN (SELECT MEEMP_CUIT_STR FROM fotos_.maeemp)", src) { CommandTimeout = 600 })
         using (var r = cmd.ExecuteReader())
         {
             while (r.Read())
@@ -1070,16 +1070,16 @@ public static class Program
                 if (cuitP.Length > 0) pagadasLegado.Add(cuitP + "|" + Db.Str(rP["p"]));
             }
 
-        var sirga = new Dictionary<string, (int Id, decimal Total, bool Pagada, bool Rect)>(StringComparer.Ordinal);
+        var sirga = new Dictionary<string, (int Id, decimal Total, bool Pagada, bool Rect, int Estado)>(StringComparer.Ordinal);
         using (var t = Db.Open(Db.TargetCs))
         using (var cmd = new SqlCommand("""
-            SELECT d.Id, d.Period, REPLACE(REPLACE(c.Cuit,'-',''),' ','') cuit, d.TotalAmount, d.PaymentDate, d.IsRectification
+            SELECT d.Id, d.Period, REPLACE(REPLACE(c.Cuit,'-',''),' ','') cuit, d.TotalAmount, d.PaymentDate, d.IsRectification, d.Status
             FROM Declarations d JOIN Companies c ON c.Id = d.CompanyId
             """, t) { CommandTimeout = 900 })
         using (var r = cmd.ExecuteReader())
             while (r.Read())
                 sirga[Db.Str(r["cuit"]) + "|" + Db.Str(r["Period"])] =
-                    (r.GetInt32(0), Db.Dec(r["TotalAmount"]), r["PaymentDate"] != DBNull.Value, Db.Bit(r["IsRectification"]));
+                    (r.GetInt32(0), Db.Dec(r["TotalAmount"]), r["PaymentDate"] != DBNull.Value, Db.Bit(r["IsRectification"]), Db.Int(r["Status"]));
         Log.Write($"  SIRGA : {sirga.Count} cabeceras");
 
         var faltanEnSirga = legado.Keys.Where(k => !sirga.ContainsKey(k)).ToList();
@@ -1090,7 +1090,14 @@ public static class Program
 
         Log.Section("1) CABECERAS DDJJ (ddjjt vs Declarations)");
         Log.Write($"  En el legado y NO en SIRGA : {faltanEnSirga.Count}");
-        Log.Write($"  En SIRGA y NO en el legado : {sobranEnSirga.Count}");
+        var borradores = 0;
+        var sobrantesReales = new List<string>();
+        foreach (var k in sobranEnSirga)
+        {
+            if (sirga.TryGetValue(k, out var s) && s.Estado == 1) borradores++;   // Status 1 = borrador
+            else sobrantesReales.Add(k);
+        }
+        Log.Write($"  En SIRGA y NO en el legado : {sobrantesReales.Count}  (+ {borradores} borradores de SIRGA [informativo])");
         Log.Write($"  Pagadas en legado / impagas en SIRGA : {impagas.Count}");
         Log.Write($"  Pagadas en SIRGA / impagas en legado : {pagadasDeMas.Count}");
         Log.Write($"  Rectificadas en legado sin marca en SIRGA : {rectMal.Count}");
@@ -1122,18 +1129,23 @@ public static class Program
                 }
             }
 
+        // Se compara SIEMPRE la versión más alta de SIRGA contra la rectificativa más alta del legado:
+        // una rectificación es una fila más del mismo período, así que sumar todas las versiones
+        // daba falsos positivos. Es el mismo criterio con el que el paso de detalles repara.
         var renSirga = new Dictionary<string, int>(StringComparer.Ordinal);
         using (var t = Db.Open(Db.TargetCs))
         using (var cmd = new SqlCommand("""
-            SELECT REPLACE(REPLACE(c.Cuit,'-',''),' ','') cuit, d.Period, COUNT(dd.Id) n
-            FROM Declarations d
-            JOIN Companies c ON c.Id = d.CompanyId
-            LEFT JOIN DeclarationDetails dd ON dd.RegistryId = d.Id
-            GROUP BY REPLACE(REPLACE(c.Cuit,'-',''),' ',''), d.Period
+            SELECT cuit, periodo, n FROM (
+              SELECT REPLACE(REPLACE(c.Cuit,'-',''),' ','') cuit, d.Period periodo,
+                     (SELECT COUNT(*) FROM DeclarationDetails dd WHERE dd.RegistryId = d.Id) n,
+                     ROW_NUMBER() OVER (PARTITION BY REPLACE(REPLACE(c.Cuit,'-',''),' ',''), d.Period
+                                        ORDER BY d.VersionNumber DESC) rn
+              FROM Declarations d JOIN Companies c ON c.Id = d.CompanyId
+            ) x WHERE rn = 1
             """, t) { CommandTimeout = 900 })
         using (var r = cmd.ExecuteReader())
             while (r.Read())
-                renSirga[Db.Str(r["cuit"]) + "|" + Db.Str(r["Period"])] = Db.Int(r["n"]);
+                renSirga[Db.Str(r["cuit"]) + "|" + Db.Str(r["periodo"])] = Db.Int(r["n"]);
 
         var sinRenglones = renSirga.Count(kv => kv.Value == 0);
         var distinto = renLegado.Where(kv => renSirga.TryGetValue(kv.Key, out var n) && n != kv.Value)
@@ -1171,7 +1183,7 @@ public static class Program
         Log.Section("3) EMPLEADOS (fotos_.maesoc vs Employees)");
         Log.Write($"  Socios en el legado : {socios.Count} | Empleados en SIRGA : {empleados.Count}");
         Log.Write($"  Socios SIN empleado en SIRGA : {sociosSinEmpleado.Count}");
-        Log.Write($"  Empleados SIN socio en el legado : {empleadosSinSocio.Count}");
+        Log.Write($"  Empleados SIN ficha en el padrón (sólo están en DDJJ): {empleadosSinSocio.Count}  [informativo]");
         foreach (var s in sociosSinEmpleado.Take(5)) Log.Write($"     falta empleado: {s}");
 
         // ---------------- asignaciones (socemp vs Assignments) ----------------
@@ -1183,7 +1195,7 @@ public static class Program
             {
                 var cuil = Db.PadCuit(Db.Str(r[0]));
                 var cuit = Db.PadCuit(Db.Str(r[1]));
-                if (cuil.Length > 0 && cuit.Length > 0) paresLegado.Add(cuil + "|" + cuit);
+                if (cuil.Length > 0 && cuit.Length > 0 && cuit != "99999999999") paresLegado.Add(cuil + "|" + cuit);
             }
 
         var paresSirga = new HashSet<string>(StringComparer.Ordinal);
@@ -1211,12 +1223,22 @@ public static class Program
         foreach (var p in paresFaltan.Take(5)) Log.Write($"     falta asignación: {p}");
 
         Log.Section("RESUMEN");
-        var problemas = faltanEnSirga.Count + sobranEnSirga.Count + impagas.Count + pagadasDeMas.Count + rectMal.Count
-                      + sinRenglones + distinto.Count + sociosSinEmpleado.Count + empleadosSinSocio.Count
-                      + paresFaltan.Count + paresSobran.Count;
-        Log.Write(problemas == 0
-            ? "  TODO COINCIDE entre SIRGA y el legado."
-            : $"  Diferencias encontradas: {problemas} (ver el detalle arriba)");
+        var problemas = faltanEnSirga.Count + sobrantesReales.Count + impagas.Count + pagadasDeMas.Count + rectMal.Count
+                      + distinto.Count + sociosSinEmpleado.Count + paresFaltan.Count;
+        var informativos = sinRenglones + borradores + empleadosSinSocio.Count + paresSobran.Count;
+
+        if (problemas == 0)
+            Log.Write("  CONSISTENTE: no hay diferencias que requieran accion.");
+        else
+            Log.Write($"  PROBLEMAS A RESOLVER: {problemas} (ver el detalle arriba)");
+
+        Log.Write($"  Informativo (no requiere accion): {informativos}");
+        if (sinRenglones > 0) Log.Write($"     {sinRenglones} declaraciones sin renglones: el legado tampoco los tiene (períodos viejos)");
+        if (empleadosSinSocio.Count > 0) Log.Write($"     {empleadosSinSocio.Count} empleados que sólo existen en las DDJJ del legado (sin ficha en el padrón)");
+        if (borradores > 0) Log.Write($"     {borradores} borradores de SIRGA que todavía no se presentaron");
+        if (paresFaltan.Count > 0) Log.Write($"     {paresFaltan.Count} pares socio-empresa del legado sin asignación (revisar: pueden ser socios sin empresa real)");
+        if (paresSobran.Count > 0) Log.Write($"     {paresSobran.Count} asignaciones de SIRGA que no están en el legado");
+        if (faltanEnSirga.Count > 0) Log.Write($"     {faltanEnSirga.Count} declaraciones del legado sin empresa en SIRGA");
     }
     // ---------- HELPERS ----------
     private static string Trunc(string s, int max) => s.Length <= max ? s : s[..max];
