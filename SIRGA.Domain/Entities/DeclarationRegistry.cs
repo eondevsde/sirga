@@ -35,6 +35,13 @@ public class DeclarationRegistry
   /// anterior no se pagó, se debe el total nuevo completo. Ver <c>DeclarationService</c>.
   /// </summary>
   public decimal PreviousAmount { get; set; }
+
+  /// <summary>
+  /// Declaración **histórica**: vino del sistema anterior (legado `ddjjt`) al migrarse, no se presentó
+  /// desde SIRGA. No tiene la propuesta de escala ni la diferencia (esos datos nacieron con SIRGA), y sus
+  /// importes son los que el sindicato tenía registrados. Sirve para no confundirla con una DDJJ propia.
+  /// </summary>
+  public bool IsHistorical { get; set; }
   public decimal BalanceAmount { get; set; }   // Saldo Deudor/Acreedor (Diferencia)
 
   public DateTime SubmissionDate { get; set; }

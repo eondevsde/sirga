@@ -23,7 +23,16 @@ public static class Program
 
     public static async Task<int> Main(string[] args)
     {
-        var step = args.Length > 0 ? args[0].ToLowerInvariant() : "all";
+        var step = args.Length > 0 && !args[0].StartsWith("--") ? args[0].ToLowerInvariant() : "all";
+
+        // Parámetros opcionales: --origen <base o cadena> --destino <base o cadena> --simulacro
+        for (var i = 0; i < args.Length; i++)
+        {
+            var sig = i + 1 < args.Length ? args[i + 1] : null;
+            if (args[i] is "--origen" or "--legado" && sig is not null) { Db.LegacyCs = sig.Contains('=') ? sig : Db.Local(sig); i++; }
+            else if (args[i] == "--destino" && sig is not null) { Db.TargetCs = sig.Contains('=') ? sig : Db.Local(sig); i++; }
+            else if (args[i] == "--simulacro") Db.Simulacro = true;
+        }
         Console.OutputEncoding = Encoding.UTF8;
         Log.Section($"SIRGA Migration - step={step}");
 
@@ -41,6 +50,7 @@ public static class Program
                 case "assignments": Assignments(); break;
                 case "studios": Studios(); break;
                 case "declarations": Declarations(); break;
+                case "sync": CargarMapasDesdeDestino(); Declarations(); Details(); break;
                 case "details": Details(); break;
                 case "finalize": FinalizeTotals(); break;
                 case "reconcile": Reconcile(); break;
@@ -467,9 +477,73 @@ public static class Program
     }
 
     // ---------- DECLARACIONES ----------
+    /// <summary>
+    /// Carga en memoria los mapas que necesitan las declaraciones, LEYENDO EL DESTINO (no el legado).
+    /// Se usa en el paso `sync`: así se pueden traer sólo las DDJJ que faltan sin volver a correr los
+    /// pasos que insertan (empresas, empleados, asignaciones), que no son idempotentes.
+    /// </summary>
+    private static void CargarMapasDesdeDestino()
+    {
+        Log.Section("Sync: leyendo empresas, asignaciones y sindicato del destino");
+
+        using var conn = Db.Open(Db.TargetCs);
+
+        using (var cmd = new SqlCommand("SELECT Id, Cuit FROM Companies", conn) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuit = Db.PadCuit(Db.Str(r["Cuit"]));
+                if (cuit.Length > 0) _companyByCuit[cuit] = r.GetInt32(0);
+            }
+        Log.Write($"  empresas: {_companyByCuit.Count}");
+
+        using (var cmd = new SqlCommand("""
+            SELECT a.Id, e.Dni, c.Cuit
+            FROM Assignments a
+            JOIN Employees e ON e.Id = a.EmployeeId
+            JOIN Companies c ON c.Id = a.CompanyId
+            """, conn) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r["Dni"]));
+                var cuit = Db.PadCuit(Db.Str(r["Cuit"]));
+                if (cuil.Length > 0 && cuit.Length > 0) _assignmentByKey[cuil + "|" + cuit] = r.GetInt32(0);
+            }
+        Log.Write($"  asignaciones: {_assignmentByKey.Count}");
+        using (var cmd = new SqlCommand("SELECT Id, Dni FROM Employees", conn) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r["Dni"]));
+                if (cuil.Length > 0) _employeeByCuil[cuil] = r.GetInt32(0);
+            }
+        Log.Write($"  empleados: {_employeeByCuil.Count}");
+
+        using (var cmd = new SqlCommand("SELECT TOP 1 Id, LawContributionPercentage, UnionMemberPercentage FROM Unions ORDER BY Id", conn))
+        using (var r = cmd.ExecuteReader())
+            if (r.Read())
+            {
+                _unionId = r.GetInt32(0);
+                _lawPct = Db.Dec(r["LawContributionPercentage"]);
+                _memberPct = Db.Dec(r["UnionMemberPercentage"]);
+                Log.Write($"  sindicato: {_unionId} (ley {_lawPct}% / socio {_memberPct}%)");
+            }
+    }
     private static void Declarations()
     {
-        Log.Section("Declarations: desde ddjjt (dedupe por periodo+cuit, futuras excluidas)");
+        Log.Section("Declarations: desde ddjjt (dedupe por periodo+cuit, futuras excluidas)" +
+                    (Db.Simulacro ? "  [SIMULACRO: no escribe]" : ""));
+
+        // Lo que YA existe en el destino. El ETL original insertaba a ciegas: si se volvia a correr,
+        // duplicaba todo. Ahora se saltea lo que ya esta y se registra su Id para el paso de detalles.
+        var existentes = new Dictionary<string, int>(StringComparer.Ordinal);
+        using (var t = Db.Open(Db.TargetCs))
+        using (var tc = new SqlCommand("SELECT Id, CompanyId, Period FROM Declarations", t) { CommandTimeout = 900 })
+        using (var tr = tc.ExecuteReader())
+            while (tr.Read())
+                existentes[$"{tr.GetInt32(1)}|{tr.GetString(2)}"] = tr.GetInt32(0);
+        Log.Write($"  ya en el destino: {existentes.Count} declaraciones");
         using var src = Db.Open(Db.LegacyCs);
         using var cmd = new SqlCommand("""
             SELECT CUIT_STR, periodo, estado, rect, fpres, fpago, titem1, titem2, titem3
@@ -482,6 +556,7 @@ public static class Program
             """, src) { CommandTimeout = 900 };
         using var r = cmd.ExecuteReader();
         var count = 0;
+        var yaEstaban = 0;
         while (r.Read())
         {
             var cuit = Db.PadCuit(Db.Str(r["CUIT_STR"]));
@@ -492,6 +567,16 @@ public static class Program
             var key = cuit + "|" + period;
             var estado = Convert.ToInt32(r["estado"]);
             var rect = Convert.ToInt32(r["rect"]);
+
+            // Ya existe en el destino (Migrate() corrido antes): se saltea, pero se registra su Id
+            // para que el paso de detalles no la vuelva a procesar.
+            if (existentes.TryGetValue(compId + "|" + period, out var existenteId))
+            {
+                _registryByKey[key] = existenteId;
+                _rectByKey[key] = rect;
+                yaEstaban++;
+                continue;
+            }
             var fpres = Db.Dt(r["fpres"]) ?? periodo;
             var fpago = Db.Dt(r["fpago"]);
             var titem1 = Db.Dec(r["titem1"]);
@@ -500,13 +585,24 @@ public static class Program
             var total = Math.Round(titem1 + titem2 + titem3, 2);
             int status = MapStatus(estado, fpago);
             var balance = fpago.HasValue ? 0m : total;
+
+            if (Db.Simulacro)
+            {
+                _registryByKey[key] = -1;   // -1 = se insertaria: permite contar los detalles en simulacro
+                _rectByKey[key] = rect;
+                count++;
+                continue;
+            }
+
             using var conn = Db.Open(Db.TargetCs);
             using var ins = new SqlCommand("""
                 INSERT INTO Declarations (Period, CompanyId, UnionId, Status, TotalAmount, IsRectification,
                                           SubmissionDate, ExternalReference, MercadoPagoPaymentId, PaymentDate,
-                                          PresencialBarCode, PresencialReference, BalanceAmount, PreviousAmount)
+                                          PresencialBarCode, PresencialReference, BalanceAmount, PreviousAmount,
+                                          VersionNumber, IsHistorical)
                 OUTPUT INSERTED.Id
-                VALUES (@period, @comp, @union, @status, @total, @rect, @fpres, NULL, NULL, @fpago, NULL, NULL, @balance, 0)
+                VALUES (@period, @comp, @union, @status, @total, @rect, @fpres, NULL, NULL, @fpago, NULL, NULL, @balance, 0,
+                        1, 1)
                 """, conn);
             ins.Parameters.AddWithValue("@period", period);
             ins.Parameters.AddWithValue("@comp", compId);
@@ -521,7 +617,7 @@ public static class Program
             _rectByKey[key] = rect;
             count++;
         }
-        Log.Write($"Declaraciones: {count}");
+        Log.Write($"Declaraciones nuevas: {count} | ya estaban (no se tocan): {yaEstaban}");
     }
 
     private static int MapStatus(int estado, DateTime? fpago)
@@ -534,7 +630,15 @@ public static class Program
     // ---------- DETALLES ----------
     private static void Details()
     {
-        Log.Section("DeclarationDetails: desde ddjj (bulk)");
+        Log.Section("DeclarationDetails: desde ddjj (bulk)" + (Db.Simulacro ? "  [SIMULACRO: no escribe]" : ""));
+
+        // Declaraciones que YA tienen renglones: no se vuelven a cargar (idempotencia).
+        var conDetalle = new HashSet<int>();
+        using (var t = Db.Open(Db.TargetCs))
+        using (var tc = new SqlCommand("SELECT DISTINCT RegistryId FROM DeclarationDetails", t) { CommandTimeout = 900 })
+        using (var tr = tc.ExecuteReader())
+            while (tr.Read()) conDetalle.Add(tr.GetInt32(0));
+        Log.Write($"  declaraciones con renglones: {conDetalle.Count}");
         // Empleados/empresas/asignaciones faltantes en ddjj pero no en maestros
         EnsureMissingEntities();
 
@@ -562,7 +666,8 @@ public static class Program
             var rect = Convert.ToInt32(reader["rect"]);
             if (cuil.Length == 0 || cuit.Length == 0) continue;
             var regKey = cuit + "|" + periodo.ToString("yyyy-MM");
-            if (!_registryByKey.TryGetValue(regKey, out var regId)) continue;
+            if (!_registryByKey.TryGetValue(regKey, out var regId) || regId == 0) continue;
+            if (regId > 0 && conDetalle.Contains(regId)) continue;
             if (_rectByKey.TryGetValue(regKey, out var cabRect) && rect != cabRect) continue;
             var isVoluntary = Convert.ToBoolean(reader["item2"]);
             var assKey = cuil + "|" + cuit;
@@ -579,12 +684,12 @@ public static class Program
             total++;
             if (total % 50000 == 0)
             {
-                Db.BulkInsert(target, "DeclarationDetails", dt);
+                if (!Db.Simulacro) Db.BulkInsert(target, "DeclarationDetails", dt);
                 Log.Write($"  detalles acumulados: {total}");
                 dt.Clear();
             }
         }
-        if (dt.Rows.Count > 0) Db.BulkInsert(target, "DeclarationDetails", dt);
+        if (dt.Rows.Count > 0 && !Db.Simulacro) Db.BulkInsert(target, "DeclarationDetails", dt);
         Log.Write($"Detalles totales: {total}");
     }
 

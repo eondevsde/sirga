@@ -6,8 +6,20 @@ namespace SIRGA.Migration;
 
 public static class Db
 {
-    public const string LegacyCs = "Server=localhost;Database=Sindicato;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
-    public const string TargetCs = "Server=localhost;Database=SIRGA_DB;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
+    // Las cadenas se pueden cambiar por línea de comandos (--origen / --destino), así el mismo ETL
+    // sirve para la copia de producción, para la demo y para producción sin recompilar.
+    public static string LegacyCs { get; set; } =
+        "Server=localhost;Database=Sindicato;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
+
+    public static string TargetCs { get; set; } =
+        "Server=localhost;Database=SIRGA_DB;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
+
+    /// <summary>Si es true, no escribe nada: sólo cuenta lo que haría (para revisar antes de aplicar).</summary>
+    public static bool Simulacro { get; set; }
+
+    /// <summary>Arma una cadena para una base local con autenticación de Windows.</summary>
+    public static string Local(string baseDatos) =>
+        $"Server=localhost;Database={baseDatos};Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
 
     public static SqlConnection Open(string cs)
     {

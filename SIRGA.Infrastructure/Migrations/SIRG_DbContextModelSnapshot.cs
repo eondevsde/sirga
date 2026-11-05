@@ -707,6 +707,9 @@ namespace SIRGA.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("IsHistorical")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsRectification")
                         .HasColumnType("bit");
 
