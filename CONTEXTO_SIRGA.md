@@ -1654,3 +1654,58 @@ sobre una vacía falla por lo de arriba.
   tiene 56 columnas y cambia entre versiones). Para mostrar el contenido de un `.bak` hay que ejecutar
   el `RESTORE ...LISTONLY` directo (result set a la pantalla) y para comprobar que el archivo existe,
   `master.dbo.xp_fileexist`.
+
+## 10.20 Kit de demo y de salida a producción (2026-11-05)
+
+### Para la demo (presentación)
+
+| Archivo | Para qué |
+|---|---|
+| `tools\levantar-demo.ps1` | Publica y levanta SIRGA (5200) contra `SIRGA_DB_DEMO` + `SINDICATO_DEMO`, y opcionalmente SIGESWEB (5300). **Escribe la configuración demo** en `appsettings.json` y `appsettings.Production.json` porque el `publish` la pisa con la del repo (que apunta a `SIRGA_DB`). Verifica raíz, CSS, login y **a qué base se conectó**. |
+| `tools\restaurar-demo.ps1` | Vuelve las dos bases demo al respaldo del `2026-11-05` en ~2 minutos. **Recrea el usuario SQL `sirga_local`** en `SINDICATO_DEMO` (la restauración lo borra y SIGESWEB lo necesita). |
+| `GUION_DEMO.md` | Recorrido sugerido, credenciales, qué no mostrar y qué hacer si algo falla. |
+| `C:\Proyectos\_RESPALDOS\demo-2026-11-05\` | `SIRGA_DB_DEMO.bak` (61 MB) y `SINDICATO_DEMO.bak` (655 MB). |
+
+**Credenciales de la demo**: `admin@sirga.com` / `12345` (administrador) y cualquier email de estudio / `12345`.
+
+### Para producción
+
+| Archivo | Para qué |
+|---|---|
+| `PLAN_SALIDA_A_PRODUCCION.md` | Procedimiento completo y criterio de aceptación. |
+| `tools\salida-produccion.ps1` | Ciclo completo en un comando (`companies → employees → assignments → align → sync ×2 → check`). Sin `-Aplicar` es simulacro. **Falla si el verificador no dice CONSISTENTE.** Probado: 65 s simulacro, 288 s real, conteos idénticos. |
+| `tools\pre-vuelo.ps1` | Valida publicación y bases: `appsettings.Development.json` presente, cadenas faltantes o que apuntan a `SIRGA_DB`/`Sindicato`/`SindicatoProd`, esquema (59 tablas / 57 migraciones), legado sin las 14 tablas del carnet. Sale con código 1. |
+| `script_sirga_db_produccion_02_restaurar_esquema.sql` | Restaura `SIRGA_DB_ESQUEMA_VACIA.bak` (2,7 MB: 59 tablas, 57 migraciones, **0 filas**) en una base nueva. Es la única forma: la cadena de migraciones no crea una base desde cero. |
+| `script_sirga_db_compactar.sql` | Devuelve el espacio vacío del archivo (el de producción: 9,0 GB de archivo contra 1,9 GB de datos). |
+| `SIRGA_DB_ESQUEMA_VACIA.bak` | En `C:\Proyectos\_PUBLISH\2026-11-04\SQL\`. |
+
+### Hallazgos de esta etapa
+
+- **Estados de altas y bajas**: el verificador no los miraba. Había 10 empleados y 410 asignaciones en
+  desacuerdo con el legado. Se agregó la sección 5 (ESTADOS) y el paso `align`, que alinea tomando el
+  legado como fuente. **Se corre en cada sincronización mientras el sistema viejo sea el operativo; después
+  del corte NO se corre** (SIRGA pasa a ser el dueño del ciclo de vida y empuja los cambios al padrón).
+- **Falsos positivos del verificador** (corregidos): comparaba renglones contra todas las rectificativas
+  (616), pagos sólo contra la fila elegida (1.694), contaba el CUIT genérico `99999999999` (18 pares) y
+  sumaba las versiones de una misma DDJJ.
+- **Declaraciones con renglones parciales**: el paso de detalles las salteaba enteras. Ahora las compara
+  contra el legado y, si no coinciden, las borra y recarga (253 reparadas).
+- **Empresas que sólo están en `ddjjt`**: `EnsureMissingEntities` sólo miraba `ddjj`. Corregido.
+- **El límite de SQL Express es 10 GB POR BASE** (sólo datos; el log no cuenta). El archivo de producción
+  ocupa 9,0 GB pero los datos reales son 1,9 GB: **no hace falta licencia**, alcanza con compactar.
+- **El `publish` sobrescribe `appsettings.*.json`** con los del repo (que apuntan a `SIRGA_DB` y
+  `Sindicato`). Es la trampa que más veces apareció: después de publicar **siempre** verificar que la
+  configuración de la demo apunte a las bases `_DEMO`.
+
+### Estado de consistencia (demo, 2026-11-05)
+
+`CONSISTENTE: no hay diferencias que requieran accion.` Informativo: 9.484 declaraciones sin renglones
+(períodos 2010-2016 que el legado tampoco tiene), 11 empleados que sólo están en DDJJ, 4 borradores, 17
+asignaciones sin par en el legado.
+
+### Pendientes
+
+1. Cadenas de producción de SIRGA (`appsettings.Production.json` sólo tiene logging) y `ApiBaseUrl`.
+2. Publicar en IIS (3 sitios) — lo hace el usuario.
+3. Decisiones: contraseña `12345` definitiva vs provisoria, SIMPLE vs FULL, rotar la clave SQL de SIGESWEB.
+4. Los otros dos campos numéricos con coma/punto (`InterestRates`, `PaymentReconciliation`).
