@@ -81,6 +81,10 @@
     {
       Snackbar.Add("Su cuenta de estudio contable aún no ha sido aprobada por un administrador.", Severity.Warning);
     }
+    else if (Error == "Blocked")
+    {
+      Snackbar.Add("Su estudio no tiene acceso al sistema. Comuníquese con el sindicato.", Severity.Error);
+    }
   }
 
   public class LoginModel

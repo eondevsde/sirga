@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace SIRGA.Domain.Entities;
 
@@ -39,6 +39,14 @@ public class AccountingStudio
   public City? City { get; set; }
 
   public bool IsApproved { get; set; } = false;
+
+  /// <summary>
+  /// Estudio **bloqueado**: no puede ingresar al sistema. Se usa para dar de baja un estudio sin
+  /// borrarlo: conserva su historial y sus empresas, pero nadie de ese estudio puede entrar.
+  /// Es distinto de <see cref="IsActive"/> (que indica si la fila se usa) y de
+  /// <see cref="IsApproved"/> (que indica si ya fue aprobado alguna vez).
+  /// </summary>
+  public bool IsBlocked { get; set; } = false;
   public bool IsActive { get; set; } = true;
 
   public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

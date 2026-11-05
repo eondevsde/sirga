@@ -56,6 +56,13 @@ public class AccountController : Controller
             await _signInManager.SignOutAsync();
             return Redirect($"/login?error=NotApproved");
           }
+
+          // Estudio bloqueado: existe, pero no tiene acceso a nada.
+          if (studio != null && studio.IsBlocked)
+          {
+            await _signInManager.SignOutAsync();
+            return Redirect($"/login?error=Blocked");
+          }
         }
       }
       return LocalRedirect(returnUrl);
