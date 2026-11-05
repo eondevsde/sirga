@@ -1,4 +1,4 @@
-# ==========================================================================================
+﻿# ==========================================================================================
 #  04 — VERIFICA LA DEMO YA INSTALADA EN IIS
 #
 #  Comprueba, en el servidor: sitios de IIS, bindings, HTTPS, las bases DEMO y que las
@@ -69,7 +69,10 @@ if (-not $SinHttps) {
 Titulo "CONFIGURACIÓN DE CADA SITIO"
 $cadenas = @{}
 foreach ($nombre in @($SitioSirga, $SitioSiges, $SitioCarnet)) {
-    $carpeta = Join-Path $Raiz $nombre
+    # La carpeta se toma del propio sitio en IIS (no se supone): así funciona con cualquier
+    # ubicación, por ejemplo C:\inetpub\<sitio>.
+    $sitioIis = Get-WebSite -Name $nombre -ErrorAction SilentlyContinue
+    $carpeta = if ($sitioIis -and $sitioIis.physicalPath) { $sitioIis.physicalPath } else { Join-Path $Raiz $nombre }
     $cfgPath = Join-Path $carpeta "appsettings.Production.json"
     if (-not (Test-Path $cfgPath)) { $errores.Add("Falta $cfgPath"); continue }
     $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
