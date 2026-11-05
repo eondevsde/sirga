@@ -55,6 +55,7 @@ public static class Program
                 case "details": Details(); break;
                 case "finalize": FinalizeTotals(); break;
                 case "reconcile": Reconcile(); break;
+                case "check": CheckConsistencia(); break;
                 case "clean": Clean(); break;
                 case "all":
                     Clean();
@@ -287,6 +288,57 @@ public static class Program
     }
 
     // ---------- EMPRESAS ----------
+    /// <summary>
+    /// Carga (sin ruido) los mapas que necesitan los pasos incrementales, LEYENDO EL DESTINO:
+    /// empresas por CUIT, empleados por CUIL, asignaciones por cuil|cuit y el sindicato.
+    /// Con esto, correr Companies/Employees/Assignments otra vez NO duplica: cada paso saltea
+    /// lo que ya existe.
+    /// </summary>
+    private static void CargarMapasDelDestino()
+    {
+        using var conn = Db.Open(Db.TargetCs);
+
+        _companyByCuit.Clear();
+        using (var cmd = new SqlCommand("SELECT Id, Cuit FROM Companies", conn) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuit = Db.PadCuit(Db.Str(r["Cuit"]));
+                if (cuit.Length > 0) _companyByCuit[cuit] = r.GetInt32(0);
+            }
+
+        _employeeByCuil.Clear();
+        using (var cmd = new SqlCommand("SELECT Id, Dni FROM Employees", conn) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r["Dni"]));
+                if (cuil.Length > 0) _employeeByCuil[cuil] = r.GetInt32(0);
+            }
+
+        _assignmentByKey.Clear();
+        using (var cmd = new SqlCommand("""
+            SELECT a.Id, e.Dni, c.Cuit FROM Assignments a
+            JOIN Employees e ON e.Id = a.EmployeeId
+            JOIN Companies c ON c.Id = a.CompanyId
+            """, conn) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r["Dni"]));
+                var cuit = Db.PadCuit(Db.Str(r["Cuit"]));
+                if (cuil.Length > 0 && cuit.Length > 0) _assignmentByKey[cuil + "|" + cuit] = r.GetInt32(0);
+            }
+
+        using (var cmd = new SqlCommand("SELECT TOP 1 Id, LawContributionPercentage, UnionMemberPercentage FROM Unions ORDER BY Id", conn))
+        using (var r = cmd.ExecuteReader())
+            if (r.Read())
+            {
+                _unionId = r.GetInt32(0);
+                _lawPct = Db.Dec(r["LawContributionPercentage"]);
+                _memberPct = Db.Dec(r["UnionMemberPercentage"]);
+            }
+    }
     private static void Companies()
     {
         Log.Section("Companies: desde fotos_.maeemp");
@@ -299,11 +351,16 @@ public static class Program
             FROM fotos_.maeemp m ORDER BY m.MEEMP_CUIT_STR
             """, src);
         using var r = cmd.ExecuteReader();
+        CargarMapasDelDestino();          // empresas ya existentes: no se duplican
         var count = 0;
+        var yaEstaban = 0;
         while (r.Read())
         {
             var cuit = Db.PadCuit(Db.Str(r["MEEMP_CUIT_STR"]));
             if (cuit.Length == 0) continue;
+            // Ya está en el destino: se saltea (idempotente).
+            if (_companyByCuit.ContainsKey(cuit)) { yaEstaban++; continue; }
+            if (Db.Simulacro) { count++; continue; }
             var razsoc = Db.Str(r["MAEEMP_RAZSOC"]);
             if (razsoc.Length == 0) razsoc = cuit;
             var calle = Db.Str(r["MAEEMP_CALLE"]);
@@ -328,7 +385,7 @@ public static class Program
             _companyByCuit[cuit] = (int)ins.ExecuteScalar();
             count++;
         }
-        Log.Write($"Empresas: {count}");
+        Log.Write($"Empresas nuevas: {count} | ya estaban: {yaEstaban}");
     }
 
     // ---------- EMPLEADOS ----------
@@ -341,11 +398,15 @@ public static class Program
             FROM fotos_.maesoc ORDER BY MAESOC_CUIL_STR
             """, src);
         using var r = cmd.ExecuteReader();
+        CargarMapasDelDestino();          // empleados ya existentes: no se duplican
         var count = 0;
+        var yaEstaban = 0;
         while (r.Read())
         {
             var cuil = Db.PadCuit(Db.Str(r["MAESOC_CUIL_STR"]));
             if (cuil.Length == 0) continue;
+            if (_employeeByCuil.ContainsKey(cuil)) { yaEstaban++; continue; }
+            if (Db.Simulacro) { count++; continue; }
             var apenom = Db.Str(r["APENOM"]);
             if (apenom.Length == 0)
                 apenom = (Db.Str(r["MAESOC_APELLIDO"]) + " " + Db.Str(r["MAESOC_NOMBRE"])).Trim();
@@ -368,7 +429,7 @@ public static class Program
             _employeeByCuil[cuil] = (int)ins.ExecuteScalar();
             count++;
         }
-        Log.Write($"Empleados: {count}");
+        Log.Write($"Empleados nuevos: {count} | ya estaban: {yaEstaban}");
     }
 
     // ---------- ASIGNACIONES ----------
@@ -385,7 +446,9 @@ public static class Program
             FROM fotos_.socemp s
             """, src) { CommandTimeout = 900 };
         using var r = cmd.ExecuteReader();
+        CargarMapasDelDestino();          // asignaciones ya existentes: no se duplican
         var count = 0;
+        var yaEstaban = 0;
         while (r.Read())
         {
             var cuil = Db.PadCuit(Db.Str(r["SOCEMP_CUIL_STR"]));
@@ -394,7 +457,8 @@ public static class Program
             if (!_employeeByCuil.TryGetValue(cuil, out var empId)) continue;
             if (!_companyByCuit.TryGetValue(cuit, out var compId)) continue;
             var key = cuil + "|" + cuit;
-            if (_assignmentByKey.ContainsKey(key)) continue;
+            if (_assignmentByKey.ContainsKey(key)) { yaEstaban++; continue; }
+            if (Db.Simulacro) { count++; continue; }
             var fecha = Db.Dt(r["SOCEMP_FECHAING"]) ?? DateTime.Now;
             var isVoluntary = Convert.ToBoolean(r["vol"]) ? 1 : 0;
             var isActive = Convert.ToInt32(r["SOCEMP_ESTADO"]) == 1 ? 1 : 0;
@@ -415,7 +479,7 @@ public static class Program
             _assignmentByKey[key] = (int)ins.ExecuteScalar();
             count++;
         }
-        Log.Write($"Asignaciones: {count}");
+        Log.Write($"Asignaciones nuevas: {count} | ya estaban: {yaEstaban}");
     }
 
     // ---------- ESTUDIOS ----------
@@ -548,6 +612,23 @@ public static class Program
         // Copia del legado a una tabla temporal del destino (sirve aunque estén en servidores distintos)
         using (var crear = new SqlCommand("CREATE TABLE #Legado (Cuit varchar(20), Periodo varchar(7), Fpago datetime2, Rect int, Total decimal(18,2))", target))
             crear.ExecuteNonQuery();
+
+        // El rect de los RENGLONES puede no coincidir con el de la cabecera "buena". Se toma el maximo
+        // rect que tenga renglones: si la rectificativa no cargó renglones, se usan los de la original.
+        var rectRenglones = new Dictionary<string, int>(StringComparer.Ordinal);
+        using (var srcR = Db.Open(Db.LegacyCs))
+        using (var cmdR = new SqlCommand("""
+            SELECT CUIT_STR, CONVERT(varchar(7), periodo, 126) p, MAX(rect) r
+            FROM ddjj WHERE periodo >= '1990-01-01' AND periodo <= GETDATE()
+            GROUP BY CUIT_STR, CONVERT(varchar(7), periodo, 126)
+            """, srcR) { CommandTimeout = 900 })
+        using (var rr = cmdR.ExecuteReader())
+            while (rr.Read())
+            {
+                var cuitR = Db.PadCuit(Db.Str(rr["CUIT_STR"]));
+                if (cuitR.Length == 0) continue;
+                rectRenglones[cuitR + "|" + Db.Str(rr["p"])] = Db.Int(rr["r"]);
+            }
 
         var dt = new DataTable();
         dt.Columns.Add("Cuit", typeof(string));
@@ -723,6 +804,23 @@ public static class Program
             """, src) { CommandTimeout = 900 };
         using var reader = cmd.ExecuteReader();
 
+        // El rect de los RENGLONES puede no coincidir con el de la cabecera "buena". Se toma el maximo
+        // rect que tenga renglones: si la rectificativa no cargó renglones, se usan los de la original.
+        var rectRenglones = new Dictionary<string, int>(StringComparer.Ordinal);
+        using (var srcR = Db.Open(Db.LegacyCs))
+        using (var cmdR = new SqlCommand("""
+            SELECT CUIT_STR, CONVERT(varchar(7), periodo, 126) p, MAX(rect) r
+            FROM ddjj WHERE periodo >= '1990-01-01' AND periodo <= GETDATE()
+            GROUP BY CUIT_STR, CONVERT(varchar(7), periodo, 126)
+            """, srcR) { CommandTimeout = 900 })
+        using (var rr = cmdR.ExecuteReader())
+            while (rr.Read())
+            {
+                var cuitR = Db.PadCuit(Db.Str(rr["CUIT_STR"]));
+                if (cuitR.Length == 0) continue;
+                rectRenglones[cuitR + "|" + Db.Str(rr["p"])] = Db.Int(rr["r"]);
+            }
+
         var dt = new DataTable();
         dt.Columns.Add("RegistryId", typeof(int));
         dt.Columns.Add("AssignmentId", typeof(int));
@@ -743,7 +841,7 @@ public static class Program
             var regKey = cuit + "|" + periodo.ToString("yyyy-MM");
             if (!_registryByKey.TryGetValue(regKey, out var regId) || regId == 0) continue;
             if (regId > 0 && conDetalle.Contains(regId)) continue;
-            if (_rectByKey.TryGetValue(regKey, out var cabRect) && rect != cabRect) continue;
+            if (rectRenglones.TryGetValue(regKey, out var rectBueno) && rect != rectBueno) continue;
             var isVoluntary = Convert.ToBoolean(reader["item2"]);
             var assKey = cuil + "|" + cuit;
             if (!_assignmentByKey.TryGetValue(assKey, out var assId))
@@ -876,6 +974,176 @@ public static class Program
         Log.Write($"Monto cabeceras: {r["decl_amount"]}  Monto detalles: {r["detail_amount"]}");
     }
 
+    /// <summary>
+    /// Verifica que el DESTINO (SIRGA) y el LEGADO (sistema viejo) digan lo mismo en lo que tiene que
+    /// coincidir: cabeceras de DDJJ, renglones, empleados y asignaciones. No escribe nada.
+    /// Devuelve por pantalla las diferencias con ejemplos, para poder corregirlas con sync.
+    /// </summary>
+    private static void CheckConsistencia()
+    {
+        Log.Section("Consistencia destino vs legado (no escribe)");
+
+        // ---------------- cabeceras de DDJJ (última rectificación por período) ----------------
+        var legado = new Dictionary<string, (int Rect, decimal Total, bool Pagada)>(StringComparer.Ordinal);
+        using (var src = Db.Open(Db.LegacyCs))
+        using (var cmd = new SqlCommand("""
+            SELECT CUIT_STR, p, rect, fpago, total FROM (
+              SELECT CUIT_STR, CONVERT(varchar(7), periodo, 126) p, rect, fpago,
+                     ISNULL(titem1,0) + ISNULL(titem2,0) + ISNULL(titem3,0) total,
+                     ROW_NUMBER() OVER (PARTITION BY CONVERT(varchar(7), periodo, 126), CUIT_STR
+                                        ORDER BY rect DESC, fmod DESC, fpres DESC, Id DESC) rn
+              FROM ddjjt WHERE rect < 100 AND periodo >= '1990-01-01' AND periodo <= GETDATE()
+            ) x WHERE rn = 1
+            """, src) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuit = Db.PadCuit(Db.Str(r["CUIT_STR"]));
+                if (cuit.Length == 0) continue;
+                legado[cuit + "|" + Db.Str(r["p"])] =
+                    (Db.Int(r["rect"]), Db.Dec(r["total"]), r["fpago"] != DBNull.Value);
+            }
+        Log.Write($"  Legado: {legado.Count} cabeceras");
+
+        var sirga = new Dictionary<string, (int Id, decimal Total, bool Pagada, bool Rect)>(StringComparer.Ordinal);
+        using (var t = Db.Open(Db.TargetCs))
+        using (var cmd = new SqlCommand("""
+            SELECT d.Id, d.Period, REPLACE(REPLACE(c.Cuit,'-',''),' ','') cuit, d.TotalAmount, d.PaymentDate, d.IsRectification
+            FROM Declarations d JOIN Companies c ON c.Id = d.CompanyId
+            """, t) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+                sirga[Db.Str(r["cuit"]) + "|" + Db.Str(r["Period"])] =
+                    (r.GetInt32(0), Db.Dec(r["TotalAmount"]), r["PaymentDate"] != DBNull.Value, Db.Bit(r["IsRectification"]));
+        Log.Write($"  SIRGA : {sirga.Count} cabeceras");
+
+        var faltanEnSirga = legado.Keys.Where(k => !sirga.ContainsKey(k)).ToList();
+        var sobranEnSirga = sirga.Keys.Where(k => !legado.ContainsKey(k)).ToList();
+        var impagas = legado.Where(kv => kv.Value.Pagada && sirga.TryGetValue(kv.Key, out var s) && !s.Pagada).Select(kv => kv.Key).ToList();
+        var pagadasDeMas = legado.Where(kv => !kv.Value.Pagada && sirga.TryGetValue(kv.Key, out var s) && s.Pagada).Select(kv => kv.Key).ToList();
+        var rectMal = legado.Where(kv => kv.Value.Rect > 0 && sirga.TryGetValue(kv.Key, out var s) && !s.Rect).Select(kv => kv.Key).ToList();
+
+        Log.Section("1) CABECERAS DDJJ (ddjjt vs Declarations)");
+        Log.Write($"  En el legado y NO en SIRGA : {faltanEnSirga.Count}");
+        Log.Write($"  En SIRGA y NO en el legado : {sobranEnSirga.Count}");
+        Log.Write($"  Pagadas en legado / impagas en SIRGA : {impagas.Count}");
+        Log.Write($"  Pagadas en SIRGA / impagas en legado : {pagadasDeMas.Count}");
+        Log.Write($"  Rectificadas en legado sin marca en SIRGA : {rectMal.Count}");
+        foreach (var k in faltanEnSirga.Take(5)) Log.Write($"     falta: {k}");
+        foreach (var k in sobranEnSirga.Take(5)) Log.Write($"     sobra: {k}");
+
+        // ---------------- renglones (ddjj vs DeclarationDetails) ----------------
+        var renLegado = new Dictionary<string, int>(StringComparer.Ordinal);
+        using (var src = Db.Open(Db.LegacyCs))
+        using (var cmd = new SqlCommand("""
+            SELECT CUIT_STR, CONVERT(varchar(7), periodo, 126) p, rect, COUNT(*) n
+            FROM ddjj WHERE periodo >= '1990-01-01' AND periodo <= GETDATE()
+            GROUP BY CUIT_STR, CONVERT(varchar(7), periodo, 126), rect
+            """, src) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuit = Db.PadCuit(Db.Str(r["CUIT_STR"]));
+                if (cuit.Length == 0) continue;
+                renLegado[cuit + "|" + Db.Str(r["p"])] = Db.Int(r["n"]);
+            }
+
+        var renSirga = new Dictionary<string, int>(StringComparer.Ordinal);
+        using (var t = Db.Open(Db.TargetCs))
+        using (var cmd = new SqlCommand("""
+            SELECT REPLACE(REPLACE(c.Cuit,'-',''),' ','') cuit, d.Period, COUNT(dd.Id) n
+            FROM Declarations d
+            JOIN Companies c ON c.Id = d.CompanyId
+            LEFT JOIN DeclarationDetails dd ON dd.RegistryId = d.Id
+            GROUP BY REPLACE(REPLACE(c.Cuit,'-',''),' ',''), d.Period
+            """, t) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+                renSirga[Db.Str(r["cuit"]) + "|" + Db.Str(r["Period"])] = Db.Int(r["n"]);
+
+        var sinRenglones = renSirga.Count(kv => kv.Value == 0);
+        var distinto = renLegado.Where(kv => renSirga.TryGetValue(kv.Key, out var n) && n != kv.Value)
+                                .Select(kv => (kv.Key, Legado: kv.Value, Sirga: renSirga[kv.Key])).ToList();
+
+        Log.Section("2) RENGLONES (ddjj vs DeclarationDetails)");
+        Log.Write($"  Declaraciones en SIRGA SIN renglones : {sinRenglones}");
+        Log.Write($"  Declaraciones con cantidad distinta : {distinto.Count}");
+        foreach (var d in distinto.Take(5)) Log.Write($"     {d.Key}: legado {d.Legado} / SIRGA {d.Sirga}");
+
+        // ---------------- empleados (maesoc vs Employees) ----------------
+        var socios = new HashSet<string>(StringComparer.Ordinal);
+        using (var src = Db.Open(Db.LegacyCs))
+        using (var cmd = new SqlCommand("SELECT MAESOC_CUIL_STR FROM fotos_.maesoc", src) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r[0]));
+                if (cuil.Length > 0) socios.Add(cuil);
+            }
+
+        var empleados = new HashSet<string>(StringComparer.Ordinal);
+        using (var t = Db.Open(Db.TargetCs))
+        using (var cmd = new SqlCommand("SELECT Dni FROM Employees", t) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r[0]));
+                if (cuil.Length > 0) empleados.Add(cuil);
+            }
+
+        var sociosSinEmpleado = socios.Where(s => !empleados.Contains(s)).ToList();
+        var empleadosSinSocio = empleados.Where(e => !socios.Contains(e)).ToList();
+
+        Log.Section("3) EMPLEADOS (fotos_.maesoc vs Employees)");
+        Log.Write($"  Socios en el legado : {socios.Count} | Empleados en SIRGA : {empleados.Count}");
+        Log.Write($"  Socios SIN empleado en SIRGA : {sociosSinEmpleado.Count}");
+        Log.Write($"  Empleados SIN socio en el legado : {empleadosSinSocio.Count}");
+        foreach (var s in sociosSinEmpleado.Take(5)) Log.Write($"     falta empleado: {s}");
+
+        // ---------------- asignaciones (socemp vs Assignments) ----------------
+        var paresLegado = new HashSet<string>(StringComparer.Ordinal);
+        using (var src = Db.Open(Db.LegacyCs))
+        using (var cmd = new SqlCommand("SELECT SOCEMP_CUIL_STR, SOCEMP_CUITE_STR FROM fotos_.socemp", src) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r[0]));
+                var cuit = Db.PadCuit(Db.Str(r[1]));
+                if (cuil.Length > 0 && cuit.Length > 0) paresLegado.Add(cuil + "|" + cuit);
+            }
+
+        var paresSirga = new HashSet<string>(StringComparer.Ordinal);
+        using (var t = Db.Open(Db.TargetCs))
+        using (var cmd = new SqlCommand("""
+            SELECT e.Dni, c.Cuit FROM Assignments a
+            JOIN Employees e ON e.Id = a.EmployeeId
+            JOIN Companies c ON c.Id = a.CompanyId
+            """, t) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r[0]));
+                var cuit = Db.PadCuit(Db.Str(r[1]));
+                if (cuil.Length > 0 && cuit.Length > 0) paresSirga.Add(cuil + "|" + cuit);
+            }
+
+        var paresFaltan = paresLegado.Where(p => !paresSirga.Contains(p)).ToList();
+        var paresSobran = paresSirga.Where(p => !paresLegado.Contains(p)).ToList();
+
+        Log.Section("4) ASIGNACIONES (fotos_.socemp vs Assignments)");
+        Log.Write($"  Pares en el legado : {paresLegado.Count} | En SIRGA : {paresSirga.Count}");
+        Log.Write($"  Pares del legado SIN asignación en SIRGA : {paresFaltan.Count}");
+        Log.Write($"  Asignaciones de SIRGA SIN par en el legado : {paresSobran.Count}");
+        foreach (var p in paresFaltan.Take(5)) Log.Write($"     falta asignación: {p}");
+
+        Log.Section("RESUMEN");
+        var problemas = faltanEnSirga.Count + sobranEnSirga.Count + impagas.Count + pagadasDeMas.Count + rectMal.Count
+                      + sinRenglones + distinto.Count + sociosSinEmpleado.Count + empleadosSinSocio.Count
+                      + paresFaltan.Count + paresSobran.Count;
+        Log.Write(problemas == 0
+            ? "  TODO COINCIDE entre SIRGA y el legado."
+            : $"  Diferencias encontradas: {problemas} (ver el detalle arriba)");
+    }
     // ---------- HELPERS ----------
     private static string Trunc(string s, int max) => s.Length <= max ? s : s[..max];
     private static object NullIfEmpty(string s, int max) => s.Length == 0 ? DBNull.Value : Trunc(s, max);
