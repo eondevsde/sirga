@@ -58,7 +58,11 @@ if (-not $SinHttps) {
             $cert = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue |
                     Where-Object { $_.Subject -match [regex]::Escape($par.d) -or $_.Subject -match [regex]::Escape("*." + ($par.d.Split('.')[1..10] -join '.')) } |
                     Sort-Object NotAfter -Descending | Select-Object -First 1
-            if (-not $cert) { $avisos.Add("No veo un certificado en el almacén para $($par.d).") }
+            if (-not $cert) {
+                $todos = Get-ChildItem Cert:\LocalMachine\My -ErrorAction SilentlyContinue
+                if ($todos.Count -eq 0) { $avisos.Add("No hay NINGÚN certificado en el almacén del servidor (Cert:\LocalMachine\My).") }
+                else { $avisos.Add("No hay certificado que cubra $($par.d). Hay $($todos.Count) en el almacén: $(($todos | ForEach-Object { $_.Subject }) -join ' | ')") }
+            }
             elseif ($cert.NotAfter -lt (Get-Date).AddDays(15)) { $avisos.Add("El certificado de $($par.d) vence el $($cert.NotAfter.ToString('yyyy-MM-dd')).") }
             else { $bien.Add("Certificado de $($par.d) vence $($cert.NotAfter.ToString('yyyy-MM-dd'))") }
         }
@@ -168,12 +172,37 @@ foreach ($par in @(
 
     foreach ($proto in $protocolos) {
         $url = "${proto}://$($par.d)/"
+
+        # 1) Primero estricto: si el certificado es válido, mejor (y se informa así).
         try {
             $r = Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 25
-            if ($r.StatusCode -eq 200) { $bien.Add("$($par.n) responde en $url") }
+            if ($r.StatusCode -eq 200) { $bien.Add("$($par.n) responde en $url (certificado válido)") }
             else { $avisos.Add("$($par.n) respondió HTTP $($r.StatusCode) en $url") }
+            continue
+        } catch {
+            $mensajeEstricto = $_.Exception.Message
+        }
+
+        # 2) Distinguir "certificado no confiable" de "el sitio no responde":
+        #    se reintenta aceptando cualquier certificado. Si así responde, el problema es SÓLO el
+        #    certificado (en el navegador se puede continuar); si tampoco, el sitio está caído.
+        $esTls = $mensajeEstricto -match "SSL|TLS|confianza|certificado|certificate"
+        if (-not $esTls) { $errores.Add("$($par.n) NO responde en ${url}: $mensajeEstricto"); continue }
+
+        $callbackPrevio = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
+        try {
+            [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { param($a, $b, $d, $e) return $true }
+            $r = Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 25
+            if ($r.StatusCode -eq 200) {
+                $avisos.Add("$($par.n) RESPONDE en $url pero el certificado NO es de confianza (el navegador pedirá aceptarlo). Instalar el certificado correcto.")
+            } else {
+                $avisos.Add("$($par.n) responde HTTP $($r.StatusCode) en $url (certificado no confiable)")
+            }
         } catch {
             $errores.Add("$($par.n) NO responde en ${url}: $($_.Exception.Message)")
+        }
+        finally {
+            [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $callbackPrevio
         }
     }
 }
