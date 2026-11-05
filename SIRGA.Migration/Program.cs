@@ -50,7 +50,8 @@ public static class Program
                 case "assignments": Assignments(); break;
                 case "studios": Studios(); break;
                 case "declarations": Declarations(); break;
-                case "sync": CargarMapasDesdeDestino(); Declarations(); Details(); break;
+                case "sync": CargarMapasDesdeDestino(); Declarations(); Details(); RefreshDesdeLegado(); break;
+                case "refresh": RefreshDesdeLegado(); break;
                 case "details": Details(); break;
                 case "finalize": FinalizeTotals(); break;
                 case "reconcile": Reconcile(); break;
@@ -529,6 +530,80 @@ public static class Program
                 _memberPct = Db.Dec(r["UnionMemberPercentage"]);
                 Log.Write($"  sindicato: {_unionId} (ley {_lawPct}% / socio {_memberPct}%)");
             }
+    }
+    /// <summary>
+    /// Refresca el ESTADO de las declaraciones que ya estaban en el destino, tomándolo del legado:
+    ///   - pagos: si el legado tiene fecha de pago y SIRGA no, se marca Pagada con esa fecha.
+    ///   - rectificaciones: si el legado tiene una rectificación y SIRGA no la conocía, se marca.
+    /// Sin esto, las DDJJ copiadas se quedan con el estado del día que se migraron (una DDJJ pagada
+    /// en el sistema viejo seguiría figurando impaga en SIRGA).
+    /// </summary>
+    private static void RefreshDesdeLegado()
+    {
+        Log.Section("Refresh: pagos y rectificaciones del legado sobre lo que ya estaba" +
+                    (Db.Simulacro ? "  [SIMULACRO: no escribe]" : ""));
+
+        using var target = Db.Open(Db.TargetCs);
+
+        // Copia del legado a una tabla temporal del destino (sirve aunque estén en servidores distintos)
+        using (var crear = new SqlCommand("CREATE TABLE #Legado (Cuit varchar(20), Periodo varchar(7), Fpago datetime2, Rect int, Total decimal(18,2))", target))
+            crear.ExecuteNonQuery();
+
+        var dt = new DataTable();
+        dt.Columns.Add("Cuit", typeof(string));
+        dt.Columns.Add("Periodo", typeof(string));
+        dt.Columns.Add("Fpago", typeof(DateTime));
+        dt.Columns.Add("Rect", typeof(int));
+        dt.Columns.Add("Total", typeof(decimal));
+
+        using (var src = Db.Open(Db.LegacyCs))
+        using (var cmd = new SqlCommand("""
+            SELECT CUIT_STR, CONVERT(varchar(7), periodo, 126) AS p, fpago, rect,
+                   ISNULL(titem1, 0) + ISNULL(titem2, 0) + ISNULL(titem3, 0) AS total
+            FROM ddjjt WHERE rect < 100
+            """, src) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuit = Db.PadCuit(Db.Str(r["CUIT_STR"]));
+                if (cuit.Length == 0) continue;
+                dt.Rows.Add(cuit, Db.Str(r["p"]),
+                            r["fpago"] == DBNull.Value ? (object)DBNull.Value : Convert.ToDateTime(r["fpago"]),
+                            Db.Int(r["rect"]), Db.Dec(r["total"]));
+            }
+
+        Db.BulkInsert(target, "#Legado", dt);
+        Log.Write($"  filas del legado para comparar: {dt.Rows.Count}");
+
+        const string join = """
+            FROM Declarations d
+            JOIN Companies c ON c.Id = d.CompanyId
+            JOIN #Legado l ON l.Periodo = d.Period AND l.Cuit = REPLACE(REPLACE(c.Cuit, '-', ''), ' ', '')
+            """;
+
+        // 1) Pagos
+        var sqlPagos = "UPDATE d SET Status = 5, PaymentDate = l.Fpago, BalanceAmount = 0 " + join +
+                       " WHERE d.PaymentDate IS NULL AND l.Fpago IS NOT NULL";
+        // 2) Rectificaciones
+        var sqlRect = "UPDATE d SET IsRectification = 1, " +
+                      "VersionNumber = CASE WHEN l.Rect + 1 > d.VersionNumber THEN l.Rect + 1 ELSE d.VersionNumber END " + join +
+                      " WHERE d.IsRectification = 0 AND l.Rect > 0";
+
+        if (Db.Simulacro)
+        {
+            using (var q1 = new SqlCommand("SELECT COUNT(*) " + join + " WHERE d.PaymentDate IS NULL AND l.Fpago IS NOT NULL", target) { CommandTimeout = 900 })
+                Log.Write($"  (simulacro) se marcarían PAGADAS: {q1.ExecuteScalar()}");
+            using (var q2 = new SqlCommand("SELECT COUNT(*) " + join + " WHERE d.IsRectification = 0 AND l.Rect > 0", target) { CommandTimeout = 900 })
+                Log.Write($"  (simulacro) se marcarían RECTIFICADAS: {q2.ExecuteScalar()}");
+        }
+        else
+        {
+            using var p = new SqlCommand(sqlPagos, target) { CommandTimeout = 900 };
+            var pagos = p.ExecuteNonQuery();
+            using var rc = new SqlCommand(sqlRect, target) { CommandTimeout = 900 };
+            var rects = rc.ExecuteNonQuery();
+            Log.Write($"  marcadas PAGADAS: {pagos} | marcadas RECTIFICADAS: {rects}");
+        }
     }
     private static void Declarations()
     {
