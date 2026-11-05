@@ -48,8 +48,9 @@
 --------------------------------------------------------------------------------
 
  Abrir PowerShell en C:\Demo\instalador y editar la cabecera de 01_bases_demo.sql:
-    - @CarpetaBak  = 'C:\Demo\bak'
-    - @Simulacro   = 0        (después de probar con 1)
+    - @CarpetaBak         = 'C:\Demo\bak'
+    - @Simulacro          = 0     (primero probar con 1)
+    - @ConcederAppPools   = 1     (deja los permisos de IIS listos)
 
     sqlcmd -S localhost -E -b -I -i 01_bases_demo.sql
 
@@ -61,15 +62,18 @@
 
 
 --------------------------------------------------------------------------------
- PASO 2 — PERMISOS (en el servidor)
+ PASO 2 — PERMISOS (ya los hace el paso 1)
 --------------------------------------------------------------------------------
 
- Editar 02_permisos.sql: @Simulacro = 0.
+ El paso 1 crea los usuarios de los tres App Pools y les da permiso en las dos
+ bases DEMO. Si por algún motivo no lo hizo (por ejemplo, porque los sitios
+ todavía no existían), volver a ejecutarlo o correr:
 
-    sqlcmd -S localhost -E -b -I -i 02_permisos.sql
+    sqlcmd -S localhost -E -b -I -i 02_permisos.sql      (con @Simulacro = 0)
 
- Crea los logins de los App Pools y les da permiso en las dos bases DEMO.
- (Si preferís usuario y clave SQL, avisame y se cambia en el paso 3.)
+ ⚠️ Las identidades "IIS APPPOOL\..." sólo se pueden crear cuando el App Pool ya
+    existe en IIS. Por eso: primero los sitios (paso 3), y si el login falló, se
+    vuelve a correr este paso.
 
 
 --------------------------------------------------------------------------------
@@ -167,7 +171,7 @@
  ORDEN RÁPIDO (resumen)
 --------------------------------------------------------------------------------
 
-   01_bases_demo.sql      -> crea las bases DEMO
-   02_permisos.sql        -> logins y permisos
+   01_bases_demo.sql      -> crea las bases DEMO y los permisos
+   02_permisos.sql        -> sólo si hay que rehacer los permisos
    03_instalar_iis.ps1    -> sitios, HTTPS, configuración
    04_verificar.ps1       -> control final
