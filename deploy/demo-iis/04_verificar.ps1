@@ -106,7 +106,11 @@ foreach ($clave in $cadenas.Keys) {
         $bien.Add("$clave conecta a $base")
         $conn.Close()
     } catch {
-        $errores.Add("$clave NO conecta: $($_.Exception.Message)")
+        $mensaje = $_.Exception.Message
+        $pista = if ($mensaje -match "error: 40|No se encontró el servidor|No se pudo abrir una conexión") {
+            "  >>> PISTA: 'localhost' no es la instancia correcta. Averiguá el nombre (por ejemplo .\SQLEXPRESS) y volvé a escribir la configuración con -InstanciaSQL."
+        } else { "" }
+        $errores.Add("$clave NO conecta: $mensaje$pista")
     }
 }
 
@@ -132,13 +136,27 @@ if ($cadenaSirga) {
 
 # ---------------------------------------------------------------- respuesta HTTP
 Titulo "RESPUESTA DE LAS APLICACIONES"
-foreach ($par in @(@{n = "SIRGA"; u = "http://$DominioSirga/" }, @{n = "SIGESWEB"; u = "http://$DominioSiges/" }, @{n = "CARNET"; u = "http://$DominioCarnet/" })) {
-    try {
-        $r = Invoke-WebRequest $par.u -UseBasicParsing -TimeoutSec 20
-        if ($r.StatusCode -eq 200) { $bien.Add("$($par.n) responde en $($par.u)") }
-        else { $avisos.Add("$($par.n) respondió HTTP $($r.StatusCode) en $($par.u)") }
-    } catch {
-        $errores.Add("$($par.n) NO responde en $($par.u): $($_.Exception.Message)")
+foreach ($par in @(
+    @{ n = "SIRGA";  s = $SitioSirga;  d = $DominioSirga },
+    @{ n = "SIGESWEB"; s = $SitioSiges; d = $DominioSiges },
+    @{ n = "CARNET"; s = $SitioCarnet; d = $DominioCarnet }
+)) {
+    # Se prueba sólo el protocolo que el sitio tiene configurado (si es sólo HTTPS, no tiene
+    # sentido reclamar por HTTP: el 404 lo devuelve otro sitio).
+    $protocolos = @()
+    if (Get-WebBinding -Name $par.s -Protocol https -ErrorAction SilentlyContinue) { $protocolos += "https" }
+    if (Get-WebBinding -Name $par.s -Protocol http  -ErrorAction SilentlyContinue) { $protocolos += "http" }
+    if ($protocolos.Count -eq 0) { $errores.Add("$($par.s) no tiene ningún binding (ni HTTP ni HTTPS)."); continue }
+
+    foreach ($proto in $protocolos) {
+        $url = "${proto}://$($par.d)/"
+        try {
+            $r = Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 25
+            if ($r.StatusCode -eq 200) { $bien.Add("$($par.n) responde en $url") }
+            else { $avisos.Add("$($par.n) respondió HTTP $($r.StatusCode) en $url") }
+        } catch {
+            $errores.Add("$($par.n) NO responde en ${url}: $($_.Exception.Message)")
+        }
     }
 }
 
