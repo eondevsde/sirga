@@ -61,9 +61,17 @@ dotnet run --project SIRGA.Migration -- companies   --origen Sindicato --destino
 dotnet run --project SIRGA.Migration -- employees   --origen Sindicato --destino SIRGA_DB
 dotnet run --project SIRGA.Migration -- assignments --origen Sindicato --destino SIRGA_DB
 
-# 3.3 Declaraciones + renglones + estados (incremental, incluye reparación de incompletas)
+# 3.3 Estados de altas y bajas (empleados y asignaciones). SÓLO en la carga inicial.
+dotnet run --project SIRGA.Migration -- align --origen Sindicato --destino SIRGA_DB
+
+# 3.4 Declaraciones + renglones + estados de las DDJJ (incremental, repara incompletas)
 dotnet run --project SIRGA.Migration -- sync --origen Sindicato --destino SIRGA_DB
 ```
+
+> **`align` se corre UNA sola vez**, en la carga inicial, porque ahí el sistema viejo es la fuente.
+> Después de salir a producción, **SIRGA es el dueño del ciclo de vida** (crea empleados y los da de
+> baja) y es él quien empuja los cambios al padrón al guardar la ficha. Volver a correr `align` en ese
+> momento revertiría las altas y bajas hechas en SIRGA.
 
 **Nota**: el `sync` puede necesitarse **dos veces** seguidas: la primera crea empresas que sólo están
 en las DDJJ y la segunda carga sus declaraciones.
@@ -91,6 +99,8 @@ dotnet run --project SIRGA.Migration -- check --origen Sindicato --destino SIRGA
 ```
 
 **Tiene que decir: `CONSISTENTE: no hay diferencias que requieran accion.`**
+
+Eso incluye los **estados** (sección 5): empleados y asignaciones tienen que coincidir en alta/baja y en la fecha de baja.
 
 Los ítems informativos (no son problemas) que puede listar:
 

@@ -32,6 +32,7 @@ public static class Program
             if (args[i] is "--origen" or "--legado" && sig is not null) { Db.LegacyCs = sig.Contains('=') ? sig : Db.Local(sig); i++; }
             else if (args[i] == "--destino" && sig is not null) { Db.TargetCs = sig.Contains('=') ? sig : Db.Local(sig); i++; }
             else if (args[i] == "--simulacro") Db.Simulacro = true;
+            else if (args[i] == "--alinear-estados") AlinearEstados();
         }
         Console.OutputEncoding = Encoding.UTF8;
         Log.Section($"SIRGA Migration - step={step}");
@@ -52,6 +53,7 @@ public static class Program
                 case "declarations": Declarations(); break;
                 case "sync": CargarMapasDesdeDestino(); Declarations(); Details(); RefreshDesdeLegado(); break;
                 case "refresh": RefreshDesdeLegado(); break;
+                case "align": AlinearEstados(); break;
                 case "details": Details(); break;
                 case "finalize": FinalizeTotals(); break;
                 case "reconcile": Reconcile(); break;
@@ -784,6 +786,94 @@ public static class Program
     }
 
     // ---------- DETALLES ----------
+    /// <summary>
+    /// Alinea el ESTADO de empleados y asignaciones con el legado: es lo que se usa en la carga inicial,
+    /// donde el sistema viejo es la fuente. SIRGA es el dueño del ciclo de vida (altas y bajas) de ahí en
+    /// adelante, así que este paso se corre una sola vez, no en cada sincronización.
+    ///   - Empleados: MAESOC_ESTADO y MAESOC_FECHADESEMPLEO (la fecha centinela se toma como "sin baja").
+    ///   - Asignaciones: SOCEMP_ESTADO y SOCEMP_FECHABAJA.
+    /// </summary>
+    private static void AlinearEstados()
+    {
+        Log.Section("Alinear estados de empleados y asignaciones con el legado" +
+                    (Db.Simulacro ? "  [SIMULACRO: no escribe]" : ""));
+
+        using var target = Db.Open(Db.TargetCs);
+
+        // ---- empleados ----
+        using (var crear = new SqlCommand("CREATE TABLE #Emp (Cuil varchar(20) PRIMARY KEY, Estado int, Baja datetime2)", target))
+            crear.ExecuteNonQuery();
+        var emp = new DataTable();
+        emp.Columns.Add("Cuil", typeof(string));
+        emp.Columns.Add("Estado", typeof(int));
+        emp.Columns.Add("Baja", typeof(DateTime));
+        using (var src = Db.Open(Db.LegacyCs))
+        using (var cmd = new SqlCommand("SELECT MAESOC_CUIL_STR, MAESOC_ESTADO, MAESOC_FECHADESEMPLEO FROM fotos_.maesoc", src) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r["MAESOC_CUIL_STR"]));
+                if (cuil.Length == 0) continue;
+                var baja = Db.Dt(r["MAESOC_FECHADESEMPLEO"]);
+                if (baja.HasValue && (baja.Value.Year < 1900 || baja.Value > DateTime.Today)) baja = null;
+                emp.Rows.Add(cuil, Db.Int(r["MAESOC_ESTADO"]), baja.HasValue ? baja.Value : (object)DBNull.Value);
+            }
+        Db.BulkInsert(target, "#Emp", emp);
+
+        const string sqlEmp = """
+            UPDATE e SET Status = CASE WHEN l.Estado = 1 THEN 1 ELSE 5 END, TerminationDate = l.Baja
+            FROM Employees e JOIN #Emp l ON l.Cuil = e.Dni
+            WHERE e.Status <> CASE WHEN l.Estado = 1 THEN 1 ELSE 5 END
+               OR ISNULL(CONVERT(varchar(19), e.TerminationDate, 120), '') <> ISNULL(CONVERT(varchar(19), l.Baja, 120), '')
+            """;
+
+        // ---- asignaciones ----
+        using (var crear = new SqlCommand("CREATE TABLE #Asig (Cuil varchar(20), Cuit varchar(20), Estado int, Baja datetime2, PRIMARY KEY (Cuil, Cuit))", target))
+            crear.ExecuteNonQuery();
+        var asi = new DataTable();
+        asi.Columns.Add("Cuil", typeof(string));
+        asi.Columns.Add("Cuit", typeof(string));
+        asi.Columns.Add("Estado", typeof(int));
+        asi.Columns.Add("Baja", typeof(DateTime));
+        var vistos = new HashSet<string>(StringComparer.Ordinal);
+        using (var src = Db.Open(Db.LegacyCs))
+        using (var cmd = new SqlCommand("SELECT SOCEMP_CUIL_STR, SOCEMP_CUITE_STR, SOCEMP_ESTADO, SOCEMP_FECHABAJA FROM fotos_.socemp", src) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r["SOCEMP_CUIL_STR"]));
+                var cuit = Db.PadCuit(Db.Str(r["SOCEMP_CUITE_STR"]));
+                if (cuil.Length == 0 || cuit.Length == 0 || cuit == "99999999999") continue;
+                var baja = Db.Dt(r["SOCEMP_FECHABAJA"]);
+                if (baja.HasValue && (baja.Value.Year < 1900 || baja.Value > DateTime.Today)) baja = null;
+                if (vistos.Add(cuil + "|" + cuit))
+                    asi.Rows.Add(cuil, cuit, Db.Int(r["SOCEMP_ESTADO"]), baja.HasValue ? baja.Value : (object)DBNull.Value);
+            }
+        Db.BulkInsert(target, "#Asig", asi);
+
+        const string sqlAsig = """
+            UPDATE a SET IsActive = CASE WHEN l.Estado = 1 THEN 1 ELSE 0 END, TerminationDate = l.Baja
+            FROM Assignments a
+            JOIN Employees e ON e.Id = a.EmployeeId
+            JOIN Companies c ON c.Id = a.CompanyId
+            JOIN #Asig l ON l.Cuil = e.Dni AND l.Cuit = REPLACE(REPLACE(c.Cuit,'-',''),' ','')
+            WHERE a.IsActive <> CASE WHEN l.Estado = 1 THEN 1 ELSE 0 END
+               OR ISNULL(CONVERT(varchar(19), a.TerminationDate, 120), '') <> ISNULL(CONVERT(varchar(19), l.Baja, 120), '')
+            """;
+
+        if (Db.Simulacro)
+        {
+            using (var q1 = new SqlCommand("SELECT COUNT(*) FROM Employees e JOIN #Emp l ON l.Cuil = e.Dni WHERE e.Status <> CASE WHEN l.Estado = 1 THEN 1 ELSE 5 END OR ISNULL(CONVERT(varchar(19), e.TerminationDate, 120), '') <> ISNULL(CONVERT(varchar(19), l.Baja, 120), '')", target))
+                Log.Write($"  (simulacro) empleados a alinear: {q1.ExecuteScalar()}");
+            using (var q2 = new SqlCommand("SELECT COUNT(*) FROM Assignments a JOIN Employees e ON e.Id = a.EmployeeId JOIN Companies c ON c.Id = a.CompanyId JOIN #Asig l ON l.Cuil = e.Dni AND l.Cuit = REPLACE(REPLACE(c.Cuit,'-',''),' ','') WHERE a.IsActive <> CASE WHEN l.Estado = 1 THEN 1 ELSE 0 END OR ISNULL(CONVERT(varchar(19), a.TerminationDate, 120), '') <> ISNULL(CONVERT(varchar(19), l.Baja, 120), '')", target))
+                Log.Write($"  (simulacro) asignaciones a alinear: {q2.ExecuteScalar()}");
+        }
+        else
+        {
+            using (var u1 = new SqlCommand(sqlEmp, target) { CommandTimeout = 900 }) Log.Write($"  empleados alineados: {u1.ExecuteNonQuery()}");
+            using (var u2 = new SqlCommand(sqlAsig, target) { CommandTimeout = 900 }) Log.Write($"  asignaciones alineadas: {u2.ExecuteNonQuery()}");
+        }
+    }
     private static void Details()
     {
         Log.Section("DeclarationDetails: desde ddjj (bulk)" + (Db.Simulacro ? "  [SIMULACRO: no escribe]" : ""));
@@ -1158,13 +1248,20 @@ public static class Program
 
         // ---------------- empleados (maesoc vs Employees) ----------------
         var socios = new HashSet<string>(StringComparer.Ordinal);
+        var estadoSocio = new Dictionary<string, (int Estado, DateTime? Baja)>(StringComparer.Ordinal);
         using (var src = Db.Open(Db.LegacyCs))
-        using (var cmd = new SqlCommand("SELECT MAESOC_CUIL_STR FROM fotos_.maesoc", src) { CommandTimeout = 900 })
+        using (var cmd = new SqlCommand("SELECT MAESOC_CUIL_STR, MAESOC_ESTADO, MAESOC_FECHADESEMPLEO FROM fotos_.maesoc", src) { CommandTimeout = 900 })
         using (var r = cmd.ExecuteReader())
             while (r.Read())
             {
                 var cuil = Db.PadCuit(Db.Str(r[0]));
-                if (cuil.Length > 0) socios.Add(cuil);
+                if (cuil.Length > 0)
+                {
+                    socios.Add(cuil);
+                    var baja = Db.Dt(r["MAESOC_FECHADESEMPLEO"]);
+                    if (baja.HasValue && (baja.Value.Year < 1900 || baja.Value > DateTime.Today)) baja = null;
+                    estadoSocio[cuil] = (Db.Int(r["MAESOC_ESTADO"]), baja);
+                }
             }
 
         var empleados = new HashSet<string>(StringComparer.Ordinal);
@@ -1188,14 +1285,22 @@ public static class Program
 
         // ---------------- asignaciones (socemp vs Assignments) ----------------
         var paresLegado = new HashSet<string>(StringComparer.Ordinal);
+        var estadoPar = new Dictionary<string, (int Estado, DateTime? Baja)>(StringComparer.Ordinal);
         using (var src = Db.Open(Db.LegacyCs))
-        using (var cmd = new SqlCommand("SELECT SOCEMP_CUIL_STR, SOCEMP_CUITE_STR FROM fotos_.socemp", src) { CommandTimeout = 900 })
+        using (var cmd = new SqlCommand("SELECT SOCEMP_CUIL_STR, SOCEMP_CUITE_STR, SOCEMP_ESTADO, SOCEMP_FECHABAJA FROM fotos_.socemp", src) { CommandTimeout = 900 })
         using (var r = cmd.ExecuteReader())
             while (r.Read())
             {
                 var cuil = Db.PadCuit(Db.Str(r[0]));
                 var cuit = Db.PadCuit(Db.Str(r[1]));
-                if (cuil.Length > 0 && cuit.Length > 0 && cuit != "99999999999") paresLegado.Add(cuil + "|" + cuit);
+                if (cuil.Length > 0 && cuit.Length > 0 && cuit != "99999999999")
+                {
+                    var clave = cuil + "|" + cuit;
+                    paresLegado.Add(clave);
+                    var baja = Db.Dt(r["SOCEMP_FECHABAJA"]);
+                    if (baja.HasValue && (baja.Value.Year < 1900 || baja.Value > DateTime.Today)) baja = null;
+                    estadoPar[clave] = (Db.Int(r["SOCEMP_ESTADO"]), baja);
+                }
             }
 
         var paresSirga = new HashSet<string>(StringComparer.Ordinal);
@@ -1222,9 +1327,48 @@ public static class Program
         Log.Write($"  Asignaciones de SIRGA SIN par en el legado : {paresSobran.Count}");
         foreach (var p in paresFaltan.Take(5)) Log.Write($"     falta asignación: {p}");
 
+        // ---------------- estados (altas y bajas) ----------------
+        var empEstadoMal = 0;
+        using (var t = Db.Open(Db.TargetCs))
+        using (var cmd = new SqlCommand("SELECT Dni, Status, TerminationDate FROM Employees", t) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var cuil = Db.PadCuit(Db.Str(r["Dni"]));
+                if (!estadoSocio.TryGetValue(cuil, out var leg)) continue;
+                var esperado = leg.Estado == 1 ? 1 : 5;
+                var bajaSirga = Db.Dt(r["TerminationDate"]);
+                if (bajaSirga.HasValue && (bajaSirga.Value.Year < 1900 || bajaSirga.Value > DateTime.Today)) bajaSirga = null;
+                if (Db.Int(r["Status"]) != esperado
+                    || (bajaSirga?.Date ?? DateTime.MinValue) != (leg.Baja?.Date ?? DateTime.MinValue)) empEstadoMal++;
+            }
+
+        var asigEstadoMal = 0;
+        using (var t = Db.Open(Db.TargetCs))
+        using (var cmd = new SqlCommand("""
+            SELECT e.Dni, c.Cuit, a.IsActive, a.TerminationDate FROM Assignments a
+            JOIN Employees e ON e.Id = a.EmployeeId
+            JOIN Companies c ON c.Id = a.CompanyId
+            """, t) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var clave = Db.PadCuit(Db.Str(r["Dni"])) + "|" + Db.PadCuit(Db.Str(r["Cuit"]));
+                if (!estadoPar.TryGetValue(clave, out var leg)) continue;
+                var esperado = leg.Estado == 1 ? 1 : 0;
+                var bajaSirga = Db.Dt(r["TerminationDate"]);
+                if (bajaSirga.HasValue && (bajaSirga.Value.Year < 1900 || bajaSirga.Value > DateTime.Today)) bajaSirga = null;
+                if ((Db.Bit(r["IsActive"]) ? 1 : 0) != esperado
+                    || (bajaSirga?.Date ?? DateTime.MinValue) != (leg.Baja?.Date ?? DateTime.MinValue)) asigEstadoMal++;
+            }
+
+        Log.Section("5) ESTADOS (altas y bajas)");
+        Log.Write($"  Empleados con estado o fecha de baja distinta : {empEstadoMal}");
+        Log.Write($"  Asignaciones con estado o baja distinta       : {asigEstadoMal}");
+
         Log.Section("RESUMEN");
         var problemas = faltanEnSirga.Count + sobrantesReales.Count + impagas.Count + pagadasDeMas.Count + rectMal.Count
-                      + distinto.Count + sociosSinEmpleado.Count + paresFaltan.Count;
+                      + distinto.Count + sociosSinEmpleado.Count + paresFaltan.Count + empEstadoMal + asigEstadoMal;
         var informativos = sinRenglones + borradores + empleadosSinSocio.Count + paresSobran.Count;
 
         if (problemas == 0)
