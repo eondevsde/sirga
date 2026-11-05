@@ -115,7 +115,10 @@ foreach ($clave in $cadenas.Keys) {
 }
 
 # contar tablas y migraciones en SIRGA_DB_DEMO
-$cadenaSirga = ($cadenas.GetEnumerator() | Where-Object { $_.Key -like "$SitioSirga/*" } | Select-Object -First 1).Value
+# OJO: hay que tomar la cadena DefaultConnection (SIRGA_DB_DEMO). Tomar "la primera del sitio"
+# podía devolver LegacyConnection (SINDICATO_DEMO) y entonces se contaban las 227 tablas del
+# sindicato y se buscaba dbo.Declarations donde no existe.
+$cadenaSirga = $cadenas["$SitioSirga/DefaultConnection"]
 if ($cadenaSirga) {
     try {
         $conn = New-Object System.Data.SqlClient.SqlConnection($cadenaSirga)
@@ -132,6 +135,21 @@ if ($cadenaSirga) {
         }
         $conn.Close()
     } catch { $errores.Add("No pude consultar SIRGA_DB_DEMO: $($_.Exception.Message)") }
+}
+
+# comprobar las tablas del carnet en SINDICATO_DEMO
+$cadenaLegado = $cadenas["$SitioSiges/Sindicato"]
+if ($cadenaLegado) {
+    try {
+        $conn = New-Object System.Data.SqlClient.SqlConnection($cadenaLegado)
+        $conn.Open()
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = "SELECT COUNT(*) FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE s.name = 'carnet'"
+        $carnet = [int]$cmd.ExecuteScalar()
+        if ($carnet -ge 14) { $bien.Add("SINDICATO_DEMO: $carnet tablas del carnet") }
+        else { $errores.Add("SINDICATO_DEMO: $carnet tablas del carnet (se esperaban 14).") }
+        $conn.Close()
+    } catch { $errores.Add("No pude contar las tablas del carnet: $($_.Exception.Message)") }
 }
 
 # ---------------------------------------------------------------- respuesta HTTP
