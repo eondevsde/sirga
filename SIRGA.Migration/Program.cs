@@ -788,39 +788,83 @@ public static class Program
     {
         Log.Section("DeclarationDetails: desde ddjj (bulk)" + (Db.Simulacro ? "  [SIMULACRO: no escribe]" : ""));
 
-        // Declaraciones que YA tienen renglones: no se vuelven a cargar (idempotencia).
-        var conDetalle = new HashSet<int>();
+        // 1) Cuántos renglones tiene hoy cada declaración en el destino.
+        var conDetalle = new Dictionary<int, int>();
         using (var t = Db.Open(Db.TargetCs))
-        using (var tc = new SqlCommand("SELECT DISTINCT RegistryId FROM DeclarationDetails", t) { CommandTimeout = 900 })
+        using (var tc = new SqlCommand("SELECT RegistryId, COUNT(*) FROM DeclarationDetails GROUP BY RegistryId", t) { CommandTimeout = 900 })
         using (var tr = tc.ExecuteReader())
-            while (tr.Read()) conDetalle.Add(tr.GetInt32(0));
+            while (tr.Read()) conDetalle[tr.GetInt32(0)] = tr.GetInt32(1);
         Log.Write($"  declaraciones con renglones: {conDetalle.Count}");
-        // Empleados/empresas/asignaciones faltantes en ddjj pero no en maestros
-        EnsureMissingEntities();
 
-        using var src = Db.Open(Db.LegacyCs);
-        using var cmd = new SqlCommand("""
-            SELECT CUIL_STR, CUIT_STR, periodo, impo, impoaux, item2, rect FROM ddjj WHERE periodo <= GETDATE()
-            """, src) { CommandTimeout = 900 };
-        using var reader = cmd.ExecuteReader();
+        // Empleados/empresas faltantes en ddjj pero no en los maestros (en simulacro NO se crea nada).
+        if (Db.Simulacro) Log.Write("  (simulacro) no se crean maestros faltantes");
+        else EnsureMissingEntities();
 
-        // El rect de los RENGLONES puede no coincidir con el de la cabecera "buena". Se toma el maximo
-        // rect que tenga renglones: si la rectificativa no cargó renglones, se usan los de la original.
+        // 2) Del legado: para cada (CUIT, período), el rect con renglones y cuántos son.
+        //    El rect de los RENGLONES puede no coincidir con el de la cabecera "buena": si la
+        //    rectificativa no cargó renglones, se usan los de la original.
         var rectRenglones = new Dictionary<string, int>(StringComparer.Ordinal);
+        var cuentaRenglones = new Dictionary<string, int>(StringComparer.Ordinal);
         using (var srcR = Db.Open(Db.LegacyCs))
         using (var cmdR = new SqlCommand("""
-            SELECT CUIT_STR, CONVERT(varchar(7), periodo, 126) p, MAX(rect) r
+            SELECT CUIT_STR, CONVERT(varchar(7), periodo, 126) p, rect r, COUNT(*) n
             FROM ddjj WHERE periodo >= '1990-01-01' AND periodo <= GETDATE()
-            GROUP BY CUIT_STR, CONVERT(varchar(7), periodo, 126)
+            GROUP BY CUIT_STR, CONVERT(varchar(7), periodo, 126), rect
             """, srcR) { CommandTimeout = 900 })
         using (var rr = cmdR.ExecuteReader())
             while (rr.Read())
             {
                 var cuitR = Db.PadCuit(Db.Str(rr["CUIT_STR"]));
                 if (cuitR.Length == 0) continue;
-                rectRenglones[cuitR + "|" + Db.Str(rr["p"])] = Db.Int(rr["r"]);
+                var clave = cuitR + "|" + Db.Str(rr["p"]);
+                var rectFila = Db.Int(rr["r"]);
+                var cuenta = Db.Int(rr["n"]);
+                // Se queda con la rectificativa MÁS ALTA que tenga renglones, y SU cantidad.
+                if (!rectRenglones.TryGetValue(clave, out var rectActual) || rectFila >= rectActual)
+                {
+                    rectRenglones[clave] = rectFila;
+                    cuentaRenglones[clave] = cuenta;
+                }
             }
+        Log.Write($"  combinaciones CUIT/período con renglones en el legado: {rectRenglones.Count}");
 
+        // 3) Declaraciones con renglones INCOMPLETOS: las que ya tenían algunos se salteaban enteras,
+        //    así que quedaban a medias para siempre. Se reconstruyen (se borran y se vuelven a cargar).
+        var porReparar = new HashSet<int>();
+        using (var t = Db.Open(Db.TargetCs))
+        using (var cmd = new SqlCommand("""
+            SELECT d.Id, d.Period, REPLACE(REPLACE(c.Cuit,'-',''),' ','') cuit
+            FROM Declarations d
+            JOIN Companies c ON c.Id = d.CompanyId
+            WHERE EXISTS (SELECT 1 FROM DeclarationDetails dd WHERE dd.RegistryId = d.Id)
+            """, t) { CommandTimeout = 900 })
+        using (var r = cmd.ExecuteReader())
+            while (r.Read())
+            {
+                var clave = Db.PadCuit(Db.Str(r["cuit"])) + "|" + Db.Str(r["Period"]);
+                if (!cuentaRenglones.TryGetValue(clave, out var esperados)) continue;
+                var actual = conDetalle.TryGetValue(r.GetInt32(0), out var n) ? n : 0;
+                if (actual != esperados) porReparar.Add(r.GetInt32(0));
+            }
+        Log.Write($"  declaraciones incompletas a reconstruir: {porReparar.Count}");
+
+        if (porReparar.Count > 0 && !Db.Simulacro)
+        {
+            using var target0 = Db.Open(Db.TargetCs);
+            using (var crear = new SqlCommand("CREATE TABLE #reparar (Id int PRIMARY KEY)", target0)) crear.ExecuteNonQuery();
+            var tabla = new DataTable();
+            tabla.Columns.Add("Id", typeof(int));
+            foreach (var id in porReparar) tabla.Rows.Add(id);
+            Db.BulkInsert(target0, "#reparar", tabla);
+            using (var borrar = new SqlCommand("DELETE dd FROM DeclarationDetails dd JOIN #reparar r ON r.Id = dd.RegistryId", target0) { CommandTimeout = 900 })
+            {
+                var borrados = borrar.ExecuteNonQuery();
+                Log.Write($"  renglones borrados para reconstruir: {borrados}");
+            }
+            foreach (var id in porReparar) conDetalle.Remove(id);
+        }
+
+        // 4) Carga de renglones.
         var dt = new DataTable();
         dt.Columns.Add("RegistryId", typeof(int));
         dt.Columns.Add("AssignmentId", typeof(int));
@@ -830,6 +874,11 @@ public static class Program
         dt.Columns.Add("TotalWithheld", typeof(decimal));
 
         long total = 0;
+        using var src = Db.Open(Db.LegacyCs);
+        using var cmd2 = new SqlCommand("""
+            SELECT CUIL_STR, CUIT_STR, periodo, impo, impoaux, item2, rect FROM ddjj WHERE periodo <= GETDATE()
+            """, src) { CommandTimeout = 900 };
+        using var reader = cmd2.ExecuteReader();
         using var target = Db.Open(Db.TargetCs);
         while (reader.Read())
         {
@@ -840,12 +889,13 @@ public static class Program
             if (cuil.Length == 0 || cuit.Length == 0) continue;
             var regKey = cuit + "|" + periodo.ToString("yyyy-MM");
             if (!_registryByKey.TryGetValue(regKey, out var regId) || regId == 0) continue;
-            if (regId > 0 && conDetalle.Contains(regId)) continue;
+            if (conDetalle.ContainsKey(regId)) continue;
             if (rectRenglones.TryGetValue(regKey, out var rectBueno) && rect != rectBueno) continue;
             var isVoluntary = Convert.ToBoolean(reader["item2"]);
             var assKey = cuil + "|" + cuit;
             if (!_assignmentByKey.TryGetValue(assKey, out var assId))
             {
+                if (Db.Simulacro) { total++; continue; }
                 if (!TryCreateMissingAssignment(cuil, cuit, periodo, isVoluntary, out assId)) continue;
             }
             var baseSalary = Math.Round(Db.Dec(reader["impo"]), 2);
@@ -1005,6 +1055,21 @@ public static class Program
             }
         Log.Write($"  Legado: {legado.Count} cabeceras");
 
+        // Pagos: se mira si CUALQUIER fila del período está pagada (la original puede estar paga y la
+        // rectificativa no, o al revés). Comparar sólo la elegida daba 1.694 falsos positivos.
+        var pagadasLegado = new HashSet<string>(StringComparer.Ordinal);
+        using (var srcP = Db.Open(Db.LegacyCs))
+        using (var cmdP = new SqlCommand("""
+            SELECT DISTINCT CUIT_STR, CONVERT(varchar(7), periodo, 126) p
+            FROM ddjjt WHERE fpago IS NOT NULL AND rect < 100
+            """, srcP) { CommandTimeout = 900 })
+        using (var rP = cmdP.ExecuteReader())
+            while (rP.Read())
+            {
+                var cuitP = Db.PadCuit(Db.Str(rP["CUIT_STR"]));
+                if (cuitP.Length > 0) pagadasLegado.Add(cuitP + "|" + Db.Str(rP["p"]));
+            }
+
         var sirga = new Dictionary<string, (int Id, decimal Total, bool Pagada, bool Rect)>(StringComparer.Ordinal);
         using (var t = Db.Open(Db.TargetCs))
         using (var cmd = new SqlCommand("""
@@ -1019,8 +1084,8 @@ public static class Program
 
         var faltanEnSirga = legado.Keys.Where(k => !sirga.ContainsKey(k)).ToList();
         var sobranEnSirga = sirga.Keys.Where(k => !legado.ContainsKey(k)).ToList();
-        var impagas = legado.Where(kv => kv.Value.Pagada && sirga.TryGetValue(kv.Key, out var s) && !s.Pagada).Select(kv => kv.Key).ToList();
-        var pagadasDeMas = legado.Where(kv => !kv.Value.Pagada && sirga.TryGetValue(kv.Key, out var s) && s.Pagada).Select(kv => kv.Key).ToList();
+        var impagas = legado.Where(kv => pagadasLegado.Contains(kv.Key) && sirga.TryGetValue(kv.Key, out var s) && !s.Pagada).Select(kv => kv.Key).ToList();
+        var pagadasDeMas = legado.Where(kv => !pagadasLegado.Contains(kv.Key) && sirga.TryGetValue(kv.Key, out var s) && s.Pagada).Select(kv => kv.Key).ToList();
         var rectMal = legado.Where(kv => kv.Value.Rect > 0 && sirga.TryGetValue(kv.Key, out var s) && !s.Rect).Select(kv => kv.Key).ToList();
 
         Log.Section("1) CABECERAS DDJJ (ddjjt vs Declarations)");
@@ -1033,7 +1098,10 @@ public static class Program
         foreach (var k in sobranEnSirga.Take(5)) Log.Write($"     sobra: {k}");
 
         // ---------------- renglones (ddjj vs DeclarationDetails) ----------------
+        // Sólo la rectificativa ELEGIDA (la más alta que tenga renglones): comparar contra todas daba
+        // falsos positivos, porque la original y la rectificativa no tienen la misma cantidad.
         var renLegado = new Dictionary<string, int>(StringComparer.Ordinal);
+        var rectElegido = new Dictionary<string, int>(StringComparer.Ordinal);
         using (var src = Db.Open(Db.LegacyCs))
         using (var cmd = new SqlCommand("""
             SELECT CUIT_STR, CONVERT(varchar(7), periodo, 126) p, rect, COUNT(*) n
@@ -1045,7 +1113,13 @@ public static class Program
             {
                 var cuit = Db.PadCuit(Db.Str(r["CUIT_STR"]));
                 if (cuit.Length == 0) continue;
-                renLegado[cuit + "|" + Db.Str(r["p"])] = Db.Int(r["n"]);
+                var clave = cuit + "|" + Db.Str(r["p"]);
+                var rectFila = Db.Int(r["rect"]);
+                if (!rectElegido.TryGetValue(clave, out var actual) || rectFila >= actual)
+                {
+                    rectElegido[clave] = rectFila;
+                    renLegado[clave] = Db.Int(r["n"]);
+                }
             }
 
         var renSirga = new Dictionary<string, int>(StringComparer.Ordinal);
