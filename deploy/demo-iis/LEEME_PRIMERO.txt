@@ -1,0 +1,173 @@
+================================================================================
+ DEMO EN IIS — PARA LA PRESENTACIÓN DE MAÑANA 8:00
+================================================================================
+
+ Qué es esto
+ -----------
+ Deja la demo funcionando EN EL SERVIDOR, en IIS, con dominios y HTTPS, como si
+ fuera producción, pero contra las bases DEMO (copias del sistema real).
+
+ Las bases DEMO son copias del 05/11:
+   SIRGA_DB_DEMO    -> 252.165 DDJJ, 4.543 empresas, 28.160 empleados
+   SINDICATO_DEMO   -> 28.149 socios, 263.615 cabeceras de DDJJ
+
+ ********************************************************************************
+ ANTES DE EMPEZAR: mirá que la presentación NO dependa sólo del servidor.
+ Dejá también la demo local funcionando (http://localhost:5200) como respaldo:
+    .\tools\levantar-demo.ps1
+ ********************************************************************************
+
+
+--------------------------------------------------------------------------------
+ PASO 0 — QUÉ COPIAR AL SERVIDOR
+--------------------------------------------------------------------------------
+
+ Copiá estas carpetas (misma estructura de rutas):
+
+   DESDE (esta máquina)                              HACIA (servidor)
+   C:\Proyectos\SIRGA_DEMO                        -> C:\Publicaciones\SIRGA_DEMO
+   C:\Proyectos\SIGESWEB_DEMO                     -> C:\Publicaciones\SIGESWEB_DEMO
+   C:\Proyectos\SIGESWEB_DEMO_CARNET              -> C:\Publicaciones\SIGESWEB_DEMO_CARNET
+   C:\Proyectos\SIRGA\deploy\demo-iis      -> C:\Demo\instalador
+   C:\Proyectos\_RESPALDOS\demo-2026-11-05\*.bak  -> C:\Demo\bak
+
+ Comando (desde esta máquina, si el servidor está en la red):
+
+   robocopy C:\Proyectos\SIRGA_DEMO              \\SERVIDOR\C$\Publicaciones\SIRGA_DEMO              /MIR
+   robocopy C:\Proyectos\SIGESWEB_DEMO           \\SERVIDOR\C$\Publicaciones\SIGESWEB_DEMO           /MIR
+   robocopy C:\Proyectos\SIGESWEB_DEMO_CARNET    \\SERVIDOR\C$\Publicaciones\SIGESWEB_DEMO_CARNET    /MIR
+   robocopy C:\Proyectos\SIRGA\deploy\demo-iis \\SERVIDOR\C$\Demo\instalador /MIR
+   robocopy C:\Proyectos\_RESPALDOS\demo-2026-11-05    \\SERVIDOR\C$\Demo\bak       *.bak
+
+ ⚠️ Las publicaciones NO traen appsettings.Development.json (bien) pero el
+    paso 03 reescribe la configuración igual, para que apunte a las bases DEMO.
+
+
+--------------------------------------------------------------------------------
+ PASO 1 — CREAR LAS BASES DEMO (en el servidor)
+--------------------------------------------------------------------------------
+
+ Abrir PowerShell en C:\Demo\instalador y editar la cabecera de 01_bases_demo.sql:
+    - @CarpetaBak  = 'C:\Demo\bak'
+    - @Simulacro   = 0        (después de probar con 1)
+
+    sqlcmd -S localhost -E -b -I -i 01_bases_demo.sql
+
+ Tiene que mostrar al final:
+    SIRGA_DB_DEMO     252165   4543   28160
+    SINDICATO_DEMO     28149   263615
+
+ ⏱️ Tarda ~1 minuto (SINDICATO_DEMO son 655 MB).
+
+
+--------------------------------------------------------------------------------
+ PASO 2 — PERMISOS (en el servidor)
+--------------------------------------------------------------------------------
+
+ Editar 02_permisos.sql: @Simulacro = 0.
+
+    sqlcmd -S localhost -E -b -I -i 02_permisos.sql
+
+ Crea los logins de los App Pools y les da permiso en las dos bases DEMO.
+ (Si preferís usuario y clave SQL, avisame y se cambia en el paso 3.)
+
+
+--------------------------------------------------------------------------------
+ PASO 3 — INSTALAR LOS SITIOS EN IIS (en el servidor)
+--------------------------------------------------------------------------------
+
+ Primero en simulacro, para ver qué va a hacer:
+
+    .\03_instalar_iis.ps1
+
+ Y después de verdad:
+
+    .\03_instalar_iis.ps1 -Aplicar -OrigenPublicaciones "C:\Publicaciones" -Raiz "C:\Sitios\Demo"
+
+ Qué hace: copia las publicaciones a C:\Sitios\Demo, escribe la configuración
+ (bases DEMO), crea los App Pools y los sitios con HTTP y HTTPS, activa el log de
+ arranque y da permisos de carpeta.
+
+ Si la instancia de SQL no es la local:
+    -InstanciaSQL ".\SQLEXPRESS"
+ Y si usan usuario SQL:
+    -Autenticacion SQL -UsuarioSQL sqladmin -ClaveSQL "la-clave"
+
+ ⚠️ HTTPS: el script busca el certificado por dominio en el almacén del servidor
+    (sirve un comodín *.secsantiago.com.ar). Si no lo encuentra, deja el sitio en
+    HTTP y avisa. Para forzar uno: -CertificadoSirga "HUELLA".
+
+
+--------------------------------------------------------------------------------
+ PASO 4 — VERIFICAR (en el servidor)
+--------------------------------------------------------------------------------
+
+    .\04_verificar.ps1
+
+ Tiene que terminar con:
+    DEMO VERIFICADA: N controles OK, 0 advertencias
+
+ Revisa: sitios, bindings, certificados, que las cadenas apunten a bases _DEMO,
+ que las bases conecten, tablas/migraciones de SIRGA y que las tres URL respondan.
+
+
+--------------------------------------------------------------------------------
+ PASO 5 — DNS (si los dominios no resuelven)
+--------------------------------------------------------------------------------
+
+ Los dominios tienen que apuntar al servidor:
+    sirga-demo.secsantiago.com.ar
+    sigesweb-demo.secsantiago.com.ar
+    carnet-demo.secsantiago.com.ar
+
+ Si todavía no propagó, se puede probar desde cualquier PC agregando al
+ C:\Windows\System32\drivers\etc\hosts:
+    <IP-del-servidor>   sirga-demo.secsantiago.com.ar
+    <IP-del-servidor>   sigesweb-demo.secsantiago.com.ar
+    <IP-del-servidor>   carnet-demo.secsantiago.com.ar
+
+ ⚠️ Los guiones (-) son obligatorios: el certificado comodín NO cubre "_".
+
+
+--------------------------------------------------------------------------------
+ USUARIOS PARA LA PRESENTACIÓN
+--------------------------------------------------------------------------------
+
+ SIRGA (el estudio)    https://sirga-demo.secsantiago.com.ar
+    Administrador      admin@sirga.com                  / 12345
+    Estudio contable   cualquier email de estudio       / 12345
+                       (ej.: cpngmc@gmail.com)
+
+ SIGESWEB (el sindicato)  https://sigesweb-demo.secsantiago.com.ar
+    Los usuarios y claves que ya usan en el servidor de producción.
+
+
+--------------------------------------------------------------------------------
+ SI ALGO FALLA
+--------------------------------------------------------------------------------
+
+ 1. El sitio no abre o da error 500.30 / 502:
+    - Ver el log de arranque:  C:\Sitios\Demo\<sitio>\logs\stdout_*.log
+    - Casi siempre es: falta el Hosting Bundle de .NET 10, o la identidad del App
+      Pool no puede entrar a SQL (revisar el paso 2).
+
+ 2. Abre pero sin estilos (gigante):
+    - Falta la carpeta wwwroot. Volver a copiar la publicación.
+
+ 3. "No se puede conectar a la base":
+    - Revisar la cadena en appsettings.Production.json y los permisos del paso 2.
+    - Probar:  sqlcmd -S localhost -E -d SIRGA_DB_DEMO -Q "SELECT COUNT(*) FROM dbo.Declarations"
+
+ 4. Última opción para la presentación:
+    - Mostrar la demo local (http://localhost:5200) con esta misma máquina.
+      Es el mismo sistema, con las mismas bases y la misma versión.
+
+
+--------------------------------------------------------------------------------
+ ORDEN RÁPIDO (resumen)
+--------------------------------------------------------------------------------
+
+   01_bases_demo.sql      -> crea las bases DEMO
+   02_permisos.sql        -> logins y permisos
+   03_instalar_iis.ps1    -> sitios, HTTPS, configuración
+   04_verificar.ps1       -> control final
