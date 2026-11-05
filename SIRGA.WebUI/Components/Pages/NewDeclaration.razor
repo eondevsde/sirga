@@ -327,9 +327,12 @@ else
               </MudTd>
               <MudTd DataLabel="Remuneración">
                 @* Es el importe del recibo de sueldo, lo carga el estudio a mano. No se prellena. *@
-                <MudNumericField Value="context.GrossSalary" Format="G" Variant="Variant.Text" Margin="Margin.Dense"
-                                 T="decimal" ValueChanged="@((v) => { context.GrossSalary = v; Recalculate(context); })"
-                                 Error="@context.IsUnderScale" />
+                @* Campo de TEXTO, no numérico: así el usuario puede escribir el importe con coma (es-AR)
+                   o con punto (teclado numérico). El numérico de MudBlazor, con la cultura del sistema,
+                   interpretaba el punto como separador de miles y el importe quedaba mal. *@
+                <MudTextField T="string" Value="@TextoImporte(context)" ValueChanged="@((v) => CambiarImporte(context, v))"
+                              OnBlur="@(() => AlSalirDelImporte(context))" Variant="Variant.Text"
+                              Margin="Margin.Dense" Placeholder="0,00" Error="@context.IsUnderScale" />
               </MudTd>
               <MudTd DataLabel="Mínimo Escala">
                 @if (context.MinSalary <= 0)
@@ -1042,6 +1045,32 @@ else
     detail.MinSalary = SalaryMinimumCalculator.Minimo(scale, detail.EntryDate, fechaCorte, detail.Jornada);
   }
 
+  /// <summary>
+  /// Texto que se muestra en el campo de remuneración. Mientras el usuario está escribiendo se respeta
+  /// exactamente lo que tipeó (si se reformateara, el cursor salta); al salir del campo se vuelve a
+  /// mostrar formateado con coma decimal.
+  /// </summary>
+  private readonly Dictionary<int, string> _textoImporte = new();
+
+  private string TextoImporte(DeclarationDetailViewModel detalle)
+      => _textoImporte.TryGetValue(detalle.AssignmentId, out var texto)
+          ? texto
+          : detalle.GrossSalary == 0 ? string.Empty : detalle.GrossSalary.ToString("N2");
+
+  /// <summary>
+  /// Interpreta lo que escribe el usuario: vale la coma y también el punto como separador decimal.
+  /// Si lo que escribió todavía no es un número (por ejemplo "1."), no se toca el importe.
+  /// </summary>
+  private void CambiarImporte(DeclarationDetailViewModel detalle, string? texto)
+  {
+    _textoImporte[detalle.AssignmentId] = texto ?? string.Empty;
+    var valor = ImporteParser.Parse(texto);
+    if (valor is null) return;
+    detalle.GrossSalary = valor.Value;
+    Recalculate(detalle);
+  }
+
+  private void AlSalirDelImporte(DeclarationDetailViewModel detalle) => _textoImporte.Remove(detalle.AssignmentId);
   private void Recalculate(DeclarationDetailViewModel detail)
   {
     UpdateMinSalary(detail);
