@@ -85,7 +85,7 @@ Paso "escribir web.config (Production + log de arranque)" {
     New-Item -ItemType Directory -Force -Path (Join-Path $Destino "logs") | Out-Null
 }
 Paso "permisos para IIS APPPOOL\$Pool" {
-    & icacls $Destino /grant "IIS APPPOOL\$Pool:(OI)(CI)F" /T /Q | Out-Null
+    & icacls $Destino /grant "IIS APPPOOL\${Pool}:(OI)(CI)F" /T /Q | Out-Null
 }
 
 Titulo "ARRANQUE"
