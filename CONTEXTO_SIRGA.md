@@ -1709,3 +1709,102 @@ asignaciones sin par en el legado.
 2. Publicar en IIS (3 sitios) — lo hace el usuario.
 3. Decisiones: contraseña `12345` definitiva vs provisoria, SIMPLE vs FULL, rotar la clave SQL de SIGESWEB.
 4. Los otros dos campos numéricos con coma/punto (`InterestRates`, `PaymentReconciliation`).
+## 10.21 Demo ONLINE en IIS — estado al 2026-11-05 21:30 (continuar aca)
+
+**Objetivo**: demo en el servidor, por URL (no local), para presentar el 2026-11-06 a las 8:00.
+La demo local NO sirve: tiene que ser online.
+
+### Servidor
+
+| Dato | Valor |
+|---|---|
+| Instancia SQL | **`.\SQLEXPRESS`** |
+| Bases demo | `SIRGA_DB_DEMO` y `SINDICATO_DEMO` |
+| Sitios IIS | `sirga-demo`, `sigesweb-demo`, `sigesweb-demo-carnet` |
+| App Pools | mismo nombre que el sitio (32bit=False, managedRuntimeVersion=v4.0, Integrated, ApplicationPoolIdentity) |
+| Carpetas | `C:\inetpub\sirga-demo`, `C:\inetpub\sigesweb-demo`, `C:\inetpub\sigesweb-demo-carnet` |
+| Publicaciones | `C:\Publicaciones\{SIRGA_DEMO, SIGESWEB_DEMO, SIGESWEB_DEMO_CARNET}` |
+| Instalador | `C:\Demo\instalador` (copia de `deploy/demo-iis`) |
+| Respaldos | `C:\Demo\bak` (SIRGA_DB_DEMO.bak 60,8 MB; SINDICATO_DEMO.bak 655,3 MB) |
+| Dominios | sirga-demo / sigesweb-demo / sigesweb-demo-carnet .secsantiago.com.ar — **el del carnet NO resuelve en DNS** |
+
+### Lo que FUNCIONA
+
+- `sirga-demo` por **HTTP** (falta certificado).
+- `sigesweb-demo` por **HTTPS** (verificado por el usuario: /dashboard).
+- `SIRGA_DB_DEMO`: **59 tablas, 57 migraciones, 252.165 declaraciones**.
+- `SINDICATO_DEMO`: 227 tablas, **14 del carnet**, 28.149 socios.
+- Las **5 cadenas conectan** y los permisos de los tres App Pools estan dados.
+- Los tres sitios corren en `Production` y apuntan a bases `_DEMO`.
+
+### Problema abierto: `sirga-demo` da 500.31
+
+`HTTP Error 500.31 - Failed to load ASP.NET Core runtime`, solo en ese sitio.
+
+**Descartado con evidencia**:
+1. Runtime: `Microsoft.AspNetCore.App 10.0.8` y `Microsoft.NETCore.App 10.0.8` presentes (x64).
+2. App Pools identicos entre sirga-demo y sigesweb-demo.
+3. La carpeta del servidor es identica a la publicacion: **340 archivos**, `SIRGA.WebUI.dll` de **943.104 bytes**, misma fecha.
+4. La **misma carpeta arranca bien** fuera de IIS en Production: `Now listening on: http://localhost:5301`, HTTP 200, conectada a `SIRGA_DB_DEMO`.
+5. `runtimeconfig.json` de SIRGA y de SIGESWEB son iguales (`net10.0`, AspNetCore.App 10.0.0).
+6. El log de stdout esta **vacio**: el modulo (ANCM) nunca lanzo el proceso.
+
+Conclusion: no es la app, ni la configuracion, ni el runtime. Es la capa de hosting de ese sitio.
+
+### SOLUCION PREPARADA (falta ejecutarla en el servidor)
+
+Publicacion **autocontenida** (lleva su propio .NET, no depende del runtime del servidor):
+
+- Carpeta: **`C:\Proyectos\SIRGA_DEMO_SC`** — 186,6 MB, **646 archivos**, con `SIRGA.WebUI.exe` + `hostfxr.dll` + `hostpolicy.dll`.
+- **Probada localmente**: arranca y responde HTTP 200.
+- Script: **`deploy/demo-iis/06_pegar_autocontenido.ps1`** (copia, escribe la config demo, deja `processPath=".\SIRGA.WebUI.exe"` y reinicia el pool).
+
+Pasos:
+
+```powershell
+# 1) desde la maquina de desarrollo
+robocopy "C:\Proyectos\SIRGA_DEMO_SC" "\\SERVIDOR\C$\Publicaciones\SIRGA_DEMO_SC" /MIR
+
+# 2) en el servidor (simulacro y despues aplicar)
+cd C:\Demo\instalador
+.\06_pegar_autocontenido.ps1
+.\06_pegar_autocontenido.ps1 -Aplicar -Origen "C:\Publicaciones\SIRGA_DEMO_SC"
+```
+
+**Por que deberia funcionar**: `processPath=".\SIRGA.WebUI.exe"` usa el runtime de la propia carpeta; ya no depende de que el servidor resuelva `Microsoft.AspNetCore.App`.
+
+**Si aun asi diera 500.31**: el problema seria el modulo ANCM → instalar el **.NET 10 Hosting Bundle**
+(`https://dotnet.microsoft.com/download/dotnet/10.0` → "ASP.NET Core Runtime 10.x — Hosting Bundle") y `iisreset`.
+No afecta a SIGESWEB: .NET 8 y 10 conviven.
+
+### Certificado (pendiente, no bloquea)
+
+- `sigesweb-demo` ya funciona en HTTPS: existe un certificado que la sirve. Para darselo a `sirga-demo`:
+  leer la huella del binding de sigesweb-demo (`[System.BitConverter]::ToString($binding.certificateHash) -replace '-',''')`
+  y aplicarla con `AddSslCertificate($huella, "my")`, despues `iisreset`.
+- **No se emitio ningun certificado nuevo con win-acme** para los tres sitios (confirmado por el usuario).
+- En win-acme los sitios aparecian con bindings sin dominio (`*:443:sigesweb-demo-carnet`); el del carnet ya se corrigio a `*:443:sigesweb-demo-carnet.secsantiago.com.ar`.
+- Se agrego **puerto 80** a los tres sitios (validacion http-01 de Let's Encrypt + plan B por HTTP).
+- `sigesweb-demo-carnet.secsantiago.com.ar` **no resuelve** en DNS: sin registro A no hay certificado posible.
+
+### Credenciales de la demo
+
+| | |
+|---|---|
+| Administrador SIRGA | `admin@sirga.com` / `12345` |
+| Estudio contable | cualquier email de estudio / `12345` (ej. `cpngmc@gmail.com`) |
+
+### Control de aceptacion
+
+```powershell
+.\04_verificar.ps1     # en C:\Demo\instalador
+```
+
+Debe dar **0 errores**. Los AVISOS de certificado se pueden ignorar: la busqueda es por nombre de dominio
+y ya se comprobo que SIGESWEB sirve por HTTPS.
+
+### Respaldo si el servidor no queda a tiempo
+
+Demo local verificada: `tools\levantar-demo.ps1` → **http://localhost:5200** con `SIRGA_DB_DEMO` + `SINDICATO_DEMO`,
+252.165 DDJJ, consistente con el sindicato. **No es lo que se va a presentar** (tiene que ser online), pero sirve de prueba.
+
