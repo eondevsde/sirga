@@ -1841,3 +1841,28 @@ cd C:\Demo\instalador
 .\04_verificar.ps1
 ```
 
+
+### 10.23 CONGELADO para la presentacion del 2026-11-06 8:00
+
+**Decision del usuario**: no tocar mas nada. Todo funciona y el riesgo de romperlo es mayor al beneficio.
+
+Estado exacto al congelar (22:30):
+
+- `sirga-demo`: funciona por HTTP y HTTPS (publicacion autocontenida, `processPath=".\SIRGA.WebUI.exe"`, permisos `icacls` dados).
+- `sigesweb-demo`: funciona por HTTPS.
+- `sigesweb-demo-carnet`: configurado; depende del DNS.
+- Bases: `SIRGA_DB_DEMO` (59 tablas, 57 migraciones, 252.165 DDJJ) y `SINDICATO_DEMO` (227 tablas, 14 del carnet).
+- **Certificado**: el unico que habia en `Cert:\LocalMachine\My` es `CN=www.secsantiago.com.ar` y esta **VENCIDO (16/06/2025)**; se asigno a los tres sitios y eso genera solo una ADVERTENCIA del navegador. El otro certificado del almacen es `WMSvc-SHA2-SERVER01` (servicio de administracion, no sirve para web).
+
+**NO HACER antes de la presentacion**:
+- No volver a asignar certificados ni correr win-acme.
+- No reemplazar publicaciones.
+- No tocar bindings.
+- `iisreset` solo si algo no abre.
+
+**Para presentar**: abrir `https://sirga-demo.secsantiago.com.ar` antes de la reunion y aceptar la advertencia
+(Avanzado -> Continuar). Alternativa sin pantalla de bloqueo: `http://sirga-demo.secsantiago.com.ar`.
+Credenciales: `admin@sirga.com` / `12345` y cualquier email de estudio / `12345`.
+
+**Pendiente para despues de la presentacion**: emitir los certificados reales con win-acme
+(requiere binding en el puerto 80 y DNS resuelto para los tres dominios; el del carnet no resuelve).
