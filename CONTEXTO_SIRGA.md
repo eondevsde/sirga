@@ -1866,3 +1866,24 @@ Credenciales: `admin@sirga.com` / `12345` y cualquier email de estudio / `12345`
 
 **Pendiente para despues de la presentacion**: emitir los certificados reales con win-acme
 (requiere binding en el puerto 80 y DNS resuelto para los tres dominios; el del carnet no resuelve).
+
+### 10.24 Leccion del incidente de certificados (2026-11-05 22:45)
+
+Se intento resolver el "Not secure" de los sitios demo asignandoles un certificado del almacen. **Salio mal y se revirtio.**
+
+**Que paso**:
+1. El comando de busqueda usaba `Where-Object { $_.Subject -like "*.secsantiago.com.ar*" }`. En PowerShell el `*`
+   inicial es comodin, asi que matcheo `CN=www.secsantiago.com.ar` (el unico que contenia ese texto), que estaba
+   **VENCIDO desde el 16/06/2025**.
+2. `AddSslCertificate($thumb, "my")` **no valida nada**: asigna lo que le pasen. Quedo un certificado vencido en los
+   tres sitios y el navegador empezo a rechazar el HTTPS de plano.
+3. Se revirtio (quitar el sslcert del binding y volver a como estaba). Todo normalizo.
+
+**Reglas que quedan**:
+- **No asignar certificados a mano en el servidor.** Para emision usar win-acme, que valida, renueva y vincula.
+- Para buscar por Subject con comodines literales, usar `-match` con `[regex]::Escape(...)`, **nunca** `-like` con `*`.
+- En el servidor **no hay ningun certificado valido para los sitios web**: el unico del almacen es `WMSvc-SHA2-SERVER01`
+  (administracion de IIS) y uno vencido de `www`. Por eso los sitios demo muestran advertencia en HTTPS.
+- Antes de presentar: **no tocar certificados ni bindings**. Se presenta por HTTPS aceptando la advertencia, o por HTTP.
+
+**Estado final**: "ya volvio todo a la normalidad" (usuario, 22:45). Los tres sitios responden como antes del intento.
