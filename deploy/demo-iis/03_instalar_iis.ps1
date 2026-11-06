@@ -1,4 +1,4 @@
-# ==========================================================================================
+﻿# ==========================================================================================
 #  03 — INSTALA LAS TRES APLICACIONES EN IIS (versión DEMO, con dominios y HTTPS)
 #
 #  Deja la demo "como si fuera producción": sitios en IIS, HTTPS, dominios propios y las bases

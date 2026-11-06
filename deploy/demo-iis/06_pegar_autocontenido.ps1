@@ -1,4 +1,4 @@
-# ==========================================================================================
+﻿# ==========================================================================================
 #  06 — DESPLIEGA LA PUBLICACIÓN AUTOCONTENIDA (la que NO depende del runtime del servidor)
 #
 #  Para cuando el sitio da 500.31 ("Failed to load ASP.NET Core runtime") aunque el runtime

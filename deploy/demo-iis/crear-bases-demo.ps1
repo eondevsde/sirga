@@ -1,4 +1,4 @@
-# ==========================================================================================
+﻿# ==========================================================================================
 #  CREA LAS BASES DE LA DEMO EN EL SERVIDOR — un solo comando
 #
 #  Hace todo lo de 01_bases_demo.sql sin que tengas que editar nada adentro:
