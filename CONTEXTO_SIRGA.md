@@ -1887,3 +1887,31 @@ Se intento resolver el "Not secure" de los sitios demo asignandoles un certifica
 - Antes de presentar: **no tocar certificados ni bindings**. Se presenta por HTTPS aceptando la advertencia, o por HTTP.
 
 **Estado final**: "ya volvio todo a la normalidad" (usuario, 22:45). Los tres sitios responden como antes del intento.
+
+### 10.25 Pendientes para despues de la presentacion (encontrados el 2026-11-06 11:40)
+
+**1. Falta el link de "Conciliacion del banco" en el menu.** La pagina existe (`/conciliacion/banco`,
+   `[Authorize(Roles = "Sindicato,Admin")]`) y funciona, pero **no tiene entrada en `NavMenu.razor`**:
+   el rol Sindicato solo la encuentra escribiendo la URL. Va dentro del bloque `<AuthorizeView Roles="Sindicato,Auditor">`,
+   al lado de "Bancos y Boletas":
+
+```razor
+<MudNavLink Href="/conciliacion/banco" Icon="@Icons.Material.Filled.Payments">Conciliacion del banco</MudNavLink>
+```
+
+**2. `RendicionBanco:ModoSimulacro` viene en `true`.** En ese modo lee y concilia pero **no escribe en ninguna base**,
+   asi que los pagos no quedan asentados. Para produccion tiene que estar en `false`, y la pantalla lo muestra en naranja.
+
+**3. `RendicionBanco:CarpetaEntrada` no esta configurada** (ni en la demo ni en la configuracion que escribe `08_desplegar_en_servidor.ps1`).
+   Sin carpeta el monitor no revisa nada y lo informa en el log al arrancar.
+
+**Circuito de la rendicion (como funciona):**
+- El banco manda un archivo (`.txt` tipo `BSELB20261006.txt`, o `.bse`); cada linea que empieza con `1` es un pago con
+  codigo de barras de 54 o 58 digitos (trae periodo y CUIT); la linea `2` es el total de control.
+- `BankRenditionInbox` lee **todos** los archivos de la carpeta de entrada (sin filtrar extension), procesa y **mueve**
+  el archivo a `Procesados/` o `Errores/`; nunca borra.
+- Corre solo cada `IntervaloMinutos` (30) y al arrancar; ademas hay boton "Revisar ahora" en la pantalla.
+- Para el dia a dia: una regla de Outlook que mueva el adjunto del banco a esa carpeta.
+
+**Publicacion de estas correcciones**: `07_publicar_desde_dev.ps1` + `08_desplegar_en_servidor.ps1` (ver 10.22).
+
