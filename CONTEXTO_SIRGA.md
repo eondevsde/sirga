@@ -1808,3 +1808,36 @@ y ya se comprobo que SIGESWEB sirve por HTTPS.
 Demo local verificada: `tools\levantar-demo.ps1` → **http://localhost:5200** con `SIRGA_DB_DEMO` + `SINDICATO_DEMO`,
 252.165 DDJJ, consistente con el sindicato. **No es lo que se va a presentar** (tiene que ser online), pero sirve de prueba.
 
+
+### 10.22 Guia de publicacion de cambios (para las correcciones que vienen)
+
+Documento: **`deploy/demo-iis/COMO_PUBLICAR_CAMBIOS.md`**
+
+Contiene la configuracion que funciona, el ciclo de publicacion en 3 minutos, las reglas que no se negocian,
+el catalogo de errores (500.31, 500.0, 500.30, 502.5, 404, "Not secure", falta de BOM en los .ps1) y los 4 comandos de diagnostico.
+
+**Lo que se aprendio publicando la demo (2026-11-05):**
+
+| Sintoma | Causa | Solucion |
+|---|---|---|
+| 500.31 Failed to load ASP.NET Core runtime | publicacion framework-dependent: IIS no resuelve el framework in-process | publicar AUTOCONTENIDO (win-x64, self-contained) y `processPath=".\SIRGA.WebUI.exe"` |
+| 500.0 ASP.NET Core IIS hosting failure (in-process) con `logs` vacio | el App Pool no podia escribir el log en la carpeta del sitio | `icacls <carpeta> /grant "IIS APPPOOL\<sitio>:(OI)(CI)F" /T` |
+| "Not secure" en el navegador | ese sitio no tiene certificado propio | copiar la huella del binding de un sitio que si funciona (`AddSslCertificate`) + `iisreset` |
+| `.ps1 no se reconoce` / `Token ... inesperado` | el archivo no estaba en el servidor o estaba sin BOM | volver a copiar el instalador; guardar los .ps1 en UTF-8 CON BOM |
+| 404 con el sitio iniciado | binding sin dominio o sin puerto 80 | `Get-WebBinding -Name <sitio>` y corregir `bindingInformation` |
+
+**Scripts nuevos:**
+- `07_publicar_desde_dev.ps1` (maquina de desarrollo): publica autocontenido y copia a `\\SERVIDOR\C$\Publicaciones\SIRGA_DEMO_SC`.
+- `08_desplegar_en_servidor.ps1` (servidor, como administrador): para el pool, copia, escribe appsettings demo, deja el web.config con el .exe, arregla permisos con icacls, arranca, prueba HTTP y sale con codigo 1 si no responde.
+
+**Ciclo para cada correccion:**
+
+```powershell
+# desarrollo
+.\deploy\demo-iis\07_publicar_desde_dev.ps1 -Servidor "\\SERVIDOR"
+# servidor (como administrador)
+cd C:\Demo\instalador
+.\08_desplegar_en_servidor.ps1 -Aplicar
+.\04_verificar.ps1
+```
+
