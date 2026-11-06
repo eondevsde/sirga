@@ -1915,3 +1915,30 @@ Se intento resolver el "Not secure" de los sitios demo asignandoles un certifica
 
 **Publicacion de estas correcciones**: `07_publicar_desde_dev.ps1` + `08_desplegar_en_servidor.ps1` (ver 10.22).
 
+
+### 10.26 Rendicion del banco: descifrado automatico con GnuPG (validado 2026-11-06)
+
+El banco manda TRES archivos cifrados con OpenPGP (RSA-2048) a la clave `66A05347345D5F24`
+("Sindicato Empleados de Comercio", creada 2019-09-30).
+
+| Archivo | Que es | Destino |
+|---|---|---|
+| `Pagos_1_160926.bse` | **los pagos** | `entrada\` (SIRGA asienta) |
+| `Detalle_Recaudacion_*.pdf` | reporte | `comprobantes\` |
+| `Totales Recaudacion Diaria_*.pdf` | reporte | `comprobantes\` |
+
+**La clave privada NO tiene contraseña** (descifra sin pedirla), asi que la automatizacion no necesita
+guardar ninguna clave: lo que hay que proteger es la CARPETA del llavero (`icacls` solo Administrators y SYSTEM).
+
+**Implementado**: `deploy/rendicion/01_descifrar-rendicion.ps1` + `LEEME_RENDICION.md`.
+El script descifra con `gpg --homedir <llavero propio> --batch --decrypt`, reparte por extension
+(`.bse`/`.txt` -> entrada, `.pdf` -> comprobantes), mueve los `.pgp` a `cifrados-procesados` (nunca borra),
+manda lo que falla a `errores` y escribe `descifrado.log`. Tiene simulacro y `-ProgramarTarea` (cada 5 min como SYSTEM).
+
+**Validado de punta a punta** el 2026-11-06 con los tres archivos reales: 3 descifrados, 0 errores. El `.bse`
+resultante tiene el MISMO SHA256 que el archivo que SIRGA ya habia procesado antes, o sea que el formato
+que sale del descifrado es exactamente el que el parser espera.
+
+**Pendiente en el servidor**: instalar Gpg4win (si falta), importar la clave privada en `C:\Demo\rendicion\gnupg`,
+proteger esa carpeta con icacls, borrar el .asc de la clave despues de importarla, y configurar SIRGA con
+`RendicionBanco:CarpetaEntrada = C:\Demo\rendicion\entrada` y `ModoSimulacro = false`.
