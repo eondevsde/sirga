@@ -1942,3 +1942,49 @@ que sale del descifrado es exactamente el que el parser espera.
 **Pendiente en el servidor**: instalar Gpg4win (si falta), importar la clave privada en `C:\Demo\rendicion\gnupg`,
 proteger esa carpeta con icacls, borrar el .asc de la clave despues de importarla, y configurar SIRGA con
 `RendicionBanco:CarpetaEntrada = C:\Demo\rendicion\entrada` y `ModoSimulacro = false`.
+
+### 10.27 Publicacion: carpetas, scripts y dos bugs corregidos (2026-11-10)
+
+**Mapa definitivo de carpetas** (la confusion era cual `publish` copiar):
+
+| Carpeta | Que es | Base | Se copia a |
+|---|---|---|---|
+| `C:\Proyectos\SIRGA_DEMO_SC` | **DEMO** SIRGA, autocontenida (646 archivos, 186 MB, con `SIRGA.WebUI.exe`) | `SIRGA_DB_DEMO` + `SINDICATO_DEMO` | `C:\inetpub\sirga-demo` |
+| `C:\Proyectos\SIGESWEB_DEMO` | **DEMO** SIGESWEB (129 archivos, 115 MB) | `SINDICATO_DEMO` | `C:\inetpub\sigesweb-demo` |
+| `C:\Proyectos\SIGESWEB_DEMO_CARNET` | **DEMO** Carnet (159 archivos, 113 MB) | `SINDICATO_DEMO` | `C:\inetpub\sigesweb-demo-carnet` |
+| `C:\Proyectos\SIGESWEB\publish` | **PRODUCCION** (del 22/10) | `Sindicato` en 192.168.1.240 | **NO** |
+| `C:\Proyectos\SIGESWEB\publish-carnet` | **PRODUCCION** (del 28/10) | `Sindicato` | **NO** |
+| `C:\Proyectos\SIRGA_DEMO` | SIRGA framework-dependent (la del 500.31) | — | **NO** |
+
+**Scripts de publicacion** (escriben la configuracion DEMO dentro de la carpeta publicada, asi
+copiar a mano a `inetpub` es seguro):
+
+- `07_publicar_desde_dev.ps1` → publica SIRGA (autocontenida) en `C:\Proyectos\SIRGA_DEMO_SC`.
+- `11_publicar_sigesweb_desde_dev.ps1` → publica SIGESWEB en `C:\Proyectos\SIGESWEB_DEMO` (y con `-Servidor` lo copia).
+- `08_desplegar_en_servidor.ps1` → despliegue de SIRGA en el servidor.
+- `10_desplegar_sigesweb.ps1` → despliegue de SIGESWEB (solo ese sitio).
+
+⚠️ **Nunca usar `05_pegar_publish.ps1`**: reescribe los tres sitios y a SIRGA le pone
+`processPath="dotnet"` (framework-dependent) → vuelve el 500.31.
+
+**Dos bugs encontrados y corregidos el 2026-11-10**:
+
+1. **`C:\Proyectos\SIRGA_DEMO_SC\appsettings.json` apuntaba a `SIRGA_DB` (la base REAL).**
+   El script de despliegue la corregia recien en el servidor, asi que una copia a mano habria hecho
+   que la demo escribiera en produccion. Ahora los scripts de publicacion escriben la configuracion
+   demo en la carpeta de origen.
+2. **`dotnet publish` no pisa un archivo si el destino es mas nuevo**: se quedaba el `appsettings`
+   de la publicacion anterior (y por eso no se aplicaba la correccion). Ahora los scripts borran
+   `appsettings*.json` antes de publicar.
+3. **Al reescribir el `appsettings` desde cero se perdian secciones del repo** (en SIGESWEB se perdia
+   `Email`, con `CarpetaSimulada` para el modo simulacion de correo). Ahora se **fusiona**: se cambian
+   solo las cadenas de conexion y se conserva el resto.
+
+**SIGESWEB — arreglo del scroll del Dashboard**: `.dashboard-container` tenia `overflow: hidden`
+para recortar una decoracion `::before` de 200% x 200%; si el contenido superaba la pantalla se
+recortaba y no se podia scrollear. Se pasaron los degradados al `background` del contenedor y se
+quito el `::before`, la animacion y el `overflow: hidden`. Build 0 errores. **Publicado el 06/11 14:17**;
+pendiente de copiar al servidor al 2026-11-10.
+
+**Pendiente menor**: `Email:CarpetaSimulada` apunta a `C:\Proyectos\SIGESWEB\App_Data\correos`,
+ruta que no existe en el servidor; si se muestra el envio de correos en la demo hay que cambiarla.
