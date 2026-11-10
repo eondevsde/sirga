@@ -24,8 +24,38 @@ param(
 $ErrorActionPreference = "Stop"
 $inicio = Get-Date
 
+function EscribirConfigDemo {
+    param(
+        [Parameter(Mandatory = $true)][string]$Carpeta,
+        [Parameter(Mandatory = $true)][hashtable]$Cadenas,
+        [string]$ApiBase = ""
+    )
+    # NO se reescribe el archivo entero: se lee el que dejó el publish (que trae las secciones del
+    # repo: Email, Logging, etc.), se le cambian SOLO las cadenas y se vuelve a escribir.
+    # Reescribirlo desde cero borraba `Email` y rompía el envío de correo.
+    $ruta = Join-Path $Carpeta "appsettings.json"
+    $cfg = if (Test-Path $ruta) { Get-Content $ruta -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+
+    $cfg | Add-Member -NotePropertyName ConnectionStrings -NotePropertyValue ([pscustomobject]$Cadenas) -Force
+    if ($ApiBase) { $cfg | Add-Member -NotePropertyName ApiBaseUrl -NotePropertyValue $ApiBase -Force }
+    if (-not ($cfg.PSObject.Properties.Name -contains "AllowedHosts")) {
+        $cfg | Add-Member -NotePropertyName AllowedHosts -NotePropertyValue "*" -Force
+    }
+
+    $json = $cfg | ConvertTo-Json -Depth 10
+    Set-Content $ruta $json -Encoding utf8
+    Set-Content (Join-Path $Carpeta "appsettings.Production.json") $json -Encoding utf8
+    return ($cfg.PSObject.Properties.Name)
+}
 function Titulo($t) { Write-Host ""; Write-Host "== $t" -ForegroundColor Cyan }
 
+# Se borran los appsettings de la publicación ANTERIOR: dotnet publish no pisa un archivo si el
+# destino es más nuevo, así que sin esto se quedaba la configuración vieja (y se perdían secciones
+# como Email que sí trae el repo).
+foreach ($n in @("appsettings.json", "appsettings.Production.json", "appsettings.Development.json")) {
+    $p = Join-Path $Publicacion $n
+    if (Test-Path $p) { Remove-Item $p -Force; Write-Host "  (borrado $n de la publicación anterior)" }
+}
 Titulo "PUBLICANDO SIGESWEB"
 Write-Host "  proyecto : $Proyecto"
 Write-Host "  salida   : $Publicacion"
@@ -43,16 +73,10 @@ Write-Host "  OK: $((Get-ChildItem $Publicacion -Recurse -File).Count) archivos 
 # `dotnet publish` copia el appsettings.json del repo, que apunta a la base REAL (Sindicato).
 # ---------------------------------------------------------------------------------------
 Titulo "CONFIGURACIÓN DEMO EN LA PUBLICACIÓN"
-$cfg = [ordered]@{
-    ConnectionStrings = [ordered]@{
-        Sindicato = "Server=$InstanciaSQL;Database=$Base;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=False"
-    }
-    AllowedHosts = "*"
-    Logging      = [ordered]@{ LogLevel = [ordered]@{ Default = "Information"; "Microsoft.AspNetCore" = "Warning" } }
-}
-$json = $cfg | ConvertTo-Json -Depth 10
-Set-Content (Join-Path $Publicacion "appsettings.json") -Value $json -Encoding utf8
-Set-Content (Join-Path $Publicacion "appsettings.Production.json") -Value $json -Encoding utf8
+$secciones = EscribirConfigDemo -Carpeta $Publicacion -Cadenas ([ordered]@{
+    Sindicato = "Server=$InstanciaSQL;Database=$Base;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=False"
+})
+Write-Host "  secciones conservadas: $($secciones -join ', ')"
 
 $webConfig = @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -73,7 +97,7 @@ $webConfig = @"
 "@
 Set-Content (Join-Path $Publicacion "web.config") -Value $webConfig -Encoding utf8
 New-Item -ItemType Directory -Force -Path (Join-Path $Publicacion "logs") | Out-Null
-Write-Host "  base $Base en $InstanciaSQL, entorno Production, log activo" -ForegroundColor Green
+Write-Host "  base ${Base} en $InstanciaSQL, entorno Production, log activo" -ForegroundColor Green
 
 if ($Servidor) {
     Titulo "COPIANDO AL SERVIDOR"
