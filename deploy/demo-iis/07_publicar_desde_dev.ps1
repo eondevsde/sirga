@@ -14,7 +14,11 @@ param(
     [Parameter(Mandatory = $true)][string]$Servidor,
     [string]$DestinoRemoto = "C:\Publicaciones\SIRGA_DEMO_SC",
     [string]$Publicacion = "C:\Proyectos\SIRGA_DEMO_SC",
-    [string]$Proyecto = "C:\Proyectos\SIRGA\SIRGA.WebUI\SIRGA.WebUI.csproj"
+    [string]$Proyecto = "C:\Proyectos\SIRGA\SIRGA.WebUI\SIRGA.WebUI.csproj",
+    [string]$InstanciaSQL = ".\SQLEXPRESS",
+    [string]$BaseSirga = "SIRGA_DB_DEMO",
+    [string]$BaseLegado = "SINDICATO_DEMO",
+    [string]$Dominio = "sirga-demo.secsantiago.com.ar"
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,6 +40,29 @@ if (-not (Test-Path (Join-Path $Publicacion "SIRGA.WebUI.exe"))) { throw "No se 
 $archivos = (Get-ChildItem $Publicacion -Recurse -File).Count
 $mb = [math]::Round((Get-ChildItem $Publicacion -Recurse -File | Measure-Object Length -Sum).Sum / 1MB, 1)
 Write-Host "  OK: $archivos archivos | $mb MB" -ForegroundColor Green
+
+# ---------------------------------------------------------------------------------------
+# LA CONFIGURACIÓN DEMO SE ESCRIBE EN LA CARPETA PUBLICADA, NO AL DESPLEGAR.
+# Motivo: `dotnet publish` copia el appsettings.json del repo, que apunta a SIRGA_DB (la base
+# REAL). Si alguien copia la carpeta a mano al servidor, la demo escribiría en producción.
+# Escribiéndola acá, cualquier copia a mano ya queda apuntando a las bases demo.
+# ---------------------------------------------------------------------------------------
+Titulo "CONFIGURACIÓN DEMO EN LA PUBLICACIÓN"
+$cfg = [ordered]@{
+    ConnectionStrings = [ordered]@{
+        DefaultConnection = "Server=$InstanciaSQL;Database=SIRGA_DB_DEMO;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=False"
+        LegacyConnection  = "Server=$InstanciaSQL;Database=SINDICATO_DEMO;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=False"
+        Legacy            = "Server=$InstanciaSQL;Database=SINDICATO_DEMO;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;Encrypt=False"
+    }
+    ApiBaseUrl   = "https://$Dominio/"
+    AllowedHosts = "*"
+    Logging      = [ordered]@{ LogLevel = [ordered]@{ Default = "Information"; "Microsoft.AspNetCore" = "Warning" } }
+}
+$json = $cfg | ConvertTo-Json -Depth 10
+Set-Content (Join-Path $Publicacion "appsettings.json") -Value $json -Encoding utf8
+Set-Content (Join-Path $Publicacion "appsettings.Production.json") -Value $json -Encoding utf8
+New-Item -ItemType Directory -Force -Path (Join-Path $Publicacion "logs") | Out-Null
+Write-Host "  bases DEMO escritas en la publicación ($BaseSirga / $BaseLegado)" -ForegroundColor Green
 
 Titulo "COPIANDO AL SERVIDOR"
 $destino = Join-Path $Servidor $DestinoRemoto.Replace(":", "$")
