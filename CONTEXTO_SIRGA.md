@@ -1988,3 +1988,57 @@ pendiente de copiar al servidor al 2026-11-10.
 
 **Pendiente menor**: `Email:CarpetaSimulada` apunta a `C:\Proyectos\SIGESWEB\App_Data\correos`,
 ruta que no existe en el servidor; si se muestra el envio de correos en la demo hay que cambiarla.
+
+### 10.28 Checklists de trabajo (usar antes de cada paso y al cerrar una tarea)
+
+#### A. Antes de PUBLICAR UN CAMBIO EN LA DEMO
+
+- [ ] Compila: `dotnet build` en **0 errores** y tests en verde (regla del proyecto).
+- [ ] El cambio esta commiteado con rutas explicitas (nunca `git add -A`).
+- [ ] Publicar con el script que corresponde: **07** (SIRGA) o **11** (SIGESWEB).
+- [ ] Verificar en la carpeta publicada que la base sea `_DEMO`:
+      `(Get-Content <carpeta>\appsettings.Production.json -Raw | ConvertFrom-Json).ConnectionStrings`
+- [ ] Copiar a `C:\inetpub\<sitio>` y **reciclar el pool** (`Restart-WebAppPool -Name <sitio>`).
+- [ ] Probar en el navegador la pantalla tocada **y** una que no se toco (para detectar efectos colaterales).
+- [ ] Si falla: leer `<carpeta>\logs\stdout_*.log` y el evento `IIS AspNetCore Module V2`.
+
+#### B. Antes de TOCAR PRODUCCION
+
+- [ ] **Respaldo completo** de la base y verificar que el archivo exista y pese lo esperado.
+- [ ] **Ventana sin uso**: confirmar con el usuario que nadie esta operando.
+- [ ] **Simulacro primero**: todo script tiene que poder correrse en modo simulacro.
+- [ ] La configuracion apunta a **produccion** (no `_DEMO`): revisar las tres cadenas de SIRGA
+      (`DefaultConnection`, `LegacyConnection`, `Legacy`) y `ApiBaseUrl`.
+- [ ] **No hay `appsettings.Development.json`** en la carpeta publicada.
+- [ ] **Plan de rollback escrito**: que carpeta se copia antes y de donde se restaura.
+- [ ] Permisos: `IIS APPPOOL\<sitio>` con acceso a la carpeta y al SQL.
+- [ ] Verificacion post: `04_verificar.ps1` (o el control equivalente) sin errores.
+- [ ] Avisar al usuario que quedo publicado y en que URL.
+
+#### C. Antes de correr la RENDICION DEL BANCO contra produccion
+
+- [ ] `RendicionBanco:CarpetaEntrada` apunta a la carpeta correcta.
+- [ ] Probar **con una rendicion vieja en `ModoSimulacro = true`**: la pantalla dice que haria sin escribir.
+- [ ] Recien despues, `ModoSimulacro = false`.
+- [ ] Confirmar que los archivos descifrados que van a `entrada` son solo `.bse`/`.txt` (los PDF a `comprobantes`).
+
+#### D. Al CERRAR UNA TAREA APROBADA
+
+- [ ] Actualizar `CONTEXTO_SIRGA.md`: que se hizo, **como se verifico**, que quedo pendiente.
+- [ ] `git add` con rutas explicitas + commit descriptivo (que problema resolvio, no solo que archivo cambio).
+- [ ] `git push origin main`.
+- [ ] Dejar la app levantada y decir en que URL.
+- [ ] Si la tarea cambio el estado del servidor, anotarlo en la seccion 10.21/10.27.
+- [ ] **Respaldo del chat** (cuando el usuario lo pida, con las demos aprobadas).
+
+#### E. Reglas que ya nos costaron caro (recordatorio)
+
+| Regla | Por que |
+|---|---|
+| No usar `05_pegar_publish.ps1` | Reasigna `processPath="dotnet"` a SIRGA y vuelve el 500.31 |
+| La config demo viaja en la publicacion | `dotnet publish` copia el `appsettings` del repo, que apunta a la base REAL |
+| No asignar certificados a mano | `AddSslCertificate` no valida; se asigno uno vencido y tumbo el HTTPS |
+| No usar `-like` con `*` para dominios | El asterisco es comodin: matcheo `www` en vez del comodin |
+| Los `.ps1` van con BOM | PowerShell 5.1 rompe la sintaxis por los acentos |
+| `icacls` a la identidad del App Pool | Sin eso, 500.0 y `logs` vacio |
+| Si anda, no se toca | El riesgo de romper supera el beneficio de "por las dudas" |
